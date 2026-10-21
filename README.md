@@ -27,19 +27,20 @@ the audio that comes out of your speakers or headphones; your microphone is neve
 
 ## What exists today
 
-| Area          | Status                                                                                                                                                                      |
-| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Island window | Transparent, borderless, always on top, and it never steals focus. On macOS it is an `NSPanel`.                                                                             |
-| State machine | `hidden`, `idle`, `compact`, `expanded` and `alert`, with tested transitions (Vitest).                                                                                      |
-| Animation     | Width, height and radius morphing with `motion/react` springs; content that fades in and out in a staggered way.                                                            |
-| Notch         | Detection on macOS (`attached` style) and a `floating` mode for Macs without a notch and for Windows.                                                                       |
-| Click-through | The window ignores the mouse except when the pointer is over the island.                                                                                                    |
-| Modules       | `OrbitModule` interface + a registry with priority arbitration and a switcher between resident modules.                                                                     |
-| Weather       | Current weather and today's forecast for your area, always one click away in the island (Open-Meteo, no API key).                                                           |
-| Clipboard     | History of the text and images you copy during the session, with copy again, delete one and clear all. It lives in memory only.                                             |
-| UI            | Accessible primitives (`Button`, `IconButton`, `Toggle`, `Tab`, `Card`) with a global `cursor: pointer`. All icons come from [Lucide](https://lucide.dev); no emojis.       |
-| Languages     | Spanish and English (`src/i18n/locales/`).                                                                                                                                  |
-| System audio  | Capture permission (macOS), real capture (ScreenCaptureKit on macOS, WASAPI loopback on Windows), conversion to 16 kHz mono, and the volume that drives the island's waves. |
+| Area          | Status                                                                                                                                                                                      |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Island window | Transparent, borderless, always on top, and it never steals focus. On macOS it is an `NSPanel`.                                                                                             |
+| State machine | `hidden`, `idle`, `compact`, `expanded` and `alert`, with tested transitions (Vitest).                                                                                                      |
+| Animation     | Width, height and radius morphing with `motion/react` springs; content that fades in and out in a staggered way.                                                                            |
+| Notch         | Detection on macOS (`attached` style) and a `floating` mode for Macs without a notch and for Windows.                                                                                       |
+| Click-through | The window ignores the mouse except when the pointer is over the island.                                                                                                                    |
+| Modules       | `OrbitModule` interface + a registry with priority arbitration and a switcher between resident modules.                                                                                     |
+| Settings      | In development, a native window opens on startup (drag it anywhere on the screen, close it, reopen it from the gear in the island card) to control the island, language, privacy and audio. |
+| Weather       | Current weather and today's forecast for your area, always one click away in the island (Open-Meteo, no API key).                                                                           |
+| Clipboard     | History of the text and images you copy during the session, with copy again, delete one and clear all. It lives in memory only.                                                             |
+| UI            | Accessible primitives (`Button`, `IconButton`, `Toggle`, `Tab`, `Card`) with a global `cursor: pointer`. All icons come from [Lucide](https://lucide.dev); no emojis.                       |
+| Languages     | Spanish and English (`src/i18n/locales/`).                                                                                                                                                  |
+| System audio  | Capture permission (macOS), real capture (ScreenCaptureKit on macOS, WASAPI loopback on Windows), conversion to 16 kHz mono, and the volume that drives the island's waves.                 |
 
 ## Stack
 
@@ -80,7 +81,7 @@ pnpm tauri dev
 `pnpm dev` serves it at <http://localhost:1420/island.html>.
 
 > On macOS, capturing system audio requires granting the **Screen Recording** permission
-> (System Settings → Privacy & Security). The "System audio" row of the demo panel shows the permission status and
+> (System Settings → Privacy & Security). The "System audio" section of the settings window shows the permission status and
 > takes you to Settings. With `pnpm tauri dev`, macOS grants the permission to the terminal (or app) you launch Orbit
 > from, not to Orbit itself.
 
@@ -140,7 +141,7 @@ Orbit/
 │   ├── windows/         #   entry points, one per window (island/ and settings/)
 │   ├── components/      #   ui/ (primitives) and island/ (Island, NotchShape, IslandContent, ModuleSwitcher)
 │   ├── modules/         #   island modules (plugins): registry.ts, demo/, weather/ and clipboard/
-│   ├── features/        #   settings screens (settings/)
+│   ├── features/        #   settings window content (settings/)
 │   ├── stores/          #   global state with Zustand (island, settings, audio, weather, clipboard)
 │   ├── hooks/           #   useHitTest, useIslandDrag, useReducedMotion, useNow…
 │   ├── ipc/             #   the only layer that talks to Rust (commands, events, errors)
@@ -161,7 +162,7 @@ Orbit/
         ├── app_state.rs #   shared state
         ├── events.rs    #   domain events and the EventSink port
         ├── commands/    #   thin Tauri commands: audio, clipboard, island, pipeline and weather
-        ├── window/      #   window, positioning, notch and platform/ (macOS and Windows)
+        ├── window/      #   island and settings windows, positioning, notch and platform/ (macOS and Windows)
         ├── audio/       #   AudioSource port, resampling, volume level, permission and debug WAV
         │   └── platform/ #    ScreenCaptureKit (macOS) and WASAPI loopback (Windows)
         ├── pipeline/    #   orchestrator: system audio → volume → events

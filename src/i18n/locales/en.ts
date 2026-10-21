@@ -13,6 +13,7 @@ export const en: Record<MessageKey, string> = {
   'island.stretchAria': 'Extend card',
   'island.shrink': 'Shrink',
   'island.shrinkAria': 'Shrink card',
+  'island.settingsShow': 'Open settings',
 
   // ── Demo module (sample content) ────────────────────────────────────────
   'demo.detected': 'Question detected',
@@ -24,29 +25,39 @@ export const en: Record<MessageKey, string> = {
     'Parliament moved there in 1927. It is the largest inland city in Australia, and its name ' +
     'comes from an Aboriginal word usually translated as "meeting place".',
 
-  // ── Demo panel (development only) ───────────────────────────────────────
-  'demo.controls.stateAria': 'Island state',
-  'demo.controls.hidden': 'Hidden',
-  'demo.controls.idle': 'Idle',
-  'demo.controls.compact': 'Compact',
-  'demo.controls.expanded': 'Expanded',
-  'demo.controls.alert': 'Alert',
-  'demo.controls.styleAria': 'Style',
-  'demo.controls.attached': 'Attached',
-  'demo.controls.floating': 'Floating',
-  'demo.controls.simulate': 'Simulate answer',
-  'demo.controls.hideFromShare': 'Hide on share',
-  'demo.controls.hideFromShareAria': 'Hide from screen share',
-  'demo.controls.quit': 'Quit',
-  'demo.controls.position': 'Position',
-  'demo.controls.positionAria': 'Island position',
-  'demo.controls.left': 'Left',
-  'demo.controls.center': 'Center',
-  'demo.controls.right': 'Right',
-  'demo.controls.free': 'Free',
-  'demo.controls.freeHint': 'drag the island and drop it',
-  'demo.controls.languageAria': 'Language',
-  'demo.controls.audio': 'System audio',
+  // ── Settings window (development only) ──────────────────────────────────
+  'settings.panel.title': 'Settings',
+  'settings.section.behavior': 'Behavior',
+  'settings.section.appearance': 'Appearance',
+  'settings.section.language': 'Language',
+  'settings.section.privacy': 'Privacy',
+  'settings.section.app': 'App',
+  'settings.panel.state': 'State',
+  'settings.panel.stateAria': 'Island state',
+  'settings.panel.hidden': 'Hidden',
+  'settings.panel.idle': 'Idle',
+  'settings.panel.compact': 'Compact',
+  'settings.panel.expanded': 'Expanded',
+  'settings.panel.alert': 'Alert',
+  'settings.panel.style': 'Style',
+  'settings.panel.styleAria': 'Island style',
+  'settings.panel.attached': 'Attached',
+  'settings.panel.floating': 'Floating',
+  'settings.panel.simulate': 'Simulate answer',
+  'settings.panel.hideFromShare': 'Hide when sharing screen',
+  'settings.panel.hideFromShareAria': 'Hide the island when sharing the screen',
+  'settings.panel.hideFromShareHint':
+    'The island is not visible when you share your screen, record or take screenshots.',
+  'settings.panel.quit': 'Quit',
+  'settings.panel.position': 'Position',
+  'settings.panel.positionAria': 'Island position',
+  'settings.panel.left': 'Left',
+  'settings.panel.center': 'Center',
+  'settings.panel.right': 'Right',
+  'settings.panel.free': 'Free',
+  'settings.panel.freeHint': 'drag the island and drop it',
+  'settings.panel.languageAria': 'Language',
+  'settings.panel.audio': 'System audio',
 
   // ── System audio capture permission ─────────────────────────────────────
   'audio.permission.granted': 'Granted',
@@ -103,7 +114,4 @@ export const en: Record<MessageKey, string> = {
   'clipboard.image': 'Image',
   'clipboard.imageAlt': 'Copied image',
   'clipboard.characters': 'characters',
-
-  // ── Settings window ─────────────────────────────────────────────────────
-  'settings.placeholder': 'Orbit settings — coming soon (Phase 5).',
 };

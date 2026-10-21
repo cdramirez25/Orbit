@@ -253,5 +253,13 @@ export const commands = {
     return Promise.resolve();
   },
 
+  /** Abre la ventana de ajustes (solo en desarrollo) o la trae al frente. */
+  openSettingsWindow: (): Promise<void> => {
+    if (isTauri()) return invoke<void>('open_settings_window');
+    // Navegador: otra pestaña con la misma app (comparte el bus de `ipc/remote.ts`).
+    window.open('/settings.html', 'orbit-settings', 'popup,width=700,height=420');
+    return Promise.resolve();
+  },
+
   quitApp: (): Promise<void> => (isTauri() ? invoke<void>('quit_app') : Promise.resolve()),
 };

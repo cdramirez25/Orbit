@@ -3,9 +3,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useLocaleStore } from '@/i18n/locale.store';
 import { commands } from '@/ipc/commands';
-import { DemoControls } from '@/modules/demo/DemoControls';
+import { SettingsPanel } from '@/features/settings/SettingsPanel';
 import { useAudioStore } from '@/stores/audio.store';
 import type { PermissionStatus } from '@/types';
+
+vi.mock('@/ipc/remote', () => ({
+  remote: {
+    sendCommand: vi.fn(),
+    onState: vi.fn().mockResolvedValue(() => {}),
+    requestState: vi.fn(),
+  },
+}));
 
 vi.mock('@/ipc/commands', () => ({
   commands: {
@@ -28,7 +36,7 @@ const mocked = vi.mocked(commands);
 
 async function renderWith(status: PermissionStatus) {
   mocked.getAudioPermission.mockResolvedValue(status);
-  render(<DemoControls />);
+  render(<SettingsPanel />);
   await act(async () => {}); // deja que termine la primera consulta del permiso
 }
 
@@ -43,7 +51,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe('fila de audio del panel de demo', () => {
+describe('fila de audio del panel de ajustes', () => {
   it('concedido: solo muestra el estado, sin botones', async () => {
     await renderWith('granted');
     expect(screen.getByRole('status')).toHaveTextContent('Permitido');

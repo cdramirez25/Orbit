@@ -1,11 +1,11 @@
 use serde::Serialize;
-use tauri::{AppHandle, State, WebviewWindow};
+use tauri::{AppHandle, Manager, State, WebviewWindow};
 
 use super::CommandError;
 use crate::app_state::AppState;
 use crate::settings::{IslandAnchor, Point, Settings};
-use crate::window::island_window;
 use crate::window::notch::{self, NotchInfo};
+use crate::window::{island_window, settings_window};
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize)]
 pub struct PointerPosition {
@@ -50,13 +50,19 @@ pub fn get_pointer_position(window: WebviewWindow) -> Result<PointerPosition, Co
     ))
 }
 
+/// Oculta (o muestra) las ventanas de Orbit en screen share. Lo puede pedir cualquier ventana
+/// (la de ajustes también), así que se aplica a la isla por su nombre y no a quien llama.
 #[tauri::command]
 pub fn set_content_protected(
-    window: WebviewWindow,
+    app: AppHandle,
     state: State<'_, AppState>,
     enabled: bool,
 ) -> Result<(), CommandError> {
-    window.set_content_protected(enabled)?;
+    let island = app
+        .get_webview_window(island_window::LABEL)
+        .ok_or(tauri::Error::WindowNotFound)?;
+    island.set_content_protected(enabled)?;
+    settings_window::set_content_protected(&app, enabled)?;
     state.update_settings(|s| s.hide_from_screen_share = enabled);
     Ok(())
 }

@@ -3,8 +3,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useLocaleStore } from '@/i18n/locale.store';
 import { commands } from '@/ipc/commands';
-import { DemoControls } from '@/modules/demo/DemoControls';
+import { SettingsPanel } from '@/features/settings/SettingsPanel';
 import { useAudioStore } from '@/stores/audio.store';
+
+vi.mock('@/ipc/remote', () => ({
+  remote: {
+    sendCommand: vi.fn(),
+    onState: vi.fn().mockResolvedValue(() => {}),
+    requestState: vi.fn(),
+  },
+}));
 
 vi.mock('@/ipc/commands', () => ({
   commands: {
@@ -30,7 +38,7 @@ const mocked = vi.mocked(commands);
 
 async function renderPanel() {
   mocked.getAudioPermission.mockResolvedValue('granted');
-  render(<DemoControls />);
+  render(<SettingsPanel />);
   await act(async () => {}); // termina la primera consulta del permiso
 }
 
@@ -41,7 +49,7 @@ beforeEach(() => {
   useAudioStore.setState({ permission: null, listening: false, errorCode: null });
 });
 
-describe('botón Escuchar del panel de demo', () => {
+describe('botón Escuchar del panel de ajustes', () => {
   it('Escuchar empieza a escuchar y el botón pasa a Parar', async () => {
     mocked.startListening.mockResolvedValue(undefined);
     await renderPanel();

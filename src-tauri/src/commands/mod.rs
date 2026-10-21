@@ -5,6 +5,7 @@ pub mod audio;
 pub mod clipboard;
 pub mod island;
 pub mod pipeline;
+pub mod settings_window;
 pub mod weather;
 
 use serde::ser::SerializeStruct;

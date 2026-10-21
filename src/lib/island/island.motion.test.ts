@@ -7,6 +7,7 @@ import {
   resolveLayout,
   SHAPE,
   SIZE,
+  WINDOW,
   type ResolveArgs,
 } from '@/lib/island/island.motion';
 import type { NotchInfo } from '@/types';
@@ -132,10 +133,9 @@ describe('tarjeta alargada (expandedSize)', () => {
     expect(tall.height).toBe(150);
   });
 
-  it('alargado cabe en la ventana nativa con el panel de demo debajo', () => {
+  it('alargado cabe en la ventana nativa', () => {
     const attachedTall = SIZE.expanded.maxHeight.tall + notch.notchHeight;
-    const demoPanel = 150; // alto aproximado del panel de demo (4 filas) + su margen
-    expect(SHAPE.floatingMarginTop + attachedTall + demoPanel).toBeLessThanOrEqual(520);
+    expect(SHAPE.floatingMarginTop + attachedTall).toBeLessThanOrEqual(WINDOW.height);
   });
 });
 

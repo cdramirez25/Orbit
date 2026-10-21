@@ -16,6 +16,7 @@ export const es = {
   'island.stretchAria': 'Alargar tarjeta',
   'island.shrink': 'Reducir',
   'island.shrinkAria': 'Reducir tarjeta',
+  'island.settingsShow': 'Abrir ajustes',
 
   // ── Módulo de demo (contenido de ejemplo) ───────────────────────────────
   'demo.detected': 'Pregunta detectada',
@@ -27,29 +28,39 @@ export const es = {
     'se trasladó allí en 1927. Es la ciudad más grande del interior de Australia, y su nombre ' +
     'viene de una palabra aborigen que se suele traducir como "lugar de encuentro".',
 
-  // ── Panel de demo (solo en desarrollo) ──────────────────────────────────
-  'demo.controls.stateAria': 'Estado de la isla',
-  'demo.controls.hidden': 'Oculto',
-  'demo.controls.idle': 'Reposo',
-  'demo.controls.compact': 'Compacto',
-  'demo.controls.expanded': 'Expandido',
-  'demo.controls.alert': 'Alerta',
-  'demo.controls.styleAria': 'Estilo',
-  'demo.controls.attached': 'Pegada',
-  'demo.controls.floating': 'Flotante',
-  'demo.controls.simulate': 'Simular respuesta',
-  'demo.controls.hideFromShare': 'Oculta en share',
-  'demo.controls.hideFromShareAria': 'Ocultar de screen share',
-  'demo.controls.quit': 'Salir',
-  'demo.controls.position': 'Posición',
-  'demo.controls.positionAria': 'Posición de la isla',
-  'demo.controls.left': 'Izquierda',
-  'demo.controls.center': 'Centro',
-  'demo.controls.right': 'Derecha',
-  'demo.controls.free': 'Libre',
-  'demo.controls.freeHint': 'arrastra la isla y suéltala',
-  'demo.controls.languageAria': 'Idioma',
-  'demo.controls.audio': 'Audio del sistema',
+  // ── Ventana de ajustes (solo en desarrollo) ─────────────────────────────
+  'settings.panel.title': 'Ajustes',
+  'settings.section.behavior': 'Comportamiento',
+  'settings.section.appearance': 'Apariencia',
+  'settings.section.language': 'Idioma',
+  'settings.section.privacy': 'Privacidad',
+  'settings.section.app': 'Aplicación',
+  'settings.panel.state': 'Estado',
+  'settings.panel.stateAria': 'Estado de la isla',
+  'settings.panel.hidden': 'Oculto',
+  'settings.panel.idle': 'Reposo',
+  'settings.panel.compact': 'Compacto',
+  'settings.panel.expanded': 'Expandido',
+  'settings.panel.alert': 'Alerta',
+  'settings.panel.style': 'Estilo',
+  'settings.panel.styleAria': 'Estilo de la isla',
+  'settings.panel.attached': 'Pegada',
+  'settings.panel.floating': 'Flotante',
+  'settings.panel.simulate': 'Simular respuesta',
+  'settings.panel.hideFromShare': 'Ocultar al compartir pantalla',
+  'settings.panel.hideFromShareAria': 'Ocultar la isla al compartir pantalla',
+  'settings.panel.hideFromShareHint':
+    'La isla no se ve cuando compartes pantalla, grabas o haces capturas.',
+  'settings.panel.quit': 'Salir',
+  'settings.panel.position': 'Posición',
+  'settings.panel.positionAria': 'Posición de la isla',
+  'settings.panel.left': 'Izquierda',
+  'settings.panel.center': 'Centro',
+  'settings.panel.right': 'Derecha',
+  'settings.panel.free': 'Libre',
+  'settings.panel.freeHint': 'arrastra la isla y suéltala',
+  'settings.panel.languageAria': 'Idioma',
+  'settings.panel.audio': 'Audio del sistema',
 
   // ── Permiso para capturar el audio del sistema ──────────────────────────
   'audio.permission.granted': 'Permitido',
@@ -106,9 +117,6 @@ export const es = {
   'clipboard.image': 'Imagen',
   'clipboard.imageAlt': 'Imagen copiada',
   'clipboard.characters': 'caracteres',
-
-  // ── Ventana de ajustes ──────────────────────────────────────────────────
-  'settings.placeholder': 'Ajustes de Orbit — próximamente (Fase 5).',
 } as const;
 
 /** Todas las claves de texto de la interfaz. */

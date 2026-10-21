@@ -9,7 +9,7 @@ export function Expanded() {
 
   return (
     <div>
-      <p className="mb-1 pr-8 text-[11px] font-medium tracking-wide text-ink-faint uppercase">
+      <p className="mb-1 pr-16 text-[11px] font-medium tracking-wide text-ink-faint uppercase">
         {t('demo.detected')}
       </p>
       <p className="mb-3 text-[12px] leading-snug text-ink-dim">{t('demo.question')}</p>

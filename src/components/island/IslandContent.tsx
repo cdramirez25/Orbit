@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, Settings, X } from 'lucide-react';
 import { AnimatePresence, motion, type Variants } from 'motion/react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
@@ -17,6 +17,7 @@ import {
 import { cn } from '@/lib/utils/cn';
 import { selectActiveModule, useRegistryStore } from '@/modules/registry';
 import { useIslandStore } from '@/stores/island.store';
+import { SETTINGS_WINDOW_AVAILABLE, useSettingsWindowStore } from '@/stores/settingsWindow.store';
 import type {
   ExpandedSize,
   IslandAlert,
@@ -107,6 +108,7 @@ function ExpandedView({
   const [overflowing, setOverflowing] = useState(false);
   const select = useRegistryStore((s) => s.select);
   const followEnd = module.followEnd === true;
+  const openSettings = useSettingsWindowStore((s) => s.open);
 
   useElementHeight(boxRef, onMeasure);
 
@@ -126,6 +128,19 @@ function ExpandedView({
   }, [followEnd]);
 
   const tall = size === 'tall';
+
+  const actions = (
+    <div className="flex items-center gap-0.5">
+      {SETTINGS_WINDOW_AVAILABLE && (
+        <IconButton label={t('island.settingsShow')} onClick={openSettings}>
+          <Settings aria-hidden className="size-3.5" />
+        </IconButton>
+      )}
+      <IconButton label={t('island.collapse')} onClick={onCollapse}>
+        <X aria-hidden className="size-3.5" />
+      </IconButton>
+    </div>
+  );
 
   return (
     <div
@@ -148,18 +163,10 @@ function ExpandedView({
               if (size === 'tall') onToggleSize();
             }}
           />
-          <IconButton label={t('island.collapse')} onClick={onCollapse}>
-            <X aria-hidden className="size-3.5" />
-          </IconButton>
+          {actions}
         </div>
       ) : (
-        <IconButton
-          label={t('island.collapse')}
-          className="absolute top-2 right-3 z-10"
-          onClick={onCollapse}
-        >
-          <X aria-hidden className="size-3.5" />
-        </IconButton>
+        <div className="absolute top-2 right-3 z-10">{actions}</div>
       )}
       <div
         ref={scrollRef}

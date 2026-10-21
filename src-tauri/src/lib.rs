@@ -62,6 +62,7 @@ pub fn run() {
             commands::island::get_island_origin,
             commands::island::set_island_origin,
             commands::island::quit_app,
+            commands::settings_window::open_settings_window,
         ])
         .setup(|app| {
             window::prepare_app(app)?;
@@ -114,6 +115,11 @@ pub fn run() {
 
             window::island_window::create(app.handle(), &settings)?;
             window::island_window::spawn_display_watcher(app.handle().clone());
+
+            // Solo en desarrollo: la ventana de ajustes se abre sola al arrancar. Se puede cerrar y
+            // volver a abrir con el engranaje de la isla.
+            #[cfg(debug_assertions)]
+            window::settings_window::open(app.handle(), settings.hide_from_screen_share)?;
 
             app.state::<AppState>()
                 .events

@@ -14,6 +14,7 @@ import { useIslandStore } from '@/stores/island.store';
 import { useSettingsStore } from '@/stores/settings.store';
 import { useWeatherStore } from '@/stores/weather.store';
 import { App } from '@/windows/island/App';
+import { bindRemoteControl } from '@/windows/island/remote';
 
 // Composition root del frontend: registrar módulos y enlazar el registro con la isla.
 const registry = useRegistryStore.getState();
@@ -32,6 +33,9 @@ registry.startActivity(clipboardModule.id);
 // Escucha del audio del sistema: volumen y estado desde Rust → las ondas de la isla.
 void useAudioStore.getState().bind();
 bindListeningToIsland();
+
+// La ventana de ajustes (otra ventana) controla la isla con mensajes.
+bindRemoteControl();
 
 // Lo guardado por Rust: dónde está la isla (izquierda / centro / derecha / libre).
 void useSettingsStore.getState().load();
