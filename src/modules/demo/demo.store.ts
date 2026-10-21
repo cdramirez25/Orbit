@@ -63,6 +63,23 @@ export const useDemoStore = create<DemoStore>((set, get) => ({
 }));
 
 /**
+ * La respuesta simulada ocupa la isla mientras su tarjeta esté abierta. Al cerrarla (la isla deja
+ * de estar expandida) el módulo de demostración termina y vuelven los módulos de siempre (clima,
+ * portapapeles, música). Si se está escuchando, sigue: las ondas son suyas.
+ */
+export function bindDemoToIsland(): () => void {
+  return useIslandStore.subscribe((state, previous) => {
+    const was = previous.snapshot.state;
+    const now = state.snapshot.state;
+    // Un aviso (`alert`) se muestra sobre la tarjeta y vuelve a ella: no cuenta como cerrarla.
+    const closedCard = was === 'expanded' && now !== 'expanded' && now !== 'alert';
+    if (closedCard && !useAudioStore.getState().listening) {
+      useRegistryStore.getState().endActivity(DEMO_MODULE_ID);
+    }
+  });
+}
+
+/**
  * Mientras se escucha, la isla muestra la pastilla compacta del módulo (punto + ondas); al parar
  * vuelve a reposo o, si hay módulos residentes (clima, portapapeles), a su pastilla.
  * (El Prompter real hará esto mismo con sus propias actividades.)

@@ -1,6 +1,7 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
 
 import { emitLocal } from '@/ipc/events';
+import { simulatedLevel } from '@/lib/audio/simulated-level';
 import type {
   ClipboardEntry,
   IslandAnchor,
@@ -46,15 +47,6 @@ if (typeof window !== 'undefined' && !isTauri()) {
 // Solo navegador: simula la escucha (estado + volumen) para poder ver las ondas con `pnpm dev`.
 const SIMULATION_TICK_MS = 33;
 let simulation: ReturnType<typeof setInterval> | undefined;
-
-function simulatedLevel(seconds: number): number {
-  const wave =
-    0.5 +
-    0.3 * Math.sin(seconds * 5) +
-    0.15 * Math.sin(seconds * 13.7) +
-    0.1 * Math.sin(seconds * 29);
-  return Math.min(1, Math.max(0, wave));
-}
 
 function startSimulation(): void {
   if (simulation !== undefined) return;
@@ -152,24 +144,66 @@ function browserClipboardChanged(): void {
 }
 
 // Solo navegador: dos canciones de muestra para ver y probar los controles de música con `pnpm dev`.
-const SAMPLE_TRACKS: readonly Omit<NowPlaying, 'playing'>[] = [
-  { title: 'Sample Track One', artist: 'Sample Artist' },
-  { title: 'Sample Track Two', artist: null },
+const SAMPLE_COVER = (from: string, to: string): string =>
+  'data:image/svg+xml;utf8,' +
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120">' +
+      '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">' +
+      `<stop offset="0" stop-color="${from}"/><stop offset="1" stop-color="${to}"/>` +
+      '</linearGradient></defs><rect width="120" height="120" fill="url(#g)"/></svg>',
+  );
+const SAMPLE_TRACKS: readonly {
+  title: string;
+  artist: string | null;
+  artwork: string;
+  duration: number;
+}[] = [
+  {
+    title: 'Sample Track One',
+    artist: 'Sample Artist',
+    artwork: SAMPLE_COVER('#17dae2', '#6366f1'),
+    duration: 187,
+  },
+  {
+    title: 'Sample Track Two',
+    artist: null,
+    artwork: SAMPLE_COVER('#f59e0b', '#ef4444'),
+    duration: 3723,
+  },
 ];
 let browserTrack = 0;
 let browserPlaying = true;
+let browserPosition = 42;
+let browserPositionAt = Date.now();
 
 function browserNowPlaying(): NowPlaying {
-  return { ...SAMPLE_TRACKS[browserTrack]!, playing: browserPlaying };
+  const track = SAMPLE_TRACKS[browserTrack]!;
+  return {
+    ...track,
+    playing: browserPlaying,
+    position: browserPosition,
+    positionAtMs: browserPositionAt,
+  };
 }
 
 function applyBrowserMediaCommand(command: MediaCommand): void {
   const count = SAMPLE_TRACKS.length;
-  if (command === 'play') browserPlaying = true;
-  else if (command === 'pause') browserPlaying = false;
-  else if (command === 'toggle') browserPlaying = !browserPlaying;
-  else if (command === 'next') browserTrack = (browserTrack + 1) % count;
-  else browserTrack = (browserTrack + count - 1) % count;
+  const now = Date.now();
+  // Como en Rust: la posición solo se actualiza al pausar, reanudar o cambiar de canción.
+  const settle = () => {
+    if (browserPlaying) browserPosition += (now - browserPositionAt) / 1000;
+    browserPositionAt = now;
+  };
+  if (command === 'next' || command === 'previous') {
+    browserTrack = (browserTrack + (command === 'next' ? 1 : count - 1)) % count;
+    browserPosition = 0;
+    browserPositionAt = now;
+  } else {
+    settle();
+    if (command === 'play') browserPlaying = true;
+    else if (command === 'pause') browserPlaying = false;
+    else browserPlaying = !browserPlaying;
+  }
   emitLocal('media:changed', browserNowPlaying());
 }
 

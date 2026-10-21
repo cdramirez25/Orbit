@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatClock, formatRelativeTime } from '@/lib/utils/time';
+import { formatClock, formatDuration, formatRelativeTime } from '@/lib/utils/time';
 
 const NOW = Date.UTC(2026, 9, 21, 12, 0, 0);
 const MINUTE = 60_000;
@@ -31,5 +31,21 @@ describe('formatRelativeTime', () => {
 
   it('una hora un poco en el futuro (reloj desfasado) no rompe', () => {
     expect(formatRelativeTime(NOW + 20_000, NOW, 'es')).toBe('ahora');
+  });
+});
+
+describe('formatDuration', () => {
+  it('da minutos y segundos', () => {
+    expect(formatDuration(0)).toBe('0:00');
+    expect(formatDuration(7)).toBe('0:07');
+    expect(formatDuration(187.9)).toBe('3:07');
+  });
+
+  it('pasada la hora añade las horas', () => {
+    expect(formatDuration(3723)).toBe('1:02:03');
+  });
+
+  it('un valor negativo no rompe', () => {
+    expect(formatDuration(-4)).toBe('0:00');
   });
 });

@@ -287,7 +287,16 @@ mod tests {
     fn live_media_reader_runs_and_reports() {
         let media = SystemMedia::new();
         std::thread::sleep(Duration::from_secs(4));
-        eprintln!("something is playing: {}", media.now_playing().is_some());
+        let now = media.now_playing();
+        eprintln!("something is playing: {}", now.is_some());
+        if let Some(now) = now {
+            eprintln!(
+                "has artwork: {}, duration: {}, position: {}",
+                now.artwork.is_some(),
+                now.duration.is_some(),
+                now.position.is_some()
+            );
+        }
     }
 
     #[test]

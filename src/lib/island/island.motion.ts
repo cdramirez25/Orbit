@@ -37,6 +37,18 @@ export const REDUCED_MOTION = { fadeDuration: 0.12 } as const;
 /** Hover en `idle`: crece ~4–8 % de ancho. */
 export const HOVER = { scaleX: 1.06 } as const;
 
+/** Ondas de la pastilla: barras que siguen el volumen (escuchar) o laten con la música. */
+export const WAVES = {
+  /** Alto mínimo de una barra en silencio (fracción del alto total). */
+  minScale: 0.2,
+  /** Cuánto responde cada barra al volumen: la del centro es la más viva. */
+  weights: [0.7, 1, 0.85, 0.55],
+  /** El volumen típico de música o voz ronda 0.5–0.8; se amplifica un poco para que se note. */
+  gain: 1.25,
+  /** Con movimiento reducido las barras se quedan a esta altura, sin animarse. */
+  reducedLevel: 0.5,
+} as const;
+
 export const SHAPE = {
   /** Margen superior en estilo `floating` (8–10 px). */
   floatingMarginTop: 9,

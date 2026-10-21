@@ -18,7 +18,9 @@ export function currentRemoteState(): RemoteState {
 export function applyRemoteCommand(command: RemoteCommand): void {
   switch (command.type) {
     case 'goTo':
-      useDemoStore.getState().goTo(command.state);
+      // Solo mueve la isla entre sus estados: muestra los módulos de siempre. El módulo de
+      // demostración solo entra con "Simular respuesta" o al escuchar.
+      useIslandStore.getState().goTo(command.state);
       break;
     case 'alert':
       useDemoStore.getState().showDemoAlert();

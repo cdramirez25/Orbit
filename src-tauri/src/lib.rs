@@ -73,7 +73,13 @@ pub fn run() {
 
             // Ajustes persistidos (posición de la isla, ocultar de screen share…).
             let settings_path = app.path().app_config_dir()?.join("settings.json");
-            let settings = Settings::load(&settings_path);
+            let loaded = Settings::load(&settings_path);
+            let settings = loaded.for_startup();
+            if settings != loaded {
+                if let Err(error) = settings.save(&settings_path) {
+                    tracing::warn!(%error, "no se pudo guardar el ajuste de arranque");
+                }
+            }
 
             // Adaptadores de salida (eventos hacia la interfaz) y del sistema (audio).
             let events: Arc<dyn EventSink> = Arc::new(TauriEventSink::new(app.handle().clone()));

@@ -126,4 +126,5 @@ export const en: Record<MessageKey, string> = {
   'music.play': 'Play',
   'music.pause': 'Pause',
   'music.controlsAria': 'Music controls',
+  'music.progress': 'Song progress',
 };

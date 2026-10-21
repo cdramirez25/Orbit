@@ -129,6 +129,7 @@ export const es = {
   'music.play': 'Reproducir',
   'music.pause': 'Pausar',
   'music.controlsAria': 'Controles de música',
+  'music.progress': 'Progreso de la canción',
 } as const;
 
 /** Todas las claves de texto de la interfaz. */

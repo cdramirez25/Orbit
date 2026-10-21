@@ -5,7 +5,7 @@ import { createRoot } from 'react-dom/client';
 
 import { clipboardModule } from '@/modules/clipboard';
 import { demoModule } from '@/modules/demo';
-import { bindListeningToIsland } from '@/modules/demo/demo.store';
+import { bindDemoToIsland, bindListeningToIsland } from '@/modules/demo/demo.store';
 import { musicModule } from '@/modules/music';
 import { bindRegistryToIsland, useRegistryStore } from '@/modules/registry';
 import { weatherModule } from '@/modules/weather';
@@ -38,21 +38,19 @@ registry.startActivity(musicModule.id);
 // Escucha del audio del sistema: volumen y estado desde Rust → las ondas de la isla.
 void useAudioStore.getState().bind();
 bindListeningToIsland();
+bindDemoToIsland();
 
 // La ventana de ajustes (otra ventana) controla la isla con mensajes.
 bindRemoteControl();
 
-// Lo guardado por Rust: dónde está la isla (izquierda / centro / derecha / libre).
+// Lo guardado por Rust (ocultar de screen share…). La isla siempre arranca centrada: Rust ya
+// ignora la posición guardada al abrir.
 void useSettingsStore.getState().load();
 
-// En un Mac con notch la isla nace pegada al borde; sin notch (o en Windows), flotante.
-void useIslandStore
-  .getState()
-  .loadNotch()
-  .then(() => {
-    const notch = useIslandStore.getState().notch;
-    useSettingsStore.getState().setIslandStyle(notch?.hasNotch ? 'attached' : 'floating');
-  });
+// La isla siempre arranca compacta (por los módulos residentes) y pegada al borde de arriba: sobre
+// el notch si lo hay y, si no, con un notch ficticio. El usuario puede cambiarla en los ajustes.
+useSettingsStore.getState().setIslandStyle('attached');
+void useIslandStore.getState().loadNotch();
 
 const root = document.getElementById('root');
 if (root) {

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { commands } from '@/ipc/commands';
 import { emitLocal } from '@/ipc/events';
 import { useMediaStore } from '@/stores/media.store';
+import { nowPlaying } from '@/test/factories';
 import type { NowPlaying } from '@/types';
 
 vi.mock('@/ipc/commands', () => ({
@@ -11,7 +12,7 @@ vi.mock('@/ipc/commands', () => ({
 
 const mocked = vi.mocked(commands);
 
-const song: NowPlaying = { title: 'Canción', artist: 'Artista', playing: true };
+const song: NowPlaying = nowPlaying({ title: 'Canción', artist: 'Artista' });
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -82,12 +83,9 @@ describe('media.store', () => {
     const off = await useMediaStore.getState().bind();
     expect(useMediaStore.getState().nowPlaying).toEqual(song);
 
-    emitLocal('media:changed', { title: 'Otra', artist: null, playing: false });
-    expect(useMediaStore.getState().nowPlaying).toEqual({
-      title: 'Otra',
-      artist: null,
-      playing: false,
-    });
+    const other = nowPlaying({ title: 'Otra', artist: null, playing: false });
+    emitLocal('media:changed', other);
+    expect(useMediaStore.getState().nowPlaying).toEqual(other);
 
     emitLocal('media:changed', null);
     expect(useMediaStore.getState().nowPlaying).toBeNull();

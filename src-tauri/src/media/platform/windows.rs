@@ -66,7 +66,10 @@ fn read_artwork(properties: &Properties) -> WinResult<Option<String>> {
     reader.LoadAsync(length)?.join()?;
     let mut bytes = vec![0u8; length as usize];
     reader.ReadBytes(&mut bytes)?;
-    Ok(Some(format!("data:{mime};base64,{}", STANDARD.encode(bytes))))
+    Ok(Some(format!(
+        "data:{mime};base64,{}",
+        STANDARD.encode(bytes)
+    )))
 }
 
 /// Duración, posición y el instante en que valía esa posición (ms Unix), si el reproductor los da.
@@ -80,8 +83,13 @@ fn read_timeline(session: &Session) -> WinResult<(Option<f64>, Option<f64>, Opti
     }
     let position = (timeline.Position()?.Duration - start) as f64 / TICKS_PER_SECOND;
     let updated_at = timeline.LastUpdatedTime()?.UniversalTime;
-    let updated_at_ms = u64::try_from((updated_at - UNIX_EPOCH_IN_TICKS) / TICKS_PER_MILLISECOND).ok();
-    Ok((Some(duration), updated_at_ms.map(|_| position), updated_at_ms))
+    let updated_at_ms =
+        u64::try_from((updated_at - UNIX_EPOCH_IN_TICKS) / TICKS_PER_MILLISECOND).ok();
+    Ok((
+        Some(duration),
+        updated_at_ms.map(|_| position),
+        updated_at_ms,
+    ))
 }
 
 /// `true` si el reproductor aceptó la orden.

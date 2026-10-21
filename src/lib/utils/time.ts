@@ -5,6 +5,15 @@ export function formatClock(ms: number, locale: string, timeZone?: string): stri
   );
 }
 
+/** Duración de una canción: `3:07`, o `1:02:03` si pasa de la hora. */
+export function formatDuration(totalSeconds: number): string {
+  const seconds = Math.max(0, Math.floor(totalSeconds));
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const rest = String(seconds % 60).padStart(2, '0');
+  return hours > 0 ? `${hours}:${String(minutes).padStart(2, '0')}:${rest}` : `${minutes}:${rest}`;
+}
+
 const SECONDS = { minute: 60, hour: 3600, day: 86_400 } as const;
 /** Por debajo de esto se dice "ahora" en vez de "hace 12 s". */
 const JUST_NOW_SECONDS = 45;

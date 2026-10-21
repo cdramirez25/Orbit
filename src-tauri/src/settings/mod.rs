@@ -52,6 +52,13 @@ impl Default for Settings {
 }
 
 impl Settings {
+    /// Los ajustes con los que arranca la app: la isla siempre nace centrada. La posición libre
+    /// guardada se conserva para cuando el usuario vuelva a elegir "libre".
+    pub fn for_startup(mut self) -> Self {
+        self.island_anchor = IslandAnchor::Center;
+        self
+    }
+
     /// Lee los ajustes; si el archivo no existe o está dañado, usa los valores por defecto.
     pub fn load(path: &Path) -> Self {
         let Ok(text) = fs::read_to_string(path) else {
@@ -88,6 +95,19 @@ mod tests {
         assert_eq!(settings.island_anchor, IslandAnchor::Center);
         assert!(settings.hide_from_screen_share);
         assert_eq!(settings.free_origin, None);
+    }
+
+    #[test]
+    fn the_island_always_starts_centered_but_keeps_the_free_position() {
+        let saved = Settings {
+            island_anchor: IslandAnchor::Right,
+            free_origin: Some(Point { x: 300.0, y: 80.0 }),
+            ..Settings::default()
+        };
+        let startup = saved.for_startup();
+        assert_eq!(startup.island_anchor, IslandAnchor::Center);
+        assert_eq!(startup.free_origin, Some(Point { x: 300.0, y: 80.0 }));
+        assert_eq!(startup.for_startup(), startup, "idempotente");
     }
 
     #[test]
