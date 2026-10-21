@@ -1,3 +1,5 @@
+import type { NowPlaying } from './media';
+
 /**
  * Espejo exacto de `src-tauri/src/events.rs` (eventos de dominio → eventos de Tauri).
  * Si cambias uno, cambia el otro. (Evaluar `tauri-specta` para generarlos.)
@@ -34,6 +36,8 @@ export interface PipelineEvents {
   'llm:done': null;
   /** El historial del portapapeles cambió: hay que volver a pedirlo. */
   'clipboard:changed': null;
+  /** Cambió lo que suena (`null`: ya no suena nada). */
+  'media:changed': NowPlaying | null;
   error: OrbitError;
 }
 

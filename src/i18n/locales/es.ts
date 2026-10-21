@@ -117,6 +117,18 @@ export const es = {
   'clipboard.image': 'Imagen',
   'clipboard.imageAlt': 'Imagen copiada',
   'clipboard.characters': 'caracteres',
+
+  // ── Música ──────────────────────────────────────────────────────────────
+  'music.module': 'Música',
+  'music.playing': 'Sonando',
+  'music.paused': 'En pausa',
+  'music.empty': 'No suena nada ahora mismo.',
+  'music.emptyHint': 'Reproduce algo en Spotify, Música o YouTube y aparecerá aquí.',
+  'music.previous': 'Anterior',
+  'music.next': 'Siguiente',
+  'music.play': 'Reproducir',
+  'music.pause': 'Pausar',
+  'music.controlsAria': 'Controles de música',
 } as const;
 
 /** Todas las claves de texto de la interfaz. */

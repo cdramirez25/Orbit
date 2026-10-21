@@ -114,4 +114,16 @@ export const en: Record<MessageKey, string> = {
   'clipboard.image': 'Image',
   'clipboard.imageAlt': 'Copied image',
   'clipboard.characters': 'characters',
+
+  // ── Music ───────────────────────────────────────────────────────────────
+  'music.module': 'Music',
+  'music.playing': 'Now playing',
+  'music.paused': 'Paused',
+  'music.empty': 'Nothing is playing right now.',
+  'music.emptyHint': 'Play something in Spotify, Music or YouTube and it will show up here.',
+  'music.previous': 'Previous',
+  'music.next': 'Next',
+  'music.play': 'Play',
+  'music.pause': 'Pause',
+  'music.controlsAria': 'Music controls',
 };

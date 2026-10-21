@@ -6,6 +6,7 @@ use std::sync::{Arc, Mutex, RwLock};
 use crate::audio::permission::AudioPermission;
 use crate::clipboard::ClipboardService;
 use crate::events::EventSink;
+use crate::media::MediaService;
 use crate::pipeline::Pipeline;
 use crate::settings::Settings;
 use crate::weather::WeatherService;
@@ -21,26 +22,35 @@ pub struct AppState {
     pub weather: Arc<WeatherService>,
     /// Historial del portapapeles de esta sesión (módulo Portapapeles de la isla).
     pub clipboard: Arc<ClipboardService>,
+    /// Lo que suena y sus controles (módulo Música de la isla).
+    pub media: Arc<MediaService>,
     settings: RwLock<Settings>,
     settings_path: PathBuf,
+}
+
+/// Los servicios de la app ya construidos con sus adaptadores (los elige `lib.rs`).
+pub struct Services {
+    pub audio_permission: Arc<dyn AudioPermission>,
+    pub pipeline: Pipeline,
+    pub weather: Arc<WeatherService>,
+    pub clipboard: Arc<ClipboardService>,
+    pub media: Arc<MediaService>,
 }
 
 impl AppState {
     pub fn new(
         events: Arc<dyn EventSink>,
-        audio_permission: Arc<dyn AudioPermission>,
-        pipeline: Pipeline,
-        weather: Arc<WeatherService>,
-        clipboard: Arc<ClipboardService>,
+        services: Services,
         settings: Settings,
         settings_path: PathBuf,
     ) -> Self {
         Self {
             events,
-            audio_permission,
-            pipeline: Mutex::new(pipeline),
-            weather,
-            clipboard,
+            audio_permission: services.audio_permission,
+            pipeline: Mutex::new(services.pipeline),
+            weather: services.weather,
+            clipboard: services.clipboard,
+            media: services.media,
             settings: RwLock::new(settings),
             settings_path,
         }

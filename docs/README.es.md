@@ -28,20 +28,21 @@ sale por tus bocinas o audífonos; tu micrófono nunca se captura.
 
 ## Qué hay hoy
 
-| Área               | Estado                                                                                                                                                                                                         |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Ventana de la isla | Transparente, sin bordes, siempre encima y sin robar foco. En macOS es un `NSPanel`.                                                                                                                           |
-| Máquina de estados | `hidden`, `idle`, `compact`, `expanded` y `alert`, con transiciones probadas (Vitest).                                                                                                                         |
-| Animación          | Morfeo de ancho, alto y radio con springs de `motion/react`; contenido que aparece/desaparece escalonado.                                                                                                      |
-| Notch              | Detección en macOS (estilo `attached`) y modo `floating` para Mac sin notch y Windows.                                                                                                                         |
-| Click-through      | La ventana ignora el mouse salvo cuando el puntero está sobre la isla.                                                                                                                                         |
-| Módulos            | Interfaz `OrbitModule` + registro con arbitraje por prioridad y selector entre los módulos residentes.                                                                                                         |
-| Ajustes            | En desarrollo se abre una ventana nativa al iniciar (arrástrala por toda la pantalla, ciérrala y vuelve a abrirla con el engranaje de la tarjeta) para controlar la isla, el idioma, la privacidad y el audio. |
-| Clima              | Clima actual y pronóstico de hoy de tu zona, siempre a un clic en la isla (Open-Meteo, sin clave de API).                                                                                                      |
-| Portapapeles       | Historial de los textos e imágenes que copias durante la sesión: volver a copiar, borrar uno o borrar todo. Vive solo en memoria.                                                                              |
-| UI                 | Primitivos accesibles (`Button`, `IconButton`, `Toggle`, `Tab`, `Card`) con `cursor: pointer` global. Todos los iconos son de [Lucide](https://lucide.dev); sin emojis.                                        |
-| Idiomas            | Español e inglés (`src/i18n/locales/`).                                                                                                                                                                        |
-| Audio del sistema  | Permiso de captura (macOS), captura real (ScreenCaptureKit en macOS, WASAPI loopback en Windows), conversión a 16 kHz mono y volumen que mueve las ondas de la isla.                                           |
+| Área               | Estado                                                                                                                                                                                                                                          |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Ventana de la isla | Transparente, sin bordes, siempre encima y sin robar foco. En macOS es un `NSPanel`.                                                                                                                                                            |
+| Máquina de estados | `hidden`, `idle`, `compact`, `expanded` y `alert`, con transiciones probadas (Vitest).                                                                                                                                                          |
+| Animación          | Morfeo de ancho, alto y radio con springs de `motion/react`; contenido que aparece/desaparece escalonado.                                                                                                                                       |
+| Notch              | Detección en macOS (estilo `attached`) y modo `floating` para Mac sin notch y Windows.                                                                                                                                                          |
+| Click-through      | La ventana ignora el mouse salvo cuando el puntero está sobre la isla.                                                                                                                                                                          |
+| Módulos            | Interfaz `OrbitModule` + registro con arbitraje por prioridad y selector entre los módulos residentes.                                                                                                                                          |
+| Ajustes            | En desarrollo se abre una ventana nativa al iniciar (arrástrala por toda la pantalla, ciérrala y vuelve a abrirla con el engranaje de la tarjeta) para controlar la isla, el idioma, la privacidad y el audio.                                  |
+| Música             | Lo que suena en tu computadora (Spotify, Música, YouTube o cualquier pestaña del navegador) con botones de anterior, play/pausa y siguiente. En macOS usa una API privada del sistema, así que puede dejar de funcionar tras una actualización. |
+| Clima              | Clima actual y pronóstico de hoy de tu zona, siempre a un clic en la isla (Open-Meteo, sin clave de API).                                                                                                                                       |
+| Portapapeles       | Historial de los textos e imágenes que copias durante la sesión: volver a copiar, borrar uno o borrar todo. Vive solo en memoria.                                                                                                               |
+| UI                 | Primitivos accesibles (`Button`, `IconButton`, `Toggle`, `Tab`, `Card`) con `cursor: pointer` global. Todos los iconos son de [Lucide](https://lucide.dev); sin emojis.                                                                         |
+| Idiomas            | Español e inglés (`src/i18n/locales/`).                                                                                                                                                                                                         |
+| Audio del sistema  | Permiso de captura (macOS), captura real (ScreenCaptureKit en macOS, WASAPI loopback en Windows), conversión a 16 kHz mono y volumen que mueve las ondas de la isla.                                                                            |
 
 ## Stack
 
@@ -142,7 +143,7 @@ Orbit/
 ├── src/                 # Frontend (React + TSX)
 │   ├── windows/         #   puntos de entrada, uno por ventana (island/ y settings/)
 │   ├── components/      #   ui/ (primitivos) e island/ (Island, NotchShape, IslandContent, ModuleSwitcher)
-│   ├── modules/         #   módulos de la isla (plugins): registry.ts, demo/, weather/ y clipboard/
+│   ├── modules/         #   módulos de la isla (plugins): registry.ts, demo/, weather/, clipboard/ y music/
 │   ├── features/        #   contenido de la ventana de ajustes (settings/)
 │   ├── stores/          #   estado global con Zustand (island, settings, audio, weather, clipboard)
 │   ├── hooks/           #   useHitTest, useIslandDrag, useReducedMotion, useNow…
@@ -170,6 +171,7 @@ Orbit/
         ├── pipeline/    #   orquestador: audio del sistema → volumen → eventos
         ├── weather/     #   puertos de ubicación y pronóstico, caché, localizador por IP y adaptador de Open-Meteo
         ├── clipboard/   #   puerto del portapapeles, historial en memoria, monitor y adaptador del sistema
+        ├── media/       #   puerto de la música, monitor de lo que suena y adaptadores en platform/ (macOS: perl + MediaRemote; Windows: GSMTC)
         └── settings/    #   configuración persistida
 ```
 
@@ -179,6 +181,7 @@ Orbit/
   [ipwho.is](https://ipwho.is) y el pronóstico viene de [Open-Meteo](https://open-meteo.com). Ambos servicios reciben
   tu dirección IP; no se envía nada más. La ubicación no se guarda. La API gratuita de Open-Meteo es para uso no
   comercial y sus datos tienen licencia CC BY 4.0.
+- **Música:** el título y el artista de lo que suena se leen del sistema y solo se muestran en la isla; nunca se guardan ni se escriben en logs.
 - **Historial del portapapeles:** solo vive en memoria y desaparece al cerrar Orbit. Lo que los gestores de contraseñas
   marcan como oculto nunca se registra, y nada de lo que copias se escribe en logs ni se envía a ningún lado.
 - **Audio del sistema:** solo lo que sale por tus bocinas o audífonos; tu micrófono nunca se captura.

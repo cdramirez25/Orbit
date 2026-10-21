@@ -9,6 +9,8 @@ use serde::Serialize;
 use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter};
 
+use crate::media::NowPlaying;
+
 // Las variantes sin emisor todavía se usan desde las Fases 2–4 (audio, STT, LLM).
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -47,6 +49,8 @@ pub enum DomainEvent {
     LlmDone,
     /// El historial del portapapeles cambió (la interfaz vuelve a pedirlo).
     ClipboardChanged,
+    /// Cambió lo que suena (o dejó de sonar: `None`).
+    MediaChanged(Option<NowPlaying>),
     Error(OrbitError),
 }
 
@@ -61,6 +65,7 @@ impl DomainEvent {
             Self::LlmDelta { .. } => "llm:delta",
             Self::LlmDone => "llm:done",
             Self::ClipboardChanged => "clipboard:changed",
+            Self::MediaChanged(_) => "media:changed",
             Self::Error(_) => "error",
         }
     }
@@ -75,6 +80,7 @@ impl DomainEvent {
                 end_of_utterance,
             } => json!({ "text": text, "endOfUtterance": end_of_utterance }),
             Self::LlmDone | Self::ClipboardChanged => Value::Null,
+            Self::MediaChanged(now_playing) => json!(now_playing),
             Self::Error(error) => json!(error),
         }
     }

@@ -4,8 +4,10 @@ import { emitLocal } from '@/ipc/events';
 import type {
   ClipboardEntry,
   IslandAnchor,
+  MediaCommand,
   IslandSettings,
   NotchInfo,
+  NowPlaying,
   PermissionStatus,
   Point,
   PointerPosition,
@@ -149,6 +151,28 @@ function browserClipboardChanged(): void {
   emitLocal('clipboard:changed', null);
 }
 
+// Solo navegador: dos canciones de muestra para ver y probar los controles de música con `pnpm dev`.
+const SAMPLE_TRACKS: readonly Omit<NowPlaying, 'playing'>[] = [
+  { title: 'Sample Track One', artist: 'Sample Artist' },
+  { title: 'Sample Track Two', artist: null },
+];
+let browserTrack = 0;
+let browserPlaying = true;
+
+function browserNowPlaying(): NowPlaying {
+  return { ...SAMPLE_TRACKS[browserTrack]!, playing: browserPlaying };
+}
+
+function applyBrowserMediaCommand(command: MediaCommand): void {
+  const count = SAMPLE_TRACKS.length;
+  if (command === 'play') browserPlaying = true;
+  else if (command === 'pause') browserPlaying = false;
+  else if (command === 'toggle') browserPlaying = !browserPlaying;
+  else if (command === 'next') browserTrack = (browserTrack + 1) % count;
+  else browserTrack = (browserTrack + count - 1) % count;
+  emitLocal('media:changed', browserNowPlaying());
+}
+
 export const commands = {
   getNotchInfo: (): Promise<NotchInfo> =>
     isTauri() ? invoke<NotchInfo>('get_notch_info') : Promise.resolve(NO_NOTCH),
@@ -250,6 +274,17 @@ export const commands = {
     if (isTauri()) return invoke<void>('clear_clipboard_history');
     browserClipboard = [];
     browserClipboardChanged();
+    return Promise.resolve();
+  },
+
+  /** Lo que suena ahora en el sistema, o `null` si no suena nada. */
+  getNowPlaying: (): Promise<NowPlaying | null> =>
+    isTauri() ? invoke<NowPlaying | null>('get_now_playing') : Promise.resolve(browserNowPlaying()),
+
+  /** Play, pausa, anterior o siguiente al reproductor actual. */
+  sendMediaCommand: (command: MediaCommand): Promise<void> => {
+    if (isTauri()) return invoke<void>('media_command', { command });
+    applyBrowserMediaCommand(command);
     return Promise.resolve();
   },
 

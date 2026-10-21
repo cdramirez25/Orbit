@@ -23,6 +23,7 @@ export type {
   SttFinal,
   SttPartial,
 } from './pipeline';
+export type { MediaCommand, NowPlaying } from './media';
 export type { RemoteCommand, RemoteState } from './remote';
 export type { IslandSettings } from './settings';
 export type {

@@ -9,6 +9,7 @@ mod audio;
 mod clipboard;
 mod commands;
 mod events;
+mod media;
 mod pipeline;
 mod settings;
 mod weather;
@@ -21,12 +22,13 @@ use std::time::Duration;
 use tauri::Manager;
 use tracing_subscriber::EnvFilter;
 
-use crate::app_state::AppState;
+use crate::app_state::{AppState, Services};
 use crate::audio::permission::{status_of, AudioPermission};
 use crate::audio::AudioSource;
 use crate::clipboard::system::SystemClipboard;
 use crate::clipboard::ClipboardService;
 use crate::events::{DomainEvent, EventSink, PipelineState, TauriEventSink};
+use crate::media::MediaService;
 use crate::pipeline::{Pipeline, PipelineConfig};
 use crate::settings::Settings;
 use crate::weather::ip_locator::IpLocator;
@@ -53,6 +55,8 @@ pub fn run() {
             commands::clipboard::copy_clipboard_entry,
             commands::clipboard::delete_clipboard_entry,
             commands::clipboard::clear_clipboard_history,
+            commands::media::get_now_playing,
+            commands::media::media_command,
             commands::island::get_notch_info,
             commands::island::set_island_interactive,
             commands::island::get_pointer_position,
@@ -103,12 +107,22 @@ pub fn run() {
             ));
             clipboard::spawn_monitor(Arc::clone(&clipboard));
 
+            // Música: lo que suena y sus controles, con el adaptador del sistema (macOS / Windows).
+            let media = Arc::new(MediaService::new(
+                Box::new(media::platform::current::SystemMedia::new()),
+                Arc::clone(&events),
+            ));
+            media::spawn_monitor(Arc::clone(&media));
+
             app.manage(AppState::new(
                 events,
-                audio_permission,
-                pipeline,
-                weather,
-                clipboard,
+                Services {
+                    audio_permission,
+                    pipeline,
+                    weather,
+                    clipboard,
+                    media,
+                },
                 settings,
                 settings_path,
             ));

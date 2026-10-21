@@ -27,20 +27,21 @@ the audio that comes out of your speakers or headphones; your microphone is neve
 
 ## What exists today
 
-| Area          | Status                                                                                                                                                                                      |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Island window | Transparent, borderless, always on top, and it never steals focus. On macOS it is an `NSPanel`.                                                                                             |
-| State machine | `hidden`, `idle`, `compact`, `expanded` and `alert`, with tested transitions (Vitest).                                                                                                      |
-| Animation     | Width, height and radius morphing with `motion/react` springs; content that fades in and out in a staggered way.                                                                            |
-| Notch         | Detection on macOS (`attached` style) and a `floating` mode for Macs without a notch and for Windows.                                                                                       |
-| Click-through | The window ignores the mouse except when the pointer is over the island.                                                                                                                    |
-| Modules       | `OrbitModule` interface + a registry with priority arbitration and a switcher between resident modules.                                                                                     |
-| Settings      | In development, a native window opens on startup (drag it anywhere on the screen, close it, reopen it from the gear in the island card) to control the island, language, privacy and audio. |
-| Weather       | Current weather and today's forecast for your area, always one click away in the island (Open-Meteo, no API key).                                                                           |
-| Clipboard     | History of the text and images you copy during the session, with copy again, delete one and clear all. It lives in memory only.                                                             |
-| UI            | Accessible primitives (`Button`, `IconButton`, `Toggle`, `Tab`, `Card`) with a global `cursor: pointer`. All icons come from [Lucide](https://lucide.dev); no emojis.                       |
-| Languages     | Spanish and English (`src/i18n/locales/`).                                                                                                                                                  |
-| System audio  | Capture permission (macOS), real capture (ScreenCaptureKit on macOS, WASAPI loopback on Windows), conversion to 16 kHz mono, and the volume that drives the island's waves.                 |
+| Area          | Status                                                                                                                                                                                                                 |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Island window | Transparent, borderless, always on top, and it never steals focus. On macOS it is an `NSPanel`.                                                                                                                        |
+| State machine | `hidden`, `idle`, `compact`, `expanded` and `alert`, with tested transitions (Vitest).                                                                                                                                 |
+| Animation     | Width, height and radius morphing with `motion/react` springs; content that fades in and out in a staggered way.                                                                                                       |
+| Notch         | Detection on macOS (`attached` style) and a `floating` mode for Macs without a notch and for Windows.                                                                                                                  |
+| Click-through | The window ignores the mouse except when the pointer is over the island.                                                                                                                                               |
+| Modules       | `OrbitModule` interface + a registry with priority arbitration and a switcher between resident modules.                                                                                                                |
+| Settings      | In development, a native window opens on startup (drag it anywhere on the screen, close it, reopen it from the gear in the island card) to control the island, language, privacy and audio.                            |
+| Music         | What is playing on your computer (Spotify, Music, YouTube or any other tab in your browser) with previous, play/pause and next buttons. On macOS it uses a private system API, so it may stop working after an update. |
+| Weather       | Current weather and today's forecast for your area, always one click away in the island (Open-Meteo, no API key).                                                                                                      |
+| Clipboard     | History of the text and images you copy during the session, with copy again, delete one and clear all. It lives in memory only.                                                                                        |
+| UI            | Accessible primitives (`Button`, `IconButton`, `Toggle`, `Tab`, `Card`) with a global `cursor: pointer`. All icons come from [Lucide](https://lucide.dev); no emojis.                                                  |
+| Languages     | Spanish and English (`src/i18n/locales/`).                                                                                                                                                                             |
+| System audio  | Capture permission (macOS), real capture (ScreenCaptureKit on macOS, WASAPI loopback on Windows), conversion to 16 kHz mono, and the volume that drives the island's waves.                                            |
 
 ## Stack
 
@@ -140,7 +141,7 @@ Orbit/
 ├── src/                 # Frontend (React + TSX)
 │   ├── windows/         #   entry points, one per window (island/ and settings/)
 │   ├── components/      #   ui/ (primitives) and island/ (Island, NotchShape, IslandContent, ModuleSwitcher)
-│   ├── modules/         #   island modules (plugins): registry.ts, demo/, weather/ and clipboard/
+│   ├── modules/         #   island modules (plugins): registry.ts, demo/, weather/, clipboard/ and music/
 │   ├── features/        #   settings window content (settings/)
 │   ├── stores/          #   global state with Zustand (island, settings, audio, weather, clipboard)
 │   ├── hooks/           #   useHitTest, useIslandDrag, useReducedMotion, useNow…
@@ -168,6 +169,7 @@ Orbit/
         ├── pipeline/    #   orchestrator: system audio → volume → events
         ├── weather/     #   location and forecast ports, cache, IP locator and Open-Meteo adapter
         ├── clipboard/   #   clipboard port, in-memory history, monitor and system adapter
+        ├── media/       #   music port, now-playing monitor and platform/ adapters (macOS: perl + MediaRemote; Windows: GSMTC)
         └── settings/    #   persisted configuration
 ```
 
@@ -177,6 +179,7 @@ Orbit/
   [ipwho.is](https://ipwho.is), and the forecast comes from [Open-Meteo](https://open-meteo.com). Both services receive
   your IP address; nothing else is sent. The location is not saved. Open-Meteo's free API is for non-commercial use
   and its data is licensed CC BY 4.0.
+- **Music:** the title and artist of what is playing are read from the system and shown only in the island; they are never saved or logged.
 - **Clipboard history:** it only lives in memory and is gone when Orbit quits. Contents that password managers mark as
   concealed are never recorded, and nothing you copy is logged or sent anywhere.
 - **System audio:** only what comes out of your speakers or headphones; your microphone is never captured.

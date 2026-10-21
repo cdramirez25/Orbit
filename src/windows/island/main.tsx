@@ -6,11 +6,13 @@ import { createRoot } from 'react-dom/client';
 import { clipboardModule } from '@/modules/clipboard';
 import { demoModule } from '@/modules/demo';
 import { bindListeningToIsland } from '@/modules/demo/demo.store';
+import { musicModule } from '@/modules/music';
 import { bindRegistryToIsland, useRegistryStore } from '@/modules/registry';
 import { weatherModule } from '@/modules/weather';
 import { useAudioStore } from '@/stores/audio.store';
 import { useClipboardStore } from '@/stores/clipboard.store';
 import { useIslandStore } from '@/stores/island.store';
+import { useMediaStore } from '@/stores/media.store';
 import { useSettingsStore } from '@/stores/settings.store';
 import { useWeatherStore } from '@/stores/weather.store';
 import { App } from '@/windows/island/App';
@@ -21,14 +23,17 @@ const registry = useRegistryStore.getState();
 registry.register(demoModule);
 registry.register(weatherModule);
 registry.register(clipboardModule);
+registry.register(musicModule);
 bindRegistryToIsland();
 
-// Módulos residentes: el clima (se actualiza solo) y el historial del portapapeles (Rust avisa de
-// cada cambio). Al tener actividad, la isla muestra su pastilla en vez de quedarse en reposo.
+// Módulos residentes: el clima (se actualiza solo), el historial del portapapeles y lo que suena
+// (Rust avisa de cada cambio). Al tener actividad, la isla muestra su pastilla en vez de quedarse en reposo.
 useWeatherStore.getState().startPolling();
 void useClipboardStore.getState().bind();
+void useMediaStore.getState().bind();
 registry.startActivity(weatherModule.id);
 registry.startActivity(clipboardModule.id);
+registry.startActivity(musicModule.id);
 
 // Escucha del audio del sistema: volumen y estado desde Rust → las ondas de la isla.
 void useAudioStore.getState().bind();

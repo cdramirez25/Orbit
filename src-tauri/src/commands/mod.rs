@@ -4,6 +4,7 @@
 pub mod audio;
 pub mod clipboard;
 pub mod island;
+pub mod media;
 pub mod pipeline;
 pub mod settings_window;
 pub mod weather;
@@ -21,6 +22,8 @@ pub enum CommandError {
     Weather(#[from] crate::weather::WeatherError),
     #[error("error del portapapeles: {0}")]
     Clipboard(#[from] crate::clipboard::ClipboardError),
+    #[error("error de la música: {0}")]
+    Media(#[from] crate::media::MediaError),
 }
 
 impl CommandError {
@@ -31,6 +34,7 @@ impl CommandError {
             Self::Audio(error) => error.code(),
             Self::Weather(error) => error.code(),
             Self::Clipboard(error) => error.code(),
+            Self::Media(error) => error.code(),
         }
     }
 }
