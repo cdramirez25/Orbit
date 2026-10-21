@@ -12,6 +12,7 @@ mod events;
 mod media;
 mod pipeline;
 mod settings;
+mod stt;
 mod weather;
 mod window;
 
@@ -31,6 +32,8 @@ use crate::events::{DomainEvent, EventSink, PipelineState, TauriEventSink};
 use crate::media::MediaService;
 use crate::pipeline::{Pipeline, PipelineConfig};
 use crate::settings::Settings;
+use crate::stt::whisper_local::{WhisperEngine, MODEL_FILE};
+use crate::stt::SttEngine;
 use crate::weather::ip_locator::IpLocator;
 use crate::weather::open_meteo::OpenMeteo;
 use crate::weather::WeatherService;
@@ -97,7 +100,15 @@ pub fn run() {
             let config = PipelineConfig {
                 debug_wav: std::env::var_os("ORBIT_DEBUG_WAV").map(PathBuf::from),
             };
-            let pipeline = Pipeline::new(audio_source, Arc::clone(&events), config);
+
+            // Transcripción local (Whisper): el modelo vive en la carpeta de datos de la app y se
+            // carga al empezar a escuchar.
+            let model_path = app.path().app_data_dir()?.join("models").join(MODEL_FILE);
+            let whisper = Arc::new(WhisperEngine::new(model_path));
+            let primer = Arc::clone(&whisper);
+            std::thread::spawn(move || primer.prime_disk_cache());
+            let stt: Arc<dyn SttEngine> = whisper;
+            let pipeline = Pipeline::new(audio_source, Arc::clone(&events), config).with_stt(stt);
 
             // Clima: ubicación por IP (ipwho.is) + datos de Open-Meteo, con un solo cliente HTTP.
             let http = weather::http::agent();

@@ -1,12 +1,13 @@
-//! Orquestador del Prompter. Fase 2: audio del sistema → volumen → eventos para la isla.
+//! Orquestador del Prompter. Audio del sistema → volumen (Fase 2) y transcripción (Fase 3) →
+//! eventos para la isla.
 //!
-//! Núcleo de la aplicación (§4.0): solo conoce los puertos (`AudioSource`, `EventSink`); los
-//! adaptadores concretos los elige el composition root (`lib.rs`). Se prueba con fuentes y
-//! sumideros simulados, sin dispositivos de audio ni Tauri.
+//! Núcleo de la aplicación (§4.0): solo conoce los puertos (`AudioSource`, `SttEngine`,
+//! `EventSink`); los adaptadores concretos los elige el composition root (`lib.rs`). Se prueba con
+//! fuentes, motores y sumideros simulados, sin dispositivos de audio ni Tauri.
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{Receiver, RecvTimeoutError};
+use std::sync::mpsc::{channel, Receiver, RecvTimeoutError, Sender};
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
@@ -16,6 +17,7 @@ use crate::audio::resample::{Normalizer, TARGET_RATE};
 use crate::audio::wav::WavWriter;
 use crate::audio::{AudioError, AudioFrame, AudioSource};
 use crate::events::{DomainEvent, EventSink, OrbitError, PipelineState};
+use crate::stt::{transcriber, SttEngine};
 
 /// Cada cuánto audio (en tiempo de audio) se publica el volumen: ≈ 30 veces por segundo.
 const METER_INTERVAL_SECS: f64 = 0.033;
@@ -40,6 +42,8 @@ pub struct Pipeline {
     source: Box<dyn AudioSource>,
     events: Arc<dyn EventSink>,
     config: PipelineConfig,
+    /// Motor de voz a texto; sin él solo se mide el volumen.
+    stt: Option<Arc<dyn SttEngine>>,
     worker: Option<Worker>,
 }
 
@@ -53,8 +57,15 @@ impl Pipeline {
             source,
             events,
             config,
+            stt: None,
             worker: None,
         }
+    }
+
+    /// Conecta el motor de transcripción.
+    pub fn with_stt(mut self, engine: Arc<dyn SttEngine>) -> Self {
+        self.stt = Some(engine);
+        self
     }
 
     /// ¿Está escuchando ahora mismo? (falso si la captura se cortó sola)
@@ -81,11 +92,12 @@ impl Pipeline {
 
         let stop = Arc::new(AtomicBool::new(false));
         let running = Arc::new(AtomicBool::new(true));
+        let transcription = self.spawn_transcriber(&stop);
         let spawned = thread::Builder::new().name("orbit-pipeline".into()).spawn({
             let events = Arc::clone(&self.events);
             let debug_wav = self.config.debug_wav.clone();
             let (stop, running) = (Arc::clone(&stop), Arc::clone(&running));
-            move || run(receiver, events, stop, running, debug_wav)
+            move || run(receiver, events, stop, running, debug_wav, transcription)
         });
 
         match spawned {
@@ -139,6 +151,25 @@ impl Pipeline {
         }
     }
 
+    /// Arranca el hilo de transcripción y devuelve por dónde mandarle el audio. El hilo termina
+    /// solo cuando se cierra ese canal; no se espera a que acabe una transcripción en curso.
+    fn spawn_transcriber(&self, stop: &Arc<AtomicBool>) -> Option<Sender<Vec<f32>>> {
+        let engine = Arc::clone(self.stt.as_ref()?);
+        let (sender, receiver) = channel();
+        let events = Arc::clone(&self.events);
+        let stop = Arc::clone(stop);
+        let spawned = thread::Builder::new()
+            .name("orbit-stt".into())
+            .spawn(move || transcriber::run(receiver, engine, events, stop));
+        match spawned {
+            Ok(_) => Some(sender),
+            Err(error) => {
+                tracing::warn!(%error, "no se pudo iniciar el hilo de transcripción");
+                None
+            }
+        }
+    }
+
     fn report(&self, error: &AudioError) {
         self.events.publish(DomainEvent::Error(OrbitError {
             code: error.code().to_string(),
@@ -156,17 +187,19 @@ impl Drop for Pipeline {
     }
 }
 
-/// Bucle del hilo: consume el audio, publica el volumen y (solo en depuración) vuelca el WAV.
+/// Bucle del hilo: consume el audio, publica el volumen, se lo pasa a la transcripción y (solo en
+/// depuración) vuelca el WAV.
 fn run(
     receiver: Receiver<AudioFrame>,
     events: Arc<dyn EventSink>,
     stop: Arc<AtomicBool>,
     running: Arc<AtomicBool>,
     debug_wav: Option<PathBuf>,
+    mut transcription: Option<Sender<Vec<f32>>>,
 ) {
     let mut meter = LevelMeter::new(METER_INTERVAL_SECS);
-    // La normalización a 16 kHz mono se usará para el STT en la Fase 3; por ahora solo alimenta
-    // el WAV de depuración, así que no se calcula si no hay volcado.
+    // La normalización a 16 kHz mono solo se calcula si hay quien la use: la transcripción o el
+    // WAV de depuración.
     let mut normalizer = Normalizer::new();
     let mut wav = debug_wav.and_then(|path| match WavWriter::create(&path, TARGET_RATE) {
         Ok(writer) => {
@@ -186,10 +219,20 @@ fn run(
     while !stop.load(Ordering::SeqCst) {
         match receiver.recv_timeout(SILENCE_AFTER) {
             Ok(frame) => {
-                if let Some(writer) = wav.as_mut() {
-                    if let Err(error) = writer.write(&normalizer.process(&frame)) {
-                        tracing::warn!(%error, "se desactiva el WAV de depuración");
-                        wav = None;
+                if wav.is_some() || transcription.is_some() {
+                    let pcm = normalizer.process(&frame);
+                    if let Some(writer) = wav.as_mut() {
+                        if let Err(error) = writer.write(&pcm) {
+                            tracing::warn!(%error, "se desactiva el WAV de depuración");
+                            wav = None;
+                        }
+                    }
+                    if let Some(sender) = &transcription {
+                        let samples = pcm.iter().map(|s| f32::from(*s) / 32_768.0).collect();
+                        // Sin receptor (el hilo de transcripción terminó) se deja de mandar audio.
+                        if sender.send(samples).is_err() {
+                            transcription = None;
+                        }
                     }
                 }
                 if let Some(level) = meter.push(&frame) {
@@ -230,6 +273,18 @@ mod tests {
 
     use super::*;
     use crate::events::testing::FakeEventSink;
+    use crate::stt::{Pass, SttError, Transcription};
+
+    /// Motor simulado: responde cuántas muestras recibió.
+    struct CountingEngine;
+
+    impl SttEngine for CountingEngine {
+        fn transcribe(&self, samples: &[f32], _pass: Pass) -> Result<Transcription, SttError> {
+            Ok(Transcription {
+                text: format!("{} muestras", samples.len()),
+            })
+        }
+    }
 
     type Slot = Arc<Mutex<Option<SyncSender<AudioFrame>>>>;
 
@@ -447,6 +502,78 @@ mod tests {
         // Y se puede volver a empezar.
         h.pipeline.start().unwrap();
         assert!(h.pipeline.is_listening());
+        h.pipeline.stop();
+    }
+
+    #[test]
+    fn spoken_audio_is_transcribed_at_16_khz_mono_when_an_engine_is_connected() {
+        let mut h = harness(false, PipelineConfig::default());
+        h.pipeline = h.pipeline.with_stt(Arc::new(CountingEngine));
+        h.pipeline.start().unwrap();
+
+        // 0.5 s de sonido y 1 s de silencio (cierra la frase), en 48 kHz estéreo.
+        feed(&h.slot, frame(0.3, 500));
+        feed(&h.slot, frame(0.0, 1000));
+        assert!(wait_for(&h.events, |e| e
+            .iter()
+            .any(|x| matches!(x, DomainEvent::SttFinal { .. }))));
+        h.pipeline.stop();
+
+        let text = h
+            .events
+            .events()
+            .into_iter()
+            .find_map(|e| match e {
+                DomainEvent::SttFinal { text, .. } => Some(text),
+                _ => None,
+            })
+            .unwrap();
+        // 0.5 s de voz + 0.2 s de cola, a 16 kHz mono ≈ 11 200 muestras.
+        let samples: usize = text.split(' ').next().unwrap().parse().unwrap();
+        assert!((10_000..=12_500).contains(&samples), "{samples} muestras");
+    }
+
+    #[test]
+    fn without_an_engine_there_is_no_transcription() {
+        let mut h = harness(false, PipelineConfig::default());
+        h.pipeline.start().unwrap();
+        feed(&h.slot, frame(0.3, 500));
+        feed(&h.slot, frame(0.0, 1000));
+        assert!(wait_for(&h.events, |e| level_above(e, 0.5)));
+        h.pipeline.stop();
+
+        assert!(!h.events.events().iter().any(|e| matches!(
+            e,
+            DomainEvent::SttPartial { .. } | DomainEvent::SttFinal { .. }
+        )));
+    }
+
+    #[test]
+    fn the_volume_keeps_flowing_while_the_engine_is_slow() {
+        struct SlowEngine;
+        impl SttEngine for SlowEngine {
+            fn transcribe(&self, _samples: &[f32], _pass: Pass) -> Result<Transcription, SttError> {
+                thread::sleep(Duration::from_millis(1500));
+                Ok(Transcription {
+                    text: "lento".into(),
+                })
+            }
+        }
+
+        let mut h = harness(false, PipelineConfig::default());
+        h.pipeline = h.pipeline.with_stt(Arc::new(SlowEngine));
+        h.pipeline.start().unwrap();
+        // Una frase suave (volumen < 0.8) y una pausa: el motor se pone a "trabajar" 1.5 s.
+        feed(&h.slot, frame(0.1, 500));
+        feed(&h.slot, frame(0.0, 1000));
+        // Mientras tanto llega un sonido fuerte y el volumen sube sin esperar al motor.
+        feed(&h.slot, frame(0.5, 40));
+        assert!(wait_for(&h.events, |e| level_above(e, 0.8)));
+        assert!(!h
+            .events
+            .events()
+            .iter()
+            .any(|e| matches!(e, DomainEvent::SttFinal { .. })));
         h.pipeline.stop();
     }
 

@@ -32,10 +32,15 @@ png = "0.18"
 base64 = "0.23"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+# Transcripción local (Fase 3b): whisper.cpp enlazado dentro de la app. La crate es Unlicense
+# (dominio público); whisper.cpp y los modelos de OpenAI son MIT. Compilarla necesita cmake.
+whisper-rs = "0.16"
 
 # Solo macOS: ventana convertida en NSPanel + detección del notch (window/platform/macos.rs) y
-# captura del audio del sistema con ScreenCaptureKit (audio/platform/macos_sck.rs).
+# captura del audio del sistema con ScreenCaptureKit (audio/platform/macos_sck.rs). Whisper usa
+# la GPU con Metal.
 [target.'cfg(target_os = "macos")'.dependencies]
+whisper-rs = { version = "0.16", features = ["metal"] }
 tauri-nspanel = "2.1"
 objc2 = "0.6"
 objc2-foundation = "0.3"
