@@ -1,0 +1,101 @@
+@import 'tailwindcss';
+@config '../../tailwind.config.ts';
+
+/* ── Tokens ─────────────────────────────────────────────────────────────── */
+:root {
+  --island-bg: #000;
+  --island-border: rgba(255, 255, 255, 0.06);
+  --ink: rgba(255, 255, 255, 0.96);
+  --ink-dim: rgba(255, 255, 255, 0.62);
+  --ink-faint: rgba(255, 255, 255, 0.34);
+  --accent: #17dae2; /* cian del icono oficial */
+  --danger: #f87171;
+
+  --font-ui:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI Variable', 'Segoe UI', system-ui,
+    sans-serif;
+}
+
+/*
+ * Regla global de cursor (§3.4). Tailwind (preflight) sobreescribe el cursor de los botones,
+ * por eso se declara explícitamente en `@layer base`, después de importarlo.
+ * Si algo reacciona al clic y no muestra la mano, es un bug.
+ */
+@layer base {
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']),
+  [role='tab'],
+  [role='switch'],
+  [role='menuitem'],
+  [role='option'],
+  a[href],
+  summary,
+  label[for],
+  select:not(:disabled),
+  input[type='checkbox']:not(:disabled),
+  input[type='radio']:not(:disabled),
+  input[type='range']:not(:disabled),
+  input[type='file']:not(:disabled),
+  [data-clickable] {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  [aria-disabled='true'],
+  [data-disabled] {
+    cursor: not-allowed;
+  }
+}
+
+/* ── Base de la ventana ─────────────────────────────────────────────────── */
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  /* La ventana nativa es transparente: solo se ve lo que dibujamos nosotros. */
+  background: transparent;
+}
+
+body {
+  font-family: var(--font-ui);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  -webkit-user-select: none;
+  overflow: hidden;
+}
+
+/* Mientras se arrastra la isla (modo libre) el cursor es la mano cerrada en todas partes. */
+body[data-dragging],
+body[data-dragging] * {
+  cursor: grabbing !important;
+}
+
+/* Ondas del indicador "escuchando": solo `transform`, nunca layout. */
+@keyframes orbit-wave {
+  0%,
+  100% {
+    transform: scaleY(0.3);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes orbit-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .orbit-wave,
+  .orbit-pulse {
+    animation: none !important;
+  }
+}

@@ -1,0 +1,36 @@
+[package]
+name = "orbit"
+version = "0.1.0"
+description = "Orbit — isla dinámica modular para macOS y Windows"
+authors = ["Orbit"]
+edition = "2021"
+rust-version = "1.85"
+publish = false
+
+[lib]
+name = "orbit_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.7", features = [] }
+
+[dependencies]
+# `macos-private-api` es necesario para ventanas transparentes en macOS (debe coincidir
+# con `app.macOSPrivateApi` en tauri.conf.json). Implica no publicar en la Mac App Store.
+tauri = { version = "2.12", features = ["macos-private-api"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Solo macOS: ventana convertida en NSPanel + detección del notch (platform/macos.rs).
+[target.'cfg(target_os = "macos")'.dependencies]
+tauri-nspanel = "2.1"
+objc2 = "0.6"
+objc2-foundation = "0.3"
+objc2-app-kit = "0.3"
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "warn"

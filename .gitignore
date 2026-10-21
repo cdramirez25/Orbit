@@ -1,0 +1,25 @@
+# Dependencias y builds
+node_modules
+dist
+coverage
+src-tauri/target
+src-tauri/gen
+
+# Sistema operativo / editores
+.DS_Store
+.idea
+.vscode/*
+!.vscode/extensions.json
+
+# Entorno local y secretos (las API keys van al llavero del SO, nunca a archivos)
+.env
+.env.*
+!.env.example
+
+# Volcados de depuración de audio (Fase 2, solo bajo bandera de depuración)
+*.debug.wav
+
+# Sesión local de Claude Code
+.claude/settings.local.json
+/docs/SPEC.md
+CLAUDE.md
