@@ -64,7 +64,7 @@ describe('ventana de ajustes', () => {
         .map((button) => button.textContent);
     expect(current()).toEqual(['Isla']);
 
-    for (const page of ['Audio', 'IA', 'General', 'Isla']) {
+    for (const page of ['Sesiones', 'Audio', 'IA', 'General', 'Isla']) {
       openPage(page);
       expect(current()).toEqual([page]);
       expect(screen.getByRole('heading', { level: 2, name: page })).toBeInTheDocument();

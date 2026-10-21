@@ -1,6 +1,8 @@
 //! macOS: la isla es un `NSPanel` non-activating (no roba foco), visible en todos los Spaces y
 //! sobre apps a pantalla completa, por encima de la barra de menús.
 
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use tauri::{ActivationPolicy, AppHandle, WebviewUrl};
 use tauri_nspanel::{
     tauri_panel, CollectionBehavior, ManagerExt, PanelBuilder, PanelLevel, StyleMask,
@@ -13,11 +15,15 @@ use crate::window::notch::{notch_from_metrics, NotchInfo, ScreenFrame};
 /// el área del notch.
 const ISLAND_LEVEL: i32 = 27;
 
+/// ¿Puede la isla recibir el teclado ahora? Casi siempre no (no debe quitarle el foco a la
+/// videollamada); solo mientras el usuario escribe en su campo de pregunta.
+static KEYBOARD: AtomicBool = AtomicBool::new(false);
+
 tauri_panel! {
     panel!(IslandPanel {
         config: {
-            // Sin foco de teclado: la isla nunca debe quitárselo a la videollamada.
-            can_become_key_window: false,
+            // Sin foco de teclado salvo mientras se escribe (`set_island_keyboard`).
+            can_become_key_window: KEYBOARD.load(Ordering::SeqCst),
             can_become_main_window: false,
             is_floating_panel: true
         }
@@ -48,6 +54,20 @@ pub fn create_island(app: &AppHandle) -> tauri::Result<()> {
         .no_activate(true)
         .with_window(|window| overlay_options(window).accept_first_mouse(true))
         .build()?;
+    Ok(())
+}
+
+/// Deja que la isla reciba el teclado (`true`, mientras el usuario escribe una pregunta) o se lo
+/// devuelve a la app de antes (`false`). Debe llamarse desde el hilo principal.
+pub fn set_island_keyboard(app: &AppHandle, enabled: bool) -> tauri::Result<()> {
+    KEYBOARD.store(enabled, Ordering::SeqCst);
+    if let Ok(panel) = app.get_webview_panel(LABEL) {
+        if enabled {
+            panel.make_key_window();
+        } else {
+            panel.resign_key_window();
+        }
+    }
     Ok(())
 }
 

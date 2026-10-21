@@ -2,23 +2,27 @@ import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { useLocaleStore } from '@/i18n/locale.store';
-import { useDemoStore } from '@/modules/demo/demo.store';
-import { Expanded } from '@/modules/demo/Expanded';
+import { Expanded } from '@/modules/prompter/Expanded';
+import { useAnswerStore } from '@/stores/answer.store';
 import { useAudioStore } from '@/stores/audio.store';
+import { useQuestionStore } from '@/stores/question.store';
+import { useSessionStore } from '@/stores/session.store';
 import { useTranscriptStore } from '@/stores/transcript.store';
 
 beforeEach(() => {
   localStorage.clear();
   useLocaleStore.setState({ locale: 'es' });
-  useDemoStore.setState({ answer: null, streaming: false });
   useAudioStore.setState({ listening: false, errorCode: null });
   useTranscriptStore.setState({ lines: [], partial: '' });
+  useAnswerStore.getState().clear();
+  useQuestionStore.setState({ recording: false, busy: false, errorCode: null });
+  useSessionStore.setState({ state: null, messages: [], errorCode: null });
 });
 
-describe('tarjeta del módulo de demo', () => {
-  it('sin escuchar y sin texto muestra la pregunta de ejemplo', () => {
+describe('tarjeta de IA: lo que se oye', () => {
+  it('sin nada que mostrar explica cómo se usa', () => {
     render(<Expanded />);
-    expect(screen.getByText('Pregunta detectada')).toBeInTheDocument();
+    expect(screen.getByText(/Pulsa Grabar pregunta/)).toBeInTheDocument();
     expect(screen.queryByText('Transcripción en vivo')).not.toBeInTheDocument();
   });
 
@@ -27,7 +31,6 @@ describe('tarjeta del módulo de demo', () => {
     render(<Expanded />);
     expect(screen.getByText('Transcripción en vivo')).toBeInTheDocument();
     expect(screen.getByText('Esperando voz…')).toBeInTheDocument();
-    expect(screen.getByText('Cuando oiga una pregunta, la IA responde aquí.')).toBeInTheDocument();
   });
 
   it('muestra las frases terminadas y la que está en curso', () => {
@@ -50,16 +53,6 @@ describe('tarjeta del módulo de demo', () => {
     });
     render(<Expanded />);
     expect(screen.getByText('Lo último que se dijo.')).toBeInTheDocument();
-  });
-
-  it('la respuesta simulada tiene prioridad sobre la transcripción', () => {
-    useAudioStore.setState({ listening: true });
-    useTranscriptStore.setState({ lines: [{ id: 1, text: 'Hola.' }], partial: '' });
-    useDemoStore.setState({ answer: 'Canberra', streaming: false });
-    render(<Expanded />);
-
-    expect(screen.getByText('Canberra')).toBeInTheDocument();
-    expect(screen.queryByText('Hola.')).not.toBeInTheDocument();
   });
 
   it('si falta el modelo lo dice en vez de esperar para siempre', () => {

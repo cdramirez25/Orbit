@@ -10,64 +10,128 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use super::segmenter::{coalesce, Segment, Segmenter};
-use super::{Pass, SttEngine, SttError};
+use super::{Pass, SttEngine, SttError, SttMessage};
 use crate::events::{DomainEvent, EventSink, OrbitError};
+
+/// El trabajo del hilo: parte el audio en frases, pide el texto y lo publica.
+struct Worker {
+    segmenter: Segmenter,
+    engine: Arc<dyn SttEngine>,
+    events: Arc<dyn EventSink>,
+    stop: Arc<AtomicBool>,
+    /// El modelo no está o no carga: se sigue vaciando el canal pero no se transcribe nada.
+    failed: bool,
+}
+
+impl Worker {
+    /// Procesa audio nuevo. Devuelve `false` si hay que terminar (se pidió parar).
+    fn feed(&mut self, samples: &[f32]) -> bool {
+        if self.failed || samples.is_empty() {
+            return true;
+        }
+        for segment in coalesce(self.segmenter.push(samples)) {
+            if !self.handle(&segment) {
+                return false;
+            }
+        }
+        true
+    }
+
+    /// Cierra la frase en curso (el usuario terminó de hablar) y publica su texto final.
+    fn flush(&mut self) {
+        if self.failed {
+            return;
+        }
+        if let Some(segment) = self.segmenter.flush() {
+            self.handle(&segment);
+        }
+    }
+
+    /// Transcribe un trozo y lo publica. Devuelve `false` si hay que terminar.
+    fn handle(&mut self, segment: &Segment) -> bool {
+        if self.stop.load(Ordering::SeqCst) {
+            return false;
+        }
+        let (audio, pass) = match segment {
+            Segment::Partial(audio) => (audio, Pass::Partial),
+            Segment::Final(audio) => (audio, Pass::Final),
+        };
+        let is_final = pass == Pass::Final;
+
+        let started = Instant::now();
+        match self.engine.transcribe(audio, pass) {
+            Ok(transcription) => {
+                tracing::debug!(
+                    audio_ms = audio.len() / 16,
+                    took_ms = started.elapsed().as_millis() as u64,
+                    is_final,
+                    "frase transcrita"
+                );
+                publish(
+                    self.events.as_ref(),
+                    &self.stop,
+                    &transcription.text,
+                    is_final,
+                );
+            }
+            Err(error) => {
+                report(self.events.as_ref(), &error);
+                if error.is_permanent() {
+                    self.failed = true;
+                }
+            }
+        }
+        true
+    }
+}
 
 /// Bucle del hilo. Termina cuando se cierra el canal (se dejó de escuchar) o llega `stop`.
 pub fn run(
-    receiver: Receiver<Vec<f32>>,
+    receiver: Receiver<SttMessage>,
     engine: Arc<dyn SttEngine>,
     events: Arc<dyn EventSink>,
     stop: Arc<AtomicBool>,
 ) {
-    let mut segmenter = Segmenter::new();
-    let mut failed = false;
+    let mut worker = Worker {
+        segmenter: Segmenter::new(),
+        engine: Arc::clone(&engine),
+        events: Arc::clone(&events),
+        stop,
+        failed: false,
+    };
 
     // Carga el modelo mientras el audio se va acumulando en el canal.
     if let Err(error) = engine.warm_up() {
         report(events.as_ref(), &error);
-        failed = error.is_permanent();
+        worker.failed = error.is_permanent();
     }
 
-    while let Ok(mut samples) = receiver.recv() {
+    while let Ok(first) = receiver.recv() {
         // La transcripción tarda y el audio sigue llegando: se procesa todo lo acumulado de golpe.
+        let mut batch = vec![first];
         while let Ok(more) = receiver.try_recv() {
-            samples.extend(more);
-        }
-        if failed {
-            continue; // sin modelo no hay nada que hacer; se sigue vaciando el canal
+            batch.push(more);
         }
 
-        for segment in coalesce(segmenter.push(&samples)) {
-            if stop.load(Ordering::SeqCst) {
-                engine.release();
-                return;
-            }
-            let (audio, pass) = match &segment {
-                Segment::Partial(audio) => (audio, Pass::Partial),
-                Segment::Final(audio) => (audio, Pass::Final),
-            };
-            let is_final = pass == Pass::Final;
-
-            let started = Instant::now();
-            match engine.transcribe(audio, pass) {
-                Ok(transcription) => {
-                    tracing::debug!(
-                        audio_ms = audio.len() / 16,
-                        took_ms = started.elapsed().as_millis() as u64,
-                        is_final,
-                        "frase transcrita"
-                    );
-                    publish(events.as_ref(), &stop, &transcription.text, is_final);
-                }
-                Err(error) => {
-                    report(events.as_ref(), &error);
-                    if error.is_permanent() {
-                        failed = true;
-                        break;
+        let mut samples: Vec<f32> = Vec::new();
+        for message in batch {
+            match message {
+                SttMessage::Audio(audio) => samples.extend(audio),
+                SttMessage::Flush(done) => {
+                    // Primero el audio que llegó antes de la orden, luego el cierre de la frase.
+                    if !worker.feed(&samples) {
+                        engine.release();
+                        return;
                     }
+                    samples.clear();
+                    worker.flush();
+                    let _ = done.send(());
                 }
             }
+        }
+        if !worker.feed(&samples) {
+            engine.release();
+            return;
         }
     }
     engine.release();
@@ -190,7 +254,7 @@ mod tests {
         let events = Arc::new(FakeEventSink::default());
         let (tx, rx) = channel();
         for chunk in audio {
-            tx.send(chunk).unwrap();
+            tx.send(SttMessage::Audio(chunk)).unwrap();
         }
         drop(tx);
         run(
@@ -215,13 +279,13 @@ mod tests {
 
         // 1 s de voz → llega un parcial. El audio se manda poco a poco: si llegara todo junto, el
         // parcial ya estaría obsoleto cuando se cierra la frase y solo saldría el final.
-        tx.send(tone(1000)).unwrap();
+        tx.send(SttMessage::Audio(tone(1000))).unwrap();
         let deadline = Instant::now() + std::time::Duration::from_secs(3);
         while Instant::now() < deadline && events.events().is_empty() {
             std::thread::sleep(std::time::Duration::from_millis(5));
         }
         // 1 s de silencio cierra la frase.
-        tx.send(vec![0.0; 16_000]).unwrap();
+        tx.send(SttMessage::Audio(vec![0.0; 16_000])).unwrap();
         drop(tx);
         handle.join().unwrap();
 
@@ -238,6 +302,101 @@ mod tests {
             ]
         );
         assert_eq!(engine.released.load(Ordering::SeqCst), 1);
+    }
+
+    /// Arranca el transcriptor en un hilo y devuelve cómo hablarle y cómo esperarlo.
+    fn spawn(
+        engine: &Arc<FakeEngine>,
+    ) -> (
+        std::sync::mpsc::Sender<SttMessage>,
+        Arc<FakeEventSink>,
+        std::thread::JoinHandle<()>,
+    ) {
+        let events = Arc::new(FakeEventSink::default());
+        let (tx, rx) = channel();
+        let handle = std::thread::spawn({
+            let engine: Arc<dyn SttEngine> = engine.clone();
+            let events = events.clone();
+            move || run(rx, engine, events, Arc::new(AtomicBool::new(false)))
+        });
+        (tx, events, handle)
+    }
+
+    fn flush(tx: &std::sync::mpsc::Sender<SttMessage>) -> bool {
+        let (ack, done) = channel();
+        tx.send(SttMessage::Flush(ack)).unwrap();
+        done.recv_timeout(std::time::Duration::from_secs(3)).is_ok()
+    }
+
+    #[test]
+    fn flushing_publishes_the_phrase_in_progress_and_then_signals_it_is_done() {
+        let engine = FakeEngine::new(vec![Ok("hola mundo".into())]);
+        let (tx, events, handle) = spawn(&engine);
+
+        // Medio segundo de voz y ninguna pausa: la frase sigue abierta.
+        tx.send(SttMessage::Audio(tone(500))).unwrap();
+        assert!(flush(&tx));
+
+        // Cuando llega el aviso, el texto final ya está publicado.
+        assert_eq!(
+            events.events(),
+            vec![DomainEvent::SttFinal {
+                text: "hola mundo".into(),
+                end_of_utterance: true
+            }]
+        );
+        drop(tx);
+        handle.join().unwrap();
+    }
+
+    #[test]
+    fn flushing_with_nothing_said_only_signals_and_the_next_phrase_still_works() {
+        let engine = FakeEngine::new(vec![Ok("segunda".into())]);
+        let (tx, events, handle) = spawn(&engine);
+
+        assert!(flush(&tx));
+        assert!(events.events().is_empty());
+        assert_eq!(engine.calls.load(Ordering::SeqCst), 0);
+
+        tx.send(SttMessage::Audio(tone(500))).unwrap();
+        assert!(flush(&tx));
+        assert_eq!(events.events().len(), 1);
+        drop(tx);
+        handle.join().unwrap();
+    }
+
+    #[test]
+    fn flushing_without_a_model_still_signals_so_nobody_waits_forever() {
+        let engine = FakeEngine::without_model();
+        let (tx, events, handle) = spawn(&engine);
+
+        tx.send(SttMessage::Audio(tone(500))).unwrap();
+        assert!(flush(&tx));
+
+        assert_eq!(engine.calls.load(Ordering::SeqCst), 0);
+        assert_eq!(events.events().len(), 1); // solo el aviso de que falta el modelo
+        drop(tx);
+        handle.join().unwrap();
+    }
+
+    #[test]
+    fn the_audio_sent_before_a_flush_is_part_of_the_final_text() {
+        let engine = FakeEngine::new(vec![Ok("completo".into())]);
+        let (tx, events, handle) = spawn(&engine);
+
+        // Todo junto en la cola: dos trozos de voz y el cierre.
+        tx.send(SttMessage::Audio(tone(300))).unwrap();
+        tx.send(SttMessage::Audio(tone(300))).unwrap();
+        assert!(flush(&tx));
+
+        assert_eq!(
+            engine.calls.load(Ordering::SeqCst),
+            1,
+            "una sola frase, no dos"
+        );
+        assert_eq!(events.events().len(), 1);
+        drop(tx);
+        handle.join().unwrap();
     }
 
     #[test]
@@ -320,8 +479,8 @@ mod tests {
         let engine = FakeEngine::new(vec![Ok("tarde".into())]);
         let events = Arc::new(FakeEventSink::default());
         let (tx, rx) = channel();
-        tx.send(tone(500)).unwrap();
-        tx.send(vec![0.0; 16_000]).unwrap();
+        tx.send(SttMessage::Audio(tone(500))).unwrap();
+        tx.send(SttMessage::Audio(vec![0.0; 16_000])).unwrap();
         drop(tx);
 
         let stop = Arc::new(AtomicBool::new(true));

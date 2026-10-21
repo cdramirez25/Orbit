@@ -21,6 +21,17 @@ pub fn create_island(app: &AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
+/// La isla nunca recibe el foco (`WS_EX_NOACTIVATE`), salvo mientras el usuario escribe una pregunta.
+pub fn set_island_keyboard(app: &AppHandle, enabled: bool) -> tauri::Result<()> {
+    if let Some(window) = app.get_webview_window(LABEL) {
+        window.set_focusable(enabled)?;
+        if enabled {
+            window.set_focus()?;
+        }
+    }
+    Ok(())
+}
+
 pub fn show_island(app: &AppHandle) -> tauri::Result<()> {
     if let Some(window) = app.get_webview_window(LABEL) {
         window.show()?;

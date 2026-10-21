@@ -303,7 +303,8 @@ mod tests {
         std::thread::sleep(Duration::from_secs(2));
         let audio_start = Instant::now();
         for chunk in samples.chunks(1_600) {
-            tx.send(chunk.to_vec()).expect("el transcriptor sigue vivo");
+            tx.send(crate::stt::SttMessage::Audio(chunk.to_vec()))
+                .expect("el transcriptor sigue vivo");
             std::thread::sleep(Duration::from_millis(100));
         }
         drop(tx);

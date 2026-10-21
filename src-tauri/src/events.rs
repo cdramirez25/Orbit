@@ -53,6 +53,8 @@ pub enum DomainEvent {
     LlmDone,
     /// El historial del portapapeles cambió (la interfaz vuelve a pedirlo).
     ClipboardChanged,
+    /// Cambiaron las sesiones o su historial (la interfaz vuelve a pedirlos).
+    SessionsChanged,
     /// Cambió lo que suena (o dejó de sonar: `None`).
     MediaChanged(Option<NowPlaying>),
     Error(OrbitError),
@@ -70,6 +72,7 @@ impl DomainEvent {
             Self::LlmDelta { .. } => "llm:delta",
             Self::LlmDone => "llm:done",
             Self::ClipboardChanged => "clipboard:changed",
+            Self::SessionsChanged => "sessions:changed",
             Self::MediaChanged(_) => "media:changed",
             Self::Error(_) => "error",
         }
@@ -85,7 +88,7 @@ impl DomainEvent {
                 text,
                 end_of_utterance,
             } => json!({ "text": text, "endOfUtterance": end_of_utterance }),
-            Self::LlmDone | Self::ClipboardChanged => Value::Null,
+            Self::LlmDone | Self::ClipboardChanged | Self::SessionsChanged => Value::Null,
             Self::MediaChanged(now_playing) => json!(now_playing),
             Self::Error(error) => json!(error),
         }
@@ -198,6 +201,7 @@ mod tests {
             ),
             (DomainEvent::LlmDone, "llm:done"),
             (DomainEvent::ClipboardChanged, "clipboard:changed"),
+            (DomainEvent::SessionsChanged, "sessions:changed"),
         ];
         for (event, name) in names {
             assert_eq!(event.name(), name);

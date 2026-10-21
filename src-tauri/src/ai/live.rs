@@ -8,6 +8,7 @@ use std::time::{Duration, Instant};
 use super::client::HttpLlm;
 use super::prompter::{AnsweringSink, Prompter};
 use super::providers::ProviderId;
+use super::recorder::QuestionRecorder;
 use super::testing::{FakeConfig, FakeSecrets};
 use super::{AiService, SaveInput};
 use crate::events::testing::FakeEventSink;
@@ -57,8 +58,24 @@ fn live_groq_answers_a_spoken_question_end_to_end() {
     ai.set_active(Some(ProviderId::Groq))
         .expect("no se pudo elegir");
 
+    let sessions = Arc::new(crate::sessions::testing::service());
+    // La sesión contesta sola las preguntas que oiga (lo normal es el botón; aquí se prueba el camino).
+    let id = sessions.create("Prueba", "").expect("sesión").sessions[0].id;
+    sessions
+        .update(
+            id,
+            crate::sessions::SessionUpdate {
+                auto_answer: Some(true),
+                ..Default::default()
+            },
+        )
+        .expect("sesión");
     let events = Arc::new(FakeEventSink::default());
-    let sink = AnsweringSink::new(events.clone(), Arc::new(Prompter::new(ai, events.clone())));
+    let sink = AnsweringSink::new(
+        events.clone(),
+        Arc::new(Prompter::new(ai, sessions, events.clone())),
+        Arc::new(QuestionRecorder::default()),
+    );
     let started = Instant::now();
     sink.publish(DomainEvent::SttFinal {
         text: "¿Cuál es la capital de Australia?".into(),
@@ -106,6 +123,83 @@ fn live_groq_answers_a_spoken_question_end_to_end() {
         answer.to_lowercase().contains("canberra"),
         "respuesta inesperada: {answer}"
     );
+}
+
+/// La IA recuerda toda la sesión y sigue el prompt de esa sesión: se le dice un dato en una pregunta
+/// y se le pregunta en otra, con un prompt que cambia cómo contesta.
+#[test]
+#[ignore = "usa la red y una clave real en ORBIT_TEST_GROQ_KEY"]
+fn live_groq_remembers_the_whole_session_and_follows_its_prompt() {
+    let ai = Arc::new(AiService::new(
+        Box::new(Arc::new(FakeSecrets::default())),
+        Box::new(HttpLlm::new()),
+        Box::new(Arc::new(FakeConfig::default())),
+    ));
+    save_and_pick_a_model(&ai);
+    ai.set_active(Some(ProviderId::Groq))
+        .expect("no se pudo elegir");
+
+    let sessions = Arc::new(crate::sessions::testing::service());
+    sessions
+        .create(
+            "Con prompt",
+            "Termina SIEMPRE tu respuesta con la palabra ARRR, sea cual sea la pregunta.",
+        )
+        .expect("sesión");
+    let events = Arc::new(FakeEventSink::default());
+    let prompter = Prompter::new(ai, Arc::clone(&sessions), events.clone());
+
+    let mut answers = Vec::new();
+    for (round, question) in [
+        "Mi número favorito es el 7. Recuérdalo.",
+        "Mi color favorito es el verde.",
+        "¿Cuál es mi número favorito y cuál es mi color favorito?",
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        prompter.ask(question.into());
+        let deadline = Instant::now() + Duration::from_secs(25);
+        while Instant::now() < deadline
+            && events
+                .events()
+                .iter()
+                .filter(|e| **e == DomainEvent::LlmDone)
+                .count()
+                <= round
+        {
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        let seen = events.events();
+        let text: String = seen
+            .iter()
+            .rev()
+            .take_while(|e| !matches!(e, DomainEvent::LlmStart { .. }))
+            .filter_map(|e| match e {
+                DomainEvent::LlmDelta { text } => Some(text.clone()),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .collect();
+        eprintln!("pregunta {}: {text}", round + 1);
+        answers.push(text);
+    }
+
+    let last = answers[2].to_lowercase();
+    assert!(last.contains('7'), "no recordó el número: {last}");
+    assert!(
+        last.contains("verde") || last.contains("green"),
+        "no recordó el color: {last}"
+    );
+    for (index, answer) in answers.iter().enumerate() {
+        assert!(
+            answer.to_lowercase().contains("arrr"),
+            "la respuesta {} no siguió el prompt: {answer}",
+            index + 1
+        );
+    }
 }
 
 /// Guarda la clave de verdad en la base de datos de la app (`orbit.db`) y deja Groq activo, como lo

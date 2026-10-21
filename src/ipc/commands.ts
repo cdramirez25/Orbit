@@ -16,6 +16,9 @@ import type {
   PermissionStatus,
   Point,
   PointerPosition,
+  SessionMessage,
+  SessionsState,
+  SessionUpdate,
   WeatherReport,
 } from '@/types';
 
@@ -318,9 +321,27 @@ function browserAiCheck(id: AiProviderId): void {
   if (!local && !provider.hasKey) throw { code: 'ai.missingKey', message: 'sin clave' };
 }
 
+// Solo navegador: las sesiones en memoria (sin base de datos) para ver y probar la pantalla.
+let browserSessions: SessionsState = { active: null, sessions: [] };
+const browserMessages = new Map<number, SessionMessage[]>();
+let browserSessionId = 0;
+let browserRecording = false;
+
+function browserSessionsChanged(): SessionsState {
+  emitLocal('sessions:changed', null);
+  return browserSessions;
+}
+
 export const commands = {
   getNotchInfo: (): Promise<NotchInfo> =>
     isTauri() ? invoke<NotchInfo>('get_notch_info') : Promise.resolve(NO_NOTCH),
+
+  /**
+   * `true`: la isla puede recibir el teclado (mientras el usuario escribe una pregunta); `false`: se
+   * lo devuelve a la app de antes. Fuera de Tauri no hace nada.
+   */
+  setIslandKeyboard: (enabled: boolean): Promise<void> =>
+    isTauri() ? invoke<void>('set_island_keyboard', { enabled }) : Promise.resolve(),
 
   /** `true` = la ventana captura el mouse; `false` = click-through. */
   setIslandInteractive: (interactive: boolean): Promise<void> =>
@@ -485,6 +506,127 @@ export const commands = {
     simulateAnswer(question);
     return Promise.resolve();
   },
+
+  /** Las sesiones y cuál está activa. */
+  sessionGetState: (): Promise<SessionsState> =>
+    isTauri() ? invoke<SessionsState>('session_get_state') : Promise.resolve(browserSessions),
+
+  /** Crea una sesión (con su prompt) y la deja activa. */
+  sessionCreate: (name: string, prompt = ''): Promise<SessionsState> => {
+    if (isTauri()) return invoke<SessionsState>('session_create', { name, prompt });
+    if (name.trim() === '')
+      return Promise.reject({ code: 'session.emptyName', message: 'sin nombre' });
+    browserSessionId += 1;
+    const session = {
+      id: browserSessionId,
+      name: name.trim(),
+      prompt: prompt.trim(),
+      autoAnswer: false,
+      provider: null,
+      createdAt: Math.floor(Date.now() / 1000),
+    };
+    browserSessions = { active: session.id, sessions: [session, ...browserSessions.sessions] };
+    return Promise.resolve(browserSessionsChanged());
+  },
+
+  /** Cambia el nombre, el prompt o la respuesta automática de una sesión. */
+  sessionUpdate: (id: number, update: SessionUpdate): Promise<SessionsState> => {
+    if (isTauri()) return invoke<SessionsState>('session_update', { id, update });
+    browserSessions = {
+      ...browserSessions,
+      sessions: browserSessions.sessions.map((s) =>
+        s.id === id
+          ? {
+              ...s,
+              name: update.name?.trim() || s.name,
+              prompt: update.prompt?.trim() ?? s.prompt,
+              autoAnswer: update.autoAnswer ?? s.autoAnswer,
+              provider: update.provider === undefined ? s.provider : update.provider || null,
+            }
+          : s,
+      ),
+    };
+    return Promise.resolve(browserSessionsChanged());
+  },
+
+  /** Borra una sesión con todo su historial. */
+  sessionDelete: (id: number): Promise<SessionsState> => {
+    if (isTauri()) return invoke<SessionsState>('session_delete', { id });
+    const sessions = browserSessions.sessions.filter((s) => s.id !== id);
+    browserMessages.delete(id);
+    browserSessions = {
+      sessions,
+      active: browserSessions.active === id ? (sessions[0]?.id ?? null) : browserSessions.active,
+    };
+    return Promise.resolve(browserSessionsChanged());
+  },
+
+  /** Elige la sesión con la que se pregunta. */
+  sessionSetActive: (id: number | null): Promise<SessionsState> => {
+    if (isTauri()) return invoke<SessionsState>('session_set_active', { id });
+    browserSessions = { ...browserSessions, active: id };
+    return Promise.resolve(browserSessionsChanged());
+  },
+
+  /** Las preguntas y respuestas de una sesión, de la más antigua a la más nueva. */
+  sessionMessages: (id: number): Promise<SessionMessage[]> =>
+    isTauri()
+      ? invoke<SessionMessage[]>('session_messages', { id })
+      : Promise.resolve(browserMessages.get(id) ?? []),
+
+  /** Vacía el historial de una sesión (conserva la sesión y su prompt). */
+  sessionClear: (id: number): Promise<void> => {
+    if (isTauri()) return invoke<void>('session_clear', { id });
+    browserMessages.delete(id);
+    browserSessionsChanged();
+    return Promise.resolve();
+  },
+
+  /** Empieza a grabar una pregunta: se pone a escuchar el audio del sistema. */
+  questionStart: (): Promise<void> => {
+    if (isTauri()) return invoke<void>('question_start');
+    browserRecording = true;
+    startSimulation();
+    return Promise.resolve();
+  },
+
+  /**
+   * Termina la pregunta: deja de escuchar y se la hace a la IA con el contexto de la sesión.
+   * Devuelve la pregunta; la respuesta llega por los eventos `llm:*`. Rechaza con
+   * `ai.noQuestion` si no se oyó nada.
+   */
+  questionFinish: (): Promise<string> => {
+    if (isTauri()) return invoke<string>('question_finish');
+    browserRecording = false;
+    stopSimulation();
+    const question = translate('transcript.sample3');
+    simulateAnswer(question);
+    const active = browserSessions.active;
+    if (active !== null) {
+      const now = Math.floor(Date.now() / 1000);
+      const list = browserMessages.get(active) ?? [];
+      const id = list.length + 1;
+      browserMessages.set(active, [
+        ...list,
+        { id, role: 'user', content: question, createdAt: now },
+        { id: id + 1, role: 'assistant', content: translate('answer.sample'), createdAt: now },
+      ]);
+      browserSessionsChanged();
+    }
+    return Promise.resolve(question);
+  },
+
+  /** Cancela la grabación de la pregunta sin responder. */
+  questionCancel: (): Promise<void> => {
+    if (isTauri()) return invoke<void>('question_cancel');
+    browserRecording = false;
+    stopSimulation();
+    return Promise.resolve();
+  },
+
+  /** ¿Se está grabando una pregunta? (por si la ventana se abrió con una grabación en marcha). */
+  questionIsRecording: (): Promise<boolean> =>
+    isTauri() ? invoke<boolean>('question_is_recording') : Promise.resolve(browserRecording),
 
   /** Abre la ventana de ajustes (solo en desarrollo) o la trae al frente. */
   openSettingsWindow: (): Promise<void> => {

@@ -4,12 +4,14 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex, RwLock};
 
 use crate::ai::prompter::Prompter;
+use crate::ai::recorder::QuestionRecorder;
 use crate::ai::AiService;
 use crate::audio::permission::AudioPermission;
 use crate::clipboard::ClipboardService;
 use crate::events::EventSink;
 use crate::media::MediaService;
 use crate::pipeline::Pipeline;
+use crate::sessions::SessionService;
 use crate::settings::Settings;
 use crate::weather::WeatherService;
 
@@ -30,6 +32,10 @@ pub struct AppState {
     pub ai: Arc<AiService>,
     /// Contesta las preguntas (las de la transcripción y las que se escriben en Ajustes).
     pub prompter: Arc<Prompter>,
+    /// Las sesiones: prompt e historial (el contexto de la IA) de cada una.
+    pub sessions: Arc<SessionService>,
+    /// Junta las frases de la pregunta que se está grabando con el botón.
+    pub recorder: Arc<QuestionRecorder>,
     settings: RwLock<Settings>,
     settings_path: PathBuf,
 }
@@ -43,6 +49,8 @@ pub struct Services {
     pub media: Arc<MediaService>,
     pub ai: Arc<AiService>,
     pub prompter: Arc<Prompter>,
+    pub sessions: Arc<SessionService>,
+    pub recorder: Arc<QuestionRecorder>,
 }
 
 impl AppState {
@@ -61,6 +69,8 @@ impl AppState {
             media: services.media,
             ai: services.ai,
             prompter: services.prompter,
+            sessions: services.sessions,
+            recorder: services.recorder,
             settings: RwLock::new(settings),
             settings_path,
         }

@@ -2,13 +2,17 @@ import { Lock } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { Button, Card, Input, Tab } from '@/components/ui';
-import { AI_PROVIDERS, type AiProvider } from '@/features/settings/ai/providers';
+import {
+  AI_PROVIDERS,
+  isProviderConfigured,
+  type AiProvider,
+} from '@/features/settings/ai/providers';
 import { PageHeader } from '@/features/settings/layout';
 import { useT } from '@/i18n/useT';
 import { aiErrorKey } from '@/lib/ai/ai-error';
 import { cn } from '@/lib/utils/cn';
 import { useAiStore } from '@/stores/ai.store';
-import type { AiProviderId, AiProviderStatus } from '@/types';
+import type { AiProviderId } from '@/types';
 
 function Chip({ children, tone }: { children: ReactNode; tone?: 'accent' }) {
   return (
@@ -41,13 +45,6 @@ interface Draft {
 
 const EMPTY_DRAFT: Draft = { apiKey: '', baseUrl: '', model: '' };
 
-/** ¿Tiene lo necesario para funcionar? (clave si la pide, y un modelo elegido o por defecto). */
-function isConfigured(provider: AiProvider, status: AiProviderStatus | undefined): boolean {
-  if (!status) return false;
-  const hasModel = Boolean(status.model ?? status.defaultModel);
-  return hasModel && (provider.kind === 'local' || status.hasKey);
-}
-
 /**
  * Formulario de un proveedor: la nube pide clave de API y modelo; lo local, la dirección del
  * servidor y modelo. La clave solo viaja hacia Rust, que la guarda en este equipo: aquí no se vuelve a mostrar.
@@ -66,7 +63,7 @@ function ProviderCard({ provider }: { provider: AiProvider }) {
   const loadModels = useAiStore((s) => s.loadModels);
   const [draft, setDraft] = useState<Draft | null>(null);
 
-  const configured = isConfigured(provider, status);
+  const configured = isProviderConfigured(provider, status);
   const canListModels = provider.kind === 'local' || Boolean(status?.hasKey);
 
   // Con la clave (o la dirección) ya guardada se piden los modelos que ofrece, como sugerencias.

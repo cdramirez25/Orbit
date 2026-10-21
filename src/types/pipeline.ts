@@ -42,6 +42,8 @@ export interface PipelineEvents {
   'llm:done': null;
   /** El historial del portapapeles cambió: hay que volver a pedirlo. */
   'clipboard:changed': null;
+  /** Cambiaron las sesiones o su historial: hay que volver a pedirlos. */
+  'sessions:changed': null;
   /** Cambió lo que suena (`null`: ya no suena nada). */
   'media:changed': NowPlaying | null;
   error: OrbitError;

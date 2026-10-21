@@ -12,6 +12,7 @@ import {
   bindTranscriptToIsland,
 } from '@/modules/demo/demo.store';
 import { musicModule } from '@/modules/music';
+import { prompterModule } from '@/modules/prompter';
 import { bindRegistryToIsland, useRegistryStore } from '@/modules/registry';
 import { weatherModule } from '@/modules/weather';
 import { useAnswerStore } from '@/stores/answer.store';
@@ -19,6 +20,8 @@ import { useAudioStore } from '@/stores/audio.store';
 import { useClipboardStore } from '@/stores/clipboard.store';
 import { useIslandStore } from '@/stores/island.store';
 import { useMediaStore } from '@/stores/media.store';
+import { useQuestionStore } from '@/stores/question.store';
+import { useSessionStore } from '@/stores/session.store';
 import { useSettingsStore } from '@/stores/settings.store';
 import { useTranscriptStore } from '@/stores/transcript.store';
 import { useWeatherStore } from '@/stores/weather.store';
@@ -31,6 +34,7 @@ registry.register(demoModule);
 registry.register(weatherModule);
 registry.register(clipboardModule);
 registry.register(musicModule);
+registry.register(prompterModule);
 bindRegistryToIsland();
 
 // Módulos residentes: el clima (se actualiza solo), el historial del portapapeles y lo que suena
@@ -41,6 +45,7 @@ void useMediaStore.getState().bind();
 registry.startActivity(weatherModule.id);
 registry.startActivity(clipboardModule.id);
 registry.startActivity(musicModule.id);
+registry.startActivity(prompterModule.id);
 
 // Escucha del audio del sistema: volumen y estado desde Rust → las ondas de la isla.
 void useAudioStore.getState().bind();
@@ -48,6 +53,9 @@ void useAudioStore.getState().bind();
 void useTranscriptStore.getState().bind();
 // Si lo que se dijo es una pregunta, la IA la contesta y la respuesta llega por trozos.
 void useAnswerStore.getState().bind();
+// Sesiones (cada una con su prompt e historial) y si ya se estaba grabando una pregunta.
+void useSessionStore.getState().bind();
+void useQuestionStore.getState().sync();
 bindListeningToIsland();
 bindDemoToIsland();
 bindTranscriptToIsland();

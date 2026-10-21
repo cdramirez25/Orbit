@@ -13,6 +13,7 @@ mod db;
 mod events;
 mod media;
 mod pipeline;
+mod sessions;
 mod settings;
 mod stt;
 mod weather;
@@ -27,6 +28,7 @@ use tracing_subscriber::EnvFilter;
 
 use crate::ai::client::HttpLlm;
 use crate::ai::prompter::{AnsweringSink, Prompter};
+use crate::ai::recorder::QuestionRecorder;
 use crate::ai::sqlite::SqliteAiStore;
 use crate::ai::AiService;
 use crate::app_state::{AppState, Services};
@@ -38,6 +40,8 @@ use crate::db::Db;
 use crate::events::{DomainEvent, EventSink, PipelineState, TauriEventSink};
 use crate::media::MediaService;
 use crate::pipeline::{Pipeline, PipelineConfig};
+use crate::sessions::sqlite::SqliteSessionStore;
+use crate::sessions::SessionService;
 use crate::settings::Settings;
 use crate::stt::whisper_local::{WhisperEngine, MODEL_FILE};
 use crate::stt::SttEngine;
@@ -60,6 +64,17 @@ pub fn run() {
             commands::ai::ai_test_provider,
             commands::ai::ai_list_models,
             commands::ai::ai_ask,
+            commands::sessions::session_get_state,
+            commands::sessions::session_create,
+            commands::sessions::session_update,
+            commands::sessions::session_delete,
+            commands::sessions::session_set_active,
+            commands::sessions::session_messages,
+            commands::sessions::session_clear,
+            commands::sessions::question_start,
+            commands::sessions::question_finish,
+            commands::sessions::question_cancel,
+            commands::sessions::question_is_recording,
             commands::audio::get_audio_permission,
             commands::audio::request_audio_permission,
             commands::audio::open_audio_permission_settings,
@@ -76,6 +91,7 @@ pub fn run() {
             commands::media::media_seek,
             commands::island::get_notch_info,
             commands::island::set_island_interactive,
+            commands::island::set_island_keyboard,
             commands::island::get_pointer_position,
             commands::island::set_content_protected,
             commands::island::get_island_settings,
@@ -138,12 +154,21 @@ pub fn run() {
             let ai = Arc::new(AiService::new(
                 Box::new(SqliteAiStore::new(db.clone())),
                 Box::new(HttpLlm::new()),
-                Box::new(SqliteAiStore::new(db)),
+                Box::new(SqliteAiStore::new(db.clone())),
             ));
-            let prompter = Arc::new(Prompter::new(Arc::clone(&ai), Arc::clone(&events)));
+            let sessions = Arc::new(SessionService::new(Box::new(SqliteSessionStore::new(
+                db.clone(),
+            ))));
+            let prompter = Arc::new(Prompter::new(
+                Arc::clone(&ai),
+                Arc::clone(&sessions),
+                Arc::clone(&events),
+            ));
+            let recorder = Arc::new(QuestionRecorder::default());
             let pipeline_events: Arc<dyn EventSink> = Arc::new(AnsweringSink::new(
                 Arc::clone(&events),
                 Arc::clone(&prompter),
+                Arc::clone(&recorder),
             ));
             let pipeline = Pipeline::new(audio_source, pipeline_events, config).with_stt(stt);
 
@@ -178,6 +203,8 @@ pub fn run() {
                     media,
                     ai,
                     prompter,
+                    sessions,
+                    recorder,
                 },
                 settings,
                 settings_path,

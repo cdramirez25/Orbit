@@ -13,6 +13,15 @@ pub mod transcriber;
 pub mod whisper_local;
 
 use std::path::PathBuf;
+use std::sync::mpsc::Sender;
+
+/// Lo que le llega al hilo de transcripción.
+pub enum SttMessage {
+    /// Audio normalizado (16 kHz, mono).
+    Audio(Vec<f32>),
+    /// Quien habla terminó: cerrar la frase en curso, publicar su texto final y avisar por el canal.
+    Flush(Sender<()>),
+}
 
 /// Lo que devuelve un motor para un trozo de audio.
 #[derive(Debug, Clone, PartialEq, Eq)]

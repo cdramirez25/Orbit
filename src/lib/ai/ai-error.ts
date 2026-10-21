@@ -19,6 +19,8 @@ export function aiErrorKey(code: string): MessageKey {
       return 'ai.error.provider';
     case 'ai.badResponse':
       return 'ai.error.badResponse';
+    case 'ai.noQuestion':
+      return 'ai.error.noQuestion';
     case 'ai.storage':
       return 'ai.error.storage';
     default:

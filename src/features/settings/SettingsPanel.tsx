@@ -6,10 +6,12 @@ import { AiPage } from '@/features/settings/pages/AiPage';
 import { AudioPage } from '@/features/settings/pages/AudioPage';
 import { GeneralPage } from '@/features/settings/pages/GeneralPage';
 import { IslandPage } from '@/features/settings/pages/IslandPage';
+import { SessionsPage } from '@/features/settings/pages/SessionsPage';
 import { useT } from '@/i18n/useT';
 
 const PAGES: Record<SettingsPage, () => React.JSX.Element> = {
   island: IslandPage,
+  sessions: SessionsPage,
   audio: AudioPage,
   ai: AiPage,
   general: GeneralPage,

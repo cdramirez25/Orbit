@@ -80,10 +80,10 @@ export const SIZE = {
     minHeight: 120,
     /**
      * Tope de altura del contenido (sin la franja del notch); lo que sobre hace scroll interno.
-     * Incluye la fila del botón Alargar/Reducir (32 px). Con respuesta de 19 px / 26 px por
-     * fila: `normal` deja 4 filas y `tall` 8.
+     * Incluye la fila del botón Alargar/Reducir (32 px). `normal` deja ver la tarjeta de IA completa
+     * (sesión, grabar, campo para escribir y una respuesta de unas 3 líneas); `tall` da más sitio.
      */
-    maxHeight: { normal: 212, tall: 316 },
+    maxHeight: { normal: 268, tall: 380 },
   },
 } as const;
 

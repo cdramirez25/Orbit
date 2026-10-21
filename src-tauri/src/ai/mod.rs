@@ -11,6 +11,7 @@ pub mod config;
 mod live;
 pub mod prompter;
 pub mod providers;
+pub mod recorder;
 pub mod sqlite;
 
 use std::sync::{Mutex, MutexGuard, PoisonError};
@@ -40,6 +41,8 @@ pub enum AiError {
     Provider(String),
     #[error("respuesta inesperada del proveedor: {0}")]
     BadResponse(String),
+    #[error("no se oyó ninguna pregunta")]
+    NoQuestion,
 }
 
 impl AiError {
@@ -55,6 +58,7 @@ impl AiError {
             Self::RateLimited => "ai.rateLimited",
             Self::Provider(_) => "ai.provider",
             Self::BadResponse(_) => "ai.badResponse",
+            Self::NoQuestion => "ai.noQuestion",
         }
     }
 }
@@ -94,9 +98,43 @@ impl std::fmt::Debug for Target {
     }
 }
 
+/// Quién dijo algo en una conversación con la IA.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Role {
+    User,
+    Assistant,
+}
+
+impl Role {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::User => "user",
+            Self::Assistant => "assistant",
+        }
+    }
+
+    pub fn parse(text: &str) -> Option<Self> {
+        match text {
+            "user" => Some(Self::User),
+            "assistant" => Some(Self::Assistant),
+            _ => None,
+        }
+    }
+}
+
+/// Un turno de la conversación (lo que ya se preguntó y se contestó en la sesión).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChatTurn {
+    pub role: Role,
+    pub content: String,
+}
+
 /// Lo que se le pide al modelo.
 pub struct Request<'a> {
     pub system: &'a str,
+    /// Preguntas y respuestas anteriores, de la más antigua a la más nueva (empieza por una pregunta).
+    pub history: &'a [ChatTurn],
     pub user: &'a str,
     pub max_tokens: u32,
 }
@@ -276,6 +314,7 @@ impl AiService {
         // Holgado: un modelo que "piensa" gasta parte de este límite antes de contestar.
         let request = Request {
             system: "Reply with the single word: ok",
+            history: &[],
             user: "ping",
             max_tokens: 256,
         };
@@ -296,21 +335,26 @@ impl AiService {
         Ok(models)
     }
 
-    /// Le pregunta al proveedor activo. `on_delta` recibe la respuesta por trozos y devuelve `false`
-    /// para cortarla.
+    /// Le pregunta a un proveedor: el que se indica (la IA propia de la sesión) o, si no, el activo de
+    /// los ajustes. `on_delta` recibe la respuesta por trozos y devuelve `false` para cortarla.
     pub fn ask(
         &self,
+        provider: Option<ProviderId>,
         system: &str,
+        history: &[ChatTurn],
         user: &str,
         max_tokens: u32,
         on_delta: &mut dyn FnMut(&str) -> bool,
     ) -> Result<(), AiError> {
-        let active = self.config_guard().active.ok_or(AiError::NotConfigured)?;
-        let target = self.target(active, true)?;
+        let chosen = provider
+            .or(self.config_guard().active)
+            .ok_or(AiError::NotConfigured)?;
+        let target = self.target(chosen, true)?;
         self.client.stream(
             &target,
             &Request {
                 system,
+                history,
                 user,
                 max_tokens,
             },
@@ -380,6 +424,9 @@ pub mod testing {
         pub chunks: Mutex<Vec<String>>,
         pub error: Mutex<Option<AiError>>,
         pub calls: Mutex<Vec<(Target, String, String, u32)>>,
+        /// El historial que llegó en cada llamada.
+        pub histories: Mutex<Vec<Vec<ChatTurn>>>,
+        pub systems: Mutex<Vec<String>>,
         pub models: Mutex<Vec<String>>,
     }
 
@@ -396,6 +443,14 @@ pub mod testing {
                 request.user.to_string(),
                 request.max_tokens,
             ));
+            self.histories
+                .lock()
+                .unwrap()
+                .push(request.history.to_vec());
+            self.systems
+                .lock()
+                .unwrap()
+                .push(request.system.to_string());
             if let Some(error) = self.error.lock().unwrap().take() {
                 return Err(error);
             }
@@ -744,7 +799,7 @@ mod tests {
         let mut ignored = |_: &str| true;
         assert_eq!(
             h.service
-                .ask("s", "u", 10, &mut ignored)
+                .ask(None, "s", &[], "u", 10, &mut ignored)
                 .unwrap_err()
                 .code(),
             "ai.notConfigured"
@@ -758,10 +813,17 @@ mod tests {
 
         let mut text = String::new();
         h.service
-            .ask("sistema", "¿Capital de Australia?", 100, &mut |d| {
-                text.push_str(d);
-                true
-            })
+            .ask(
+                None,
+                "sistema",
+                &[],
+                "¿Capital de Australia?",
+                100,
+                &mut |d| {
+                    text.push_str(d);
+                    true
+                },
+            )
             .unwrap();
 
         assert_eq!(text, "Canberra");
@@ -770,6 +832,57 @@ mod tests {
             (calls[0].1.as_str(), calls[0].2.as_str(), calls[0].3),
             ("sistema", "¿Capital de Australia?", 100)
         );
+    }
+
+    #[test]
+    fn a_chosen_provider_is_used_instead_of_the_active_one() {
+        let h = harness("chosen");
+        h.service
+            .save(ProviderId::Groq, groq("gsk_x", "llama"))
+            .unwrap();
+        h.service
+            .save(
+                ProviderId::Claude,
+                SaveInput {
+                    api_key: Some("sk-ant-x".into()),
+                    ..SaveInput::default()
+                },
+            )
+            .unwrap();
+        h.service.set_active(Some(ProviderId::Groq)).unwrap();
+        *h.client.chunks.lock().unwrap() = vec!["ok".into()];
+
+        h.service
+            .ask(Some(ProviderId::Claude), "s", &[], "u", 10, &mut |_| true)
+            .unwrap();
+        h.service
+            .ask(None, "s", &[], "u", 10, &mut |_| true)
+            .unwrap();
+
+        let calls = h.client.calls.lock().unwrap();
+        assert_eq!(calls[0].0.id, ProviderId::Claude);
+        assert_eq!(calls[0].0.model, "claude-haiku-5-5");
+        assert_eq!(calls[1].0.id, ProviderId::Groq);
+    }
+
+    #[test]
+    fn a_chosen_provider_works_even_with_no_active_one_but_a_missing_key_is_an_error() {
+        let h = harness("chosen2");
+        h.service
+            .save(ProviderId::Groq, groq("gsk_x", "llama"))
+            .unwrap();
+        *h.client.chunks.lock().unwrap() = vec!["ok".into()];
+
+        // Sin proveedor activo, pero la sesión eligió uno: funciona.
+        h.service
+            .ask(Some(ProviderId::Groq), "s", &[], "u", 10, &mut |_| true)
+            .unwrap();
+        // La sesión eligió uno al que le falta la clave: error claro, no se cambia de IA en silencio.
+        let error = h
+            .service
+            .ask(Some(ProviderId::Claude), "s", &[], "u", 10, &mut |_| true)
+            .unwrap_err();
+        assert_eq!(error.code(), "ai.missingKey");
     }
 
     #[test]
@@ -783,7 +896,7 @@ mod tests {
 
         let mut seen = 0;
         h.service
-            .ask("s", "u", 10, &mut |_| {
+            .ask(None, "s", &[], "u", 10, &mut |_| {
                 seen += 1;
                 seen < 2
             })
@@ -847,6 +960,7 @@ mod tests {
             (AiError::RateLimited, "ai.rateLimited"),
             (AiError::Provider("x".into()), "ai.provider"),
             (AiError::BadResponse("x".into()), "ai.badResponse"),
+            (AiError::NoQuestion, "ai.noQuestion"),
         ];
         for (error, code) in codes {
             assert_eq!(error.code(), code);

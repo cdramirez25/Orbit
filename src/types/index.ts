@@ -27,6 +27,7 @@ export type {
 } from './pipeline';
 export type { MediaCommand, NowPlaying } from './media';
 export type { RemoteCommand, RemoteState } from './remote';
+export type { Session, SessionMessage, SessionsState, SessionUpdate } from './sessions';
 export type { IslandSettings } from './settings';
 export type {
   Units,

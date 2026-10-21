@@ -10,7 +10,7 @@ use ureq::tls::{RootCerts, TlsConfig, TlsProvider};
 use ureq::Agent;
 
 use super::providers::{ProviderId, Wire};
-use super::{AiError, LlmClient, Request, Target};
+use super::{AiError, ChatTurn, LlmClient, Request, Target};
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 /// Tope de toda la petición, respuesta incluida: una respuesta de la isla es corta.
@@ -96,14 +96,22 @@ fn parse_line(wire: Wire, line: &str) -> Line {
     }
 }
 
+/// El historial más la pregunta nueva, como la lista de mensajes que esperan los dos formatos.
+fn conversation(history: &[ChatTurn], user: &str) -> Vec<Value> {
+    history
+        .iter()
+        .map(|turn| json!({ "role": turn.role.as_str(), "content": turn.content }))
+        .chain(std::iter::once(json!({ "role": "user", "content": user })))
+        .collect()
+}
+
 fn openai_body(target: &Target, request: &Request<'_>) -> Value {
+    let mut messages = vec![json!({ "role": "system", "content": request.system })];
+    messages.extend(conversation(request.history, request.user));
     let mut body = json!({
         "model": target.model,
         "stream": true,
-        "messages": [
-            { "role": "system", "content": request.system },
-            { "role": "user", "content": request.user },
-        ],
+        "messages": messages,
     });
     body[target.id.spec().max_tokens_field] = json!(request.max_tokens);
     // Los modelos gpt-oss de Groq razonan antes de contestar: con esfuerzo bajo tardan menos.
@@ -119,7 +127,7 @@ fn anthropic_body(target: &Target, request: &Request<'_>) -> Value {
         "max_tokens": request.max_tokens,
         "stream": true,
         "system": request.system,
-        "messages": [{ "role": "user", "content": request.user }],
+        "messages": conversation(request.history, request.user),
     })
 }
 
@@ -369,6 +377,7 @@ mod tests {
             target,
             &Request {
                 system: "sé breve",
+                history: &[],
                 user: "¿Capital de Australia?",
                 max_tokens: 50,
             },
@@ -512,6 +521,81 @@ mod tests {
         assert_eq!(client.models(&t).unwrap_err().code(), "ai.badResponse");
     }
 
+    fn turns() -> Vec<ChatTurn> {
+        use crate::ai::Role;
+        vec![
+            ChatTurn {
+                role: Role::User,
+                content: "Mi número favorito es 7".into(),
+            },
+            ChatTurn {
+                role: Role::Assistant,
+                content: "Anotado: 7.".into(),
+            },
+        ]
+    }
+
+    #[test]
+    fn the_session_history_goes_before_the_new_question_in_both_formats() {
+        let (base, recorded) = serve(vec![
+            (200, "text/event-stream", OPENAI_STREAM.into()),
+            (200, "text/event-stream", ANTHROPIC_STREAM.into()),
+        ]);
+        let client = HttpLlm::new();
+        let history = turns();
+        let request = Request {
+            system: "sé breve",
+            history: &history,
+            user: "¿Cuál es?",
+            max_tokens: 50,
+        };
+
+        client
+            .stream(
+                &target(ProviderId::Groq, &base, Some("k")),
+                &request,
+                &mut |_| true,
+            )
+            .unwrap();
+        client
+            .stream(
+                &target(ProviderId::Claude, &base, Some("k")),
+                &request,
+                &mut |_| true,
+            )
+            .unwrap();
+
+        let bodies: Vec<Value> = recorded
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|r| serde_json::from_str(&r.body).unwrap())
+            .collect();
+        // OpenAI: el sistema, el historial y la pregunta nueva, en ese orden.
+        let roles: Vec<&str> = bodies[0]["messages"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|m| m["role"].as_str().unwrap())
+            .collect();
+        assert_eq!(roles, vec!["system", "user", "assistant", "user"]);
+        assert_eq!(
+            bodies[0]["messages"][1]["content"],
+            "Mi número favorito es 7"
+        );
+        assert_eq!(bodies[0]["messages"][3]["content"], "¿Cuál es?");
+        // Anthropic: el sistema va aparte y los mensajes empiezan por el usuario.
+        assert_eq!(bodies[1]["system"], "sé breve");
+        let roles: Vec<&str> = bodies[1]["messages"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|m| m["role"].as_str().unwrap())
+            .collect();
+        assert_eq!(roles, vec!["user", "assistant", "user"]);
+        assert_eq!(bodies[1]["messages"][2]["content"], "¿Cuál es?");
+    }
+
     #[test]
     fn claude_uses_the_anthropic_format() {
         let (base, recorded) = serve(vec![(200, "text/event-stream", ANTHROPIC_STREAM.into())]);
@@ -608,6 +692,7 @@ mod tests {
             &target(ProviderId::Groq, &base, Some("k")),
             &Request {
                 system: "s",
+                history: &[],
                 user: "u",
                 max_tokens: 5,
             },

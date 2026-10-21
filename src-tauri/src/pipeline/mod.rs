@@ -17,7 +17,7 @@ use crate::audio::resample::{Normalizer, TARGET_RATE};
 use crate::audio::wav::WavWriter;
 use crate::audio::{AudioError, AudioFrame, AudioSource};
 use crate::events::{DomainEvent, EventSink, OrbitError, PipelineState};
-use crate::stt::{transcriber, SttEngine};
+use crate::stt::{transcriber, SttEngine, SttMessage};
 
 /// Cada cuánto audio (en tiempo de audio) se publica el volumen: ≈ 30 veces por segundo.
 const METER_INTERVAL_SECS: f64 = 0.033;
@@ -36,6 +36,8 @@ struct Worker {
     stop: Arc<AtomicBool>,
     /// El hilo lo baja al terminar por cualquier motivo.
     running: Arc<AtomicBool>,
+    /// Para pedirle a la transcripción que cierre la frase en curso (`flush`).
+    transcription: Option<Sender<SttMessage>>,
 }
 
 pub struct Pipeline {
@@ -93,6 +95,7 @@ impl Pipeline {
         let stop = Arc::new(AtomicBool::new(false));
         let running = Arc::new(AtomicBool::new(true));
         let transcription = self.spawn_transcriber(&stop);
+        let control = transcription.clone();
         let spawned = thread::Builder::new().name("orbit-pipeline".into()).spawn({
             let events = Arc::clone(&self.events);
             let debug_wav = self.config.debug_wav.clone();
@@ -106,6 +109,7 @@ impl Pipeline {
                     handle,
                     stop,
                     running,
+                    transcription: control,
                 });
                 self.events
                     .publish(DomainEvent::PipelineState(PipelineState::Listening));
@@ -117,6 +121,24 @@ impl Pipeline {
                 self.report(&error);
                 Err(error)
             }
+        }
+    }
+
+    /// Cierra la frase que se esté diciendo y espera (hasta `timeout`) a que su texto final esté
+    /// publicado. Sirve para "terminé de hablar": sin esto, la última frase esperaría la pausa de
+    /// 0,8 s, y al parar se perdería. No hace nada si no se está escuchando.
+    pub fn flush(&self, timeout: Duration) {
+        let Some(sender) = self
+            .worker
+            .as_ref()
+            .and_then(|worker| worker.transcription.as_ref())
+        else {
+            return;
+        };
+        let (done, wait) = channel();
+        if sender.send(SttMessage::Flush(done)).is_ok() {
+            // Si el hilo termina antes de contestar, el canal se cierra y la espera acaba sola.
+            let _ = wait.recv_timeout(timeout);
         }
     }
 
@@ -153,7 +175,7 @@ impl Pipeline {
 
     /// Arranca el hilo de transcripción y devuelve por dónde mandarle el audio. El hilo termina
     /// solo cuando se cierra ese canal; no se espera a que acabe una transcripción en curso.
-    fn spawn_transcriber(&self, stop: &Arc<AtomicBool>) -> Option<Sender<Vec<f32>>> {
+    fn spawn_transcriber(&self, stop: &Arc<AtomicBool>) -> Option<Sender<SttMessage>> {
         let engine = Arc::clone(self.stt.as_ref()?);
         let (sender, receiver) = channel();
         let events = Arc::clone(&self.events);
@@ -195,7 +217,7 @@ fn run(
     stop: Arc<AtomicBool>,
     running: Arc<AtomicBool>,
     debug_wav: Option<PathBuf>,
-    mut transcription: Option<Sender<Vec<f32>>>,
+    mut transcription: Option<Sender<SttMessage>>,
 ) {
     let mut meter = LevelMeter::new(METER_INTERVAL_SECS);
     // La normalización a 16 kHz mono solo se calcula si hay quien la use: la transcripción o el
@@ -230,7 +252,7 @@ fn run(
                     if let Some(sender) = &transcription {
                         let samples = pcm.iter().map(|s| f32::from(*s) / 32_768.0).collect();
                         // Sin receptor (el hilo de transcripción terminó) se deja de mandar audio.
-                        if sender.send(samples).is_err() {
+                        if sender.send(SttMessage::Audio(samples)).is_err() {
                             transcription = None;
                         }
                     }
@@ -531,6 +553,34 @@ mod tests {
         // 0.5 s de voz + 0.2 s de cola, a 16 kHz mono ≈ 11 200 muestras.
         let samples: usize = text.split(' ').next().unwrap().parse().unwrap();
         assert!((10_000..=12_500).contains(&samples), "{samples} muestras");
+    }
+
+    #[test]
+    fn flushing_publishes_the_phrase_in_progress_without_waiting_for_a_pause() {
+        let mut h = harness(false, PipelineConfig::default());
+        h.pipeline = h.pipeline.with_stt(Arc::new(CountingEngine));
+        h.pipeline.start().unwrap();
+
+        // Medio segundo de voz y nada más: sin `flush` no saldría ningún final.
+        feed(&h.slot, frame(0.3, 500));
+        assert!(wait_for(&h.events, |e| level_above(e, 0.5)));
+        h.pipeline.flush(Duration::from_secs(3));
+
+        let finals = h
+            .events
+            .events()
+            .into_iter()
+            .filter(|e| matches!(e, DomainEvent::SttFinal { .. }))
+            .count();
+        assert_eq!(finals, 1);
+        h.pipeline.stop();
+    }
+
+    #[test]
+    fn flushing_when_not_listening_does_nothing() {
+        let h = harness(false, PipelineConfig::default());
+        h.pipeline.flush(Duration::from_millis(50));
+        assert!(h.events.events().is_empty());
     }
 
     #[test]

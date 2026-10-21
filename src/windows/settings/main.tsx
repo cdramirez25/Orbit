@@ -6,6 +6,7 @@ import { createRoot } from 'react-dom/client';
 import { SettingsPanel } from '@/features/settings/SettingsPanel';
 import { useAudioStore } from '@/stores/audio.store';
 import { useControlStore } from '@/stores/control.store';
+import { useSessionStore } from '@/stores/session.store';
 import { useSettingsStore } from '@/stores/settings.store';
 
 // Ventana de ajustes (por ahora, el panel de desarrollo). La isla vive en otra ventana: aquí solo
@@ -15,6 +16,8 @@ void useControlStore.getState().bind();
 void useAudioStore.getState().bind();
 // Lo guardado por Rust (ocultar de screen share).
 void useSettingsStore.getState().load();
+// Las sesiones (prompt e historial) se editan aquí y se usan desde la isla: se avisan por eventos.
+void useSessionStore.getState().bind();
 
 const root = document.getElementById('root');
 if (root) {

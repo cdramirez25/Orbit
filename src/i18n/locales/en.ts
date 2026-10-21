@@ -78,7 +78,6 @@ export const en: Record<MessageKey, string> = {
   // ── Live transcript ─────────────────────────────────────────────────────
   'transcript.title': 'Live transcript',
   'transcript.waiting': 'Waiting for speech…',
-  'transcript.hint': 'When it hears a question, the AI answers here.',
   'transcript.sample1': 'The capital of Australia is Canberra, not Sydney as many people think.',
   'transcript.sample2': 'The longest river in the world is the Nile according to most sources.',
   'transcript.sample3': 'What is the capital of Australia?',
@@ -139,8 +138,58 @@ export const en: Record<MessageKey, string> = {
     'Models running on your computer with Ollama. No key or Internet needed.',
   'ai.provider.docker.description':
     'A model in Docker (Model Runner) through an OpenAI-compatible address. No key needed.',
+  // ── Sessions (settings) ─────────────────────────────────────────────────
+  'settings.nav.sessions': 'Sessions',
+  'sessions.listAria': 'Sessions',
+  'sessions.new': 'New session',
+  'sessions.defaultName': 'Session',
+  'sessions.empty': 'Create a session so the AI keeps the context of everything that is asked.',
+  'sessions.field.name': 'Name',
+  'sessions.field.prompt': 'Session prompt',
+  'sessions.field.promptPlaceholder':
+    'How the AI should act in this session. For example: "You are a geography expert; answer in a single sentence."',
+  'sessions.field.promptHint':
+    'The AI follows it in every question of this session and remembers everything asked and answered.',
+  'sessions.field.autoAnswer': 'Answer the questions it hears by itself',
+  'sessions.field.autoAnswerHint':
+    'Off: it only answers when you press Record question and then Finish and answer.',
+  'sessions.action.save': 'Save',
+  'sessions.action.use': 'Use this session',
+  'sessions.action.inUse': 'In use',
+  'sessions.action.delete': 'Delete session',
+  'sessions.action.clear': 'Clear history',
+  'sessions.history.title': 'History',
+  'sessions.history.empty': 'There are no questions in this session yet.',
+  'sessions.history.question': 'Question',
+  'sessions.history.answer': 'AI',
+  'sessions.error.emptyName': 'The session needs a name',
+  'sessions.error.generic': 'Could not save the session',
+
+  // ── AI in the island (record a question) ────────────────────────────────
+  'prompter.module': 'AI',
+  'prompter.session.aria': 'Active session',
+  'prompter.session.none': 'No session',
+  'prompter.session.previous': 'Previous session',
+  'prompter.session.next': 'Next session',
+  'prompter.session.new': 'New session',
+  'prompter.record': 'Record question',
+  'prompter.finish': 'Finish and answer',
+  'prompter.cancel': 'Cancel',
+  'prompter.recording': 'Recording…',
+  'prompter.hint': 'Press Record question, ask or play the question and press Finish and answer.',
+  'prompter.error.permission': 'Audio capture permission is missing (System Settings)',
+  'ai.error.noQuestion': 'No question was heard',
+  'prompter.type.aria': 'Type a question',
+  'prompter.type.placeholder': 'Or type your question…',
+  'prompter.type.send': 'Send question',
+  'sessions.field.ai': 'AI for this session',
+  'sessions.ai.default': 'Default',
+  'sessions.ai.defaultHint': 'Uses the AI that is in use in Settings, AI section',
+  'sessions.ai.hint': 'This session always asks this AI.',
+  'sessions.ai.none': 'No AI is set up yet: add one in Settings, AI section.',
+  'answer.question': 'Question',
   'answer.sample':
-    'Canberra. It has been the capital of Australia since 1913, chosen as a midpoint between Sydney and Melbourne.',
+    '**Canberra**. It has been the capital of Australia since *1913*, chosen as a midpoint between Sydney and Melbourne.',
 
   // ── Module switcher ─────────────────────────────────────────────────────
   'modules.switcherAria': 'Island modules',

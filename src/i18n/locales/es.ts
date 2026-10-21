@@ -82,7 +82,6 @@ export const es = {
   // ── Transcripción en vivo ───────────────────────────────────────────────
   'transcript.title': 'Transcripción en vivo',
   'transcript.waiting': 'Esperando voz…',
-  'transcript.hint': 'Cuando oiga una pregunta, la IA responde aquí.',
   'transcript.sample1': 'La capital de Australia es Canberra, no Sídney como mucha gente cree.',
   'transcript.sample2': 'El río más largo del mundo es el Nilo según la mayoría de las fuentes.',
   'transcript.sample3': '¿Cuál es la capital de Australia?',
@@ -143,8 +142,59 @@ export const es = {
     'Modelos que corren en tu equipo con Ollama. No necesita clave ni Internet.',
   'ai.provider.docker.description':
     'Un modelo en Docker (Model Runner) por una dirección compatible con OpenAI. No necesita clave.',
+  // ── Sesiones (ajustes) ──────────────────────────────────────────────────
+  'settings.nav.sessions': 'Sesiones',
+  'sessions.listAria': 'Sesiones',
+  'sessions.new': 'Nueva sesión',
+  'sessions.defaultName': 'Sesión',
+  'sessions.empty': 'Crea una sesión para que la IA tenga el contexto de todo lo que se pregunte.',
+  'sessions.field.name': 'Nombre',
+  'sessions.field.prompt': 'Prompt de la sesión',
+  'sessions.field.promptPlaceholder':
+    'Cómo debe actuar la IA en esta sesión. Por ejemplo: "Eres un experto en geografía; responde en una sola frase."',
+  'sessions.field.promptHint':
+    'La IA lo sigue en todas las preguntas de esta sesión y recuerda todo lo que se pregunte y se responda.',
+  'sessions.field.autoAnswer': 'Contestar sola las preguntas que oiga',
+  'sessions.field.autoAnswerHint':
+    'Apagado: solo responde cuando pulsas Grabar pregunta y luego Terminar y responder.',
+  'sessions.action.save': 'Guardar',
+  'sessions.action.use': 'Usar esta sesión',
+  'sessions.action.inUse': 'En uso',
+  'sessions.action.delete': 'Borrar sesión',
+  'sessions.action.clear': 'Borrar historial',
+  'sessions.history.title': 'Historial',
+  'sessions.history.empty': 'Todavía no hay preguntas en esta sesión.',
+  'sessions.history.question': 'Pregunta',
+  'sessions.history.answer': 'IA',
+  'sessions.error.emptyName': 'La sesión necesita un nombre',
+  'sessions.error.generic': 'No se pudo guardar la sesión',
+
+  // ── IA en la isla (grabar pregunta) ─────────────────────────────────────
+  'prompter.module': 'IA',
+  'prompter.session.aria': 'Sesión activa',
+  'prompter.session.none': 'Sin sesión',
+  'prompter.session.previous': 'Sesión anterior',
+  'prompter.session.next': 'Sesión siguiente',
+  'prompter.session.new': 'Nueva sesión',
+  'prompter.record': 'Grabar pregunta',
+  'prompter.finish': 'Terminar y responder',
+  'prompter.cancel': 'Cancelar',
+  'prompter.recording': 'Grabando…',
+  'prompter.hint':
+    'Pulsa Grabar pregunta, haz o reproduce la pregunta y pulsa Terminar y responder.',
+  'prompter.error.permission': 'Falta el permiso para capturar el audio (Ajustes del Sistema)',
+  'ai.error.noQuestion': 'No se oyó ninguna pregunta',
+  'prompter.type.aria': 'Escribir una pregunta',
+  'prompter.type.placeholder': 'O escribe tu pregunta…',
+  'prompter.type.send': 'Enviar pregunta',
+  'sessions.field.ai': 'IA de esta sesión',
+  'sessions.ai.default': 'Predeterminada',
+  'sessions.ai.defaultHint': 'Usa la IA que esté en uso en Ajustes, sección IA',
+  'sessions.ai.hint': 'Esta sesión siempre le pregunta a esta IA.',
+  'sessions.ai.none': 'Todavía no hay ninguna IA configurada: añade una en Ajustes, sección IA.',
+  'answer.question': 'Pregunta',
   'answer.sample':
-    'Canberra. Es la capital de Australia desde 1913, elegida como punto medio entre Sídney y Melbourne.',
+    '**Canberra**. Es la capital de Australia desde *1913*, elegida como punto medio entre Sídney y Melbourne.',
 
   // ── Selector de módulos ─────────────────────────────────────────────────
   'modules.switcherAria': 'Módulos de la isla',

@@ -5,7 +5,7 @@ use super::CommandError;
 use crate::app_state::AppState;
 use crate::settings::{IslandAnchor, Point, Settings};
 use crate::window::notch::{self, NotchInfo};
-use crate::window::{island_window, settings_window};
+use crate::window::{self, island_window, settings_window};
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize)]
 pub struct PointerPosition {
@@ -33,6 +33,14 @@ pub fn set_island_interactive(
     interactive: bool,
 ) -> Result<(), CommandError> {
     window.set_ignore_cursor_events(!interactive)?;
+    Ok(())
+}
+
+/// La isla recibe el teclado solo mientras el usuario escribe en su campo de pregunta. Es síncrono:
+/// los cambios de foco de la ventana nativa tienen que hacerse en el hilo principal.
+#[tauri::command]
+pub fn set_island_keyboard(app: AppHandle, enabled: bool) -> Result<(), CommandError> {
+    window::set_island_keyboard(&app, enabled)?;
     Ok(())
 }
 

@@ -7,6 +7,7 @@ pub mod clipboard;
 pub mod island;
 pub mod media;
 pub mod pipeline;
+pub mod sessions;
 pub mod settings_window;
 pub mod weather;
 
@@ -27,6 +28,8 @@ pub enum CommandError {
     Media(#[from] crate::media::MediaError),
     #[error("error de la IA: {0}")]
     Ai(#[from] crate::ai::AiError),
+    #[error("error de la sesión: {0}")]
+    Session(#[from] crate::sessions::SessionError),
 }
 
 impl CommandError {
@@ -39,6 +42,7 @@ impl CommandError {
             Self::Clipboard(error) => error.code(),
             Self::Media(error) => error.code(),
             Self::Ai(error) => error.code(),
+            Self::Session(error) => error.code(),
         }
     }
 }
@@ -85,6 +89,12 @@ mod tests {
     fn ai_errors_keep_their_stable_code() {
         let error = CommandError::from(crate::ai::AiError::Unauthorized);
         assert_eq!(error.code(), "ai.unauthorized");
+    }
+
+    #[test]
+    fn session_errors_keep_their_stable_code() {
+        let error = CommandError::from(crate::sessions::SessionError::NotFound);
+        assert_eq!(error.code(), "session.notFound");
     }
 
     #[test]

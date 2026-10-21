@@ -1,7 +1,7 @@
 import { Container, MessageSquare, Server, Sparkles, Zap, type LucideIcon } from 'lucide-react';
 
 import type { MessageKey } from '@/i18n/messages';
-import type { AiProviderId } from '@/types';
+import type { AiProviderId, AiProviderStatus } from '@/types';
 
 export type AiProviderKind = 'cloud' | 'local';
 
@@ -62,3 +62,13 @@ export const AI_PROVIDERS: readonly AiProvider[] = [
     baseUrlPlaceholder: 'http://localhost:12434/engines/v1',
   },
 ];
+
+/** ¿Tiene lo necesario para funcionar? (clave si la pide, y un modelo elegido o por defecto). */
+export function isProviderConfigured(
+  provider: AiProvider,
+  status: AiProviderStatus | undefined,
+): boolean {
+  if (!status) return false;
+  const hasModel = Boolean(status.model ?? status.defaultModel);
+  return hasModel && (provider.kind === 'local' || status.hasKey);
+}

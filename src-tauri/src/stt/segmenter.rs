@@ -115,6 +115,17 @@ impl Segmenter {
         }
     }
 
+    /// Cierra a la fuerza la frase en curso (quien habla terminó): devuelve su final si había voz de
+    /// verdad, y deja el segmentador listo para la siguiente.
+    pub fn flush(&mut self) -> Option<Segment> {
+        if !self.in_speech {
+            return None;
+        }
+        let mut out = Vec::new();
+        self.finish(&mut out);
+        out.pop()
+    }
+
     fn begin(&mut self, window: &[f32]) {
         self.in_speech = true;
         self.utterance.clear();
@@ -303,6 +314,30 @@ mod tests {
             got.extend(pieces.push(chunk));
         }
         assert_eq!(got, expected);
+    }
+
+    #[test]
+    fn flushing_closes_the_phrase_in_progress_without_waiting_for_a_pause() {
+        let mut segmenter = Segmenter::new();
+        let during = segmenter.push(&tone(LOUD, 500));
+        assert!(during.is_empty());
+
+        let flushed = segmenter.flush();
+        assert!(matches!(flushed, Some(Segment::Final(audio)) if !audio.is_empty()));
+        // Ya no queda nada en curso.
+        assert_eq!(segmenter.flush(), None);
+    }
+
+    #[test]
+    fn flushing_silence_or_a_click_gives_nothing_and_leaves_the_segmenter_ready() {
+        let mut segmenter = Segmenter::new();
+        assert_eq!(segmenter.flush(), None);
+
+        segmenter.push(&tone(LOUD, 100)); // un chasquido: menos que MIN_SPEECH
+        assert_eq!(segmenter.flush(), None);
+
+        let segments = feed(&mut segmenter, &[tone(LOUD, 500), silence(1000)]);
+        assert_eq!(finals(&segments).len(), 1);
     }
 
     #[test]

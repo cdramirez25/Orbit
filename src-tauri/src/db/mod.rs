@@ -24,6 +24,26 @@ const MIGRATIONS: &[&str] = &[
          active TEXT
      );
      INSERT INTO ai_state (id, active) VALUES (1, NULL);",
+    // 2: Sesiones. Cada una con su prompt (cómo debe actuar la IA) y su historial de preguntas y
+    // respuestas, que es el contexto de la IA en esa sesión. `active_session` dice cuál se usa.
+    "CREATE TABLE sessions (
+         id          INTEGER PRIMARY KEY AUTOINCREMENT,
+         name        TEXT NOT NULL,
+         prompt      TEXT NOT NULL DEFAULT '',
+         auto_answer INTEGER NOT NULL DEFAULT 0,
+         created_at  INTEGER NOT NULL
+     );
+     CREATE TABLE session_messages (
+         id         INTEGER PRIMARY KEY AUTOINCREMENT,
+         session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+         role       TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+         content    TEXT NOT NULL,
+         created_at INTEGER NOT NULL
+     );
+     CREATE INDEX session_messages_by_session ON session_messages (session_id, id);
+     ALTER TABLE ai_state ADD COLUMN active_session INTEGER;",
+    // 3: Cada sesión puede usar su propia IA (NULL = la que esté activa en los ajustes).
+    "ALTER TABLE sessions ADD COLUMN provider TEXT;",
 ];
 
 #[derive(Debug, thiserror::Error)]
@@ -59,6 +79,8 @@ impl Db {
     }
 
     fn from_connection(mut connection: Connection) -> Result<Self, DbError> {
+        // SQLite no hace cumplir las claves foráneas (borrar una sesión borra sus mensajes) salvo que se pida.
+        connection.execute_batch("PRAGMA foreign_keys = ON")?;
         migrate(&mut connection)?;
         Ok(Self {
             connection: Arc::new(Mutex::new(connection)),
@@ -130,6 +152,59 @@ mod tests {
         assert_eq!(version(&db), i64::try_from(MIGRATIONS.len()).unwrap());
         assert!(tables(&db).contains(&"ai_providers".to_string()));
         assert!(tables(&db).contains(&"ai_state".to_string()));
+        assert!(tables(&db).contains(&"sessions".to_string()));
+        assert!(tables(&db).contains(&"session_messages".to_string()));
+        // La migración 3 añadió la IA propia de cada sesión.
+        db.lock().prepare("SELECT provider FROM sessions").unwrap();
+    }
+
+    #[test]
+    fn deleting_a_session_deletes_its_messages() {
+        let db = Db::open_in_memory().unwrap();
+        let connection = db.lock();
+        connection
+            .execute(
+                "INSERT INTO sessions (id, name, created_at) VALUES (1, 's', 0)",
+                [],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO session_messages (session_id, role, content, created_at) VALUES (1, 'user', 'hola', 0)",
+                [],
+            )
+            .unwrap();
+        connection
+            .execute("DELETE FROM sessions WHERE id = 1", [])
+            .unwrap();
+
+        let left: i64 = connection
+            .query_row("SELECT COUNT(*) FROM session_messages", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(left, 0);
+    }
+
+    #[test]
+    fn a_message_needs_a_known_role_and_an_existing_session() {
+        let db = Db::open_in_memory().unwrap();
+        let connection = db.lock();
+        connection
+            .execute(
+                "INSERT INTO sessions (id, name, created_at) VALUES (1, 's', 0)",
+                [],
+            )
+            .unwrap();
+        let insert = |session: i64, role: &str| {
+            connection.execute(
+                "INSERT INTO session_messages (session_id, role, content, created_at) VALUES (?1, ?2, 'x', 0)",
+                rusqlite::params![session, role],
+            )
+        };
+        assert!(insert(1, "user").is_ok());
+        assert!(insert(1, "robot").is_err());
+        assert!(insert(99, "user").is_err());
     }
 
     #[test]

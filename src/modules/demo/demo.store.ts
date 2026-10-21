@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 
 import { translate } from '@/i18n/locale.store';
+import { PROMPTER_MODULE_ID } from '@/modules/prompter/id';
 import { useRegistryStore } from '@/modules/registry';
 import { useAnswerStore } from '@/stores/answer.store';
 import { useAudioStore } from '@/stores/audio.store';
@@ -89,57 +90,58 @@ export function bindDemoToIsland(): () => void {
 }
 
 /**
- * Mientras se escucha, la isla muestra la pastilla compacta del módulo (punto + ondas); al parar
- * vuelve a reposo o, si hay módulos residentes (clima, portapapeles), a su pastilla.
- * (El Prompter real hará esto mismo con sus propias actividades.)
+ * Muestra la tarjeta de IA: la elige entre los módulos y abre la isla desde reposo, compacta u oculta.
+ * Una tarjeta ya abierta o un aviso no se pisan.
+ */
+function showPrompter(): void {
+  useRegistryStore.getState().select(PROMPTER_MODULE_ID);
+  const island = useIslandStore.getState();
+  const state = island.snapshot.state;
+  if (state === 'compact' || state === 'idle' || state === 'hidden') island.goTo('expanded');
+}
+
+/**
+ * Al empezar a escuchar (con el botón de grabar pregunta o con el de Ajustes) la tarjeta de IA se
+ * elige sola y se parte de cero: sin la transcripción ni la respuesta de la vez anterior. La isla
+ * pasa a compacta si estaba en reposo, pero una tarjeta abierta se queda abierta: es donde se
+ * pulsa el botón.
  */
 export function bindListeningToIsland(): () => void {
   return useAudioStore.subscribe((state, previous) => {
-    if (state.listening === previous.listening) return;
-    if (state.listening) {
-      // Cada escucha empieza con la transcripción limpia y sin la respuesta simulada.
-      useTranscriptStore.getState().clear();
-      useAnswerStore.getState().clear();
-      useDemoStore.getState().resetAnswer();
-      useDemoStore.getState().goTo('compact');
-      return;
+    if (state.listening === previous.listening || !state.listening) return;
+    useTranscriptStore.getState().clear();
+    useAnswerStore.getState().clear();
+    useDemoStore.getState().resetAnswer();
+    useRegistryStore.getState().select(PROMPTER_MODULE_ID);
+    const island = useIslandStore.getState();
+    if (island.snapshot.state === 'hidden' || island.snapshot.state === 'idle') {
+      island.goTo('compact');
     }
-    // Al parar termina la actividad de escucha; si quedan módulos residentes, vuelve su pastilla.
-    useRegistryStore.getState().endActivity(DEMO_MODULE_ID);
-    const othersActive = useRegistryStore.getState().activities.length > 0;
-    useIslandStore.getState().goTo(othersActive ? 'compact' : 'idle');
   });
 }
 
 /**
- * Cuando llega la primera palabra de una escucha, la tarjeta se abre sola para que se vea la
- * transcripción. Solo una vez por escucha (la transcripción se vacía al empezar): si el usuario la
- * cierra, no se vuelve a abrir con cada frase. No pisa una tarjeta ya abierta ni un aviso.
+ * Cuando llega la primera palabra de una escucha, la tarjeta se abre sola para que se vea lo que se
+ * oye. Solo una vez por escucha (la transcripción se vacía al empezar): si el usuario la cierra, no
+ * se vuelve a abrir con cada frase.
  */
 export function bindTranscriptToIsland(): () => void {
   return useTranscriptStore.subscribe((state, previous) => {
     const hasText = (s: typeof state) => s.lines.length > 0 || s.partial !== '';
     if (!hasText(state) || hasText(previous)) return;
     if (!useAudioStore.getState().listening) return;
-    if (useIslandStore.getState().snapshot.state === 'compact') {
-      useDemoStore.getState().goTo('expanded');
-    }
+    showPrompter();
   });
 }
 
 /**
  * Cuando la IA empieza a contestar una pregunta nueva, la tarjeta se abre sola para que se vea la
- * respuesta, también cuando la pregunta se escribió en Ajustes. No pisa una tarjeta ya abierta ni un
- * aviso; si el usuario la cerró, la siguiente pregunta la vuelve a abrir (es justo lo que viene a buscar).
+ * respuesta, también cuando la pregunta se escribió en Ajustes. Si el usuario la cerró, la siguiente
+ * pregunta la vuelve a abrir (es justo lo que viene a buscar).
  */
 export function bindAnswerToIsland(): () => void {
   return useAnswerStore.subscribe((state, previous) => {
     if (state.question === null || state.question === previous.question) return;
-    // Una pregunta (oída o escrita en Ajustes) siempre muestra su respuesta: se abre desde reposo,
-    // compacta u oculta. Una tarjeta ya abierta o un aviso no se pisan.
-    const islandState = useIslandStore.getState().snapshot.state;
-    if (islandState === 'compact' || islandState === 'idle' || islandState === 'hidden') {
-      useDemoStore.getState().goTo('expanded');
-    }
+    showPrompter();
   });
 }
