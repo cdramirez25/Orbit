@@ -1,0 +1,179 @@
+<div align="center">
+
+<img src="assets/app-icon.png" alt="Orbit" width="256" />
+
+# Orbit
+
+**Una isla dinámica modular para macOS y Windows.**
+
+🌐 [English](../README.md) · **Español**
+
+</div>
+
+> **Estado:** en desarrollo temprano (v0.1.0). La isla ya funciona con un módulo de demostración y captura el audio
+> del sistema (las ondas siguen el volumen real); la transcripción y el Prompter todavía no están listos. Consulta la
+> [hoja de ruta](#hoja-de-ruta).
+
+---
+
+## ¿Qué es Orbit?
+
+Orbit es una isla dinámica para tu escritorio: una pastilla negra en la parte de arriba de la pantalla que crece y
+se encoge para mostrarte, en el momento, lo que necesitas ver. Funciona con módulos, así que lo que muestra depende
+del módulo que esté activo.
+
+El primero es **Prompter**, pensado para videollamadas (Meet, Zoom, Teams…). Orbit escucha lo que dicen los demás,
+detecta cuándo hacen una pregunta y te muestra la respuesta en la isla, como un teleprompter. Solo oye el audio que
+sale por tus bocinas o audífonos; tu micrófono nunca se captura.
+
+## Qué hay hoy
+
+| Área               | Estado                                                                                                                                                               |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Ventana de la isla | Transparente, sin bordes, siempre encima y sin robar foco. En macOS es un `NSPanel`.                                                                                 |
+| Máquina de estados | `hidden`, `idle`, `compact`, `expanded` y `alert`, con transiciones probadas (Vitest).                                                                               |
+| Animación          | Morfeo de ancho, alto y radio con springs de `motion/react`; contenido que aparece/desaparece escalonado.                                                            |
+| Notch              | Detección en macOS (estilo `attached`) y modo `floating` para Mac sin notch y Windows.                                                                               |
+| Click-through      | La ventana ignora el mouse salvo cuando el puntero está sobre la isla.                                                                                               |
+| Módulos            | Interfaz `OrbitModule` + registro con arbitraje por prioridad. Incluye un módulo de demostración.                                                                    |
+| UI                 | Primitivos accesibles (`Button`, `IconButton`, `Toggle`, `Tab`, `Card`) con `cursor: pointer` global.                                                                |
+| Idiomas            | Español e inglés (`src/i18n/locales/`).                                                                                                                              |
+| Audio del sistema  | Permiso de captura (macOS), captura real (ScreenCaptureKit en macOS, WASAPI loopback en Windows), conversión a 16 kHz mono y volumen que mueve las ondas de la isla. |
+
+## Stack
+
+| Capa                | Tecnología                                                |
+| ------------------- | --------------------------------------------------------- |
+| Shell de escritorio | [Tauri 2](https://tauri.app) (Rust)                       |
+| Frontend            | React 19 + TypeScript + Vite (sin meta-framework)         |
+| Animación           | [Motion](https://motion.dev) (`motion/react`)             |
+| Estado              | Zustand                                                   |
+| Estilos             | Tailwind CSS 4 (utilidades) + variables CSS               |
+| Tests               | Vitest + Testing Library (frontend) · `cargo test` (Rust) |
+| Rust async          | `tokio` (llegará con el STT en streaming, Fase 3)         |
+| Gestor de paquetes  | `pnpm`                                                    |
+
+**Plataformas:** macOS 13+ (desarrollo principal) y Windows 10 2004+ / 11. Linux está fuera de alcance.
+
+## Primeros pasos
+
+### Requisitos
+
+- [Node.js](https://nodejs.org) (LTS reciente) y [pnpm](https://pnpm.io)
+- [Rust](https://rustup.rs) estable
+- Los [prerrequisitos de Tauri 2](https://tauri.app/start/prerequisites/) para tu sistema
+  (Xcode Command Line Tools en macOS; WebView2 y Build Tools de C++ en Windows)
+
+### Instalar y ejecutar
+
+```bash
+pnpm install
+```
+
+```bash
+pnpm tauri dev
+```
+
+`pnpm tauri dev` abre la app completa (ventana nativa + demo de la isla). Si solo quieres trabajar en el frontend,
+`pnpm dev` lo sirve en <http://localhost:1420/island.html>.
+
+> En macOS, para capturar el audio del sistema hay que conceder el permiso de **Grabación de pantalla**
+> (Ajustes del Sistema → Privacidad y seguridad). La fila «Audio del sistema» del panel de demo muestra el estado del
+> permiso y te lleva a Ajustes. Con `pnpm tauri dev`, macOS le da el permiso a la terminal (o a la app) desde la que
+> lanzas Orbit, no a Orbit.
+
+### Comandos útiles
+
+| Comando                                                     | Para qué                    |
+| ----------------------------------------------------------- | --------------------------- |
+| `pnpm test`                                                 | Tests del frontend (Vitest) |
+| `pnpm lint`                                                 | ESLint                      |
+| `pnpm typecheck`                                            | `tsc --noEmit`              |
+| `pnpm format` / `pnpm format:check`                         | Prettier                    |
+| `cd src-tauri && cargo test`                                | Tests de Rust               |
+| `cd src-tauri && cargo clippy --all-targets -- -D warnings` | Clippy sin avisos           |
+
+## Arquitectura
+
+Orbit sigue una **arquitectura hexagonal (Ports & Adapters)**: el núcleo no conoce los proveedores de IA, las APIs
+del sistema operativo ni la UI.
+
+```
+ Adaptadores de entrada            Núcleo                    Adaptadores de salida
+ (comandos Tauri, atajos,   ──►  pipeline/ · modules/  ──►  (Deepgram, Whisper local, Anthropic,
+  tray, eventos al frontend)     solo conocen traits         OpenAI-compatible, ScreenCaptureKit,
+                                                             WASAPI, llavero, JSON de ajustes)
+```
+
+Reglas clave:
+
+- `pipeline/` y `modules/` dependen **solo de traits** (`AudioSource`, `SttEngine`, `LlmProvider`, `EventSink`).
+- Las implementaciones concretas se instancian **únicamente** en el _composition root_ (`lib.rs` + `app_state.rs`).
+- Los adaptadores nunca se conocen entre sí. Cambiar de proveedor o de sistema operativo es elegir otro adaptador.
+- Los comandos de Tauri son finos: validan, llaman al núcleo y devuelven. Sin lógica de negocio.
+- En el frontend, los componentes **nunca** llaman a `invoke()`: pasan por stores y hooks, y solo `src/ipc/` habla
+  con Rust.
+
+### El pipeline del Prompter (objetivo)
+
+```
+Audio del sistema → remuestreo (16 kHz mono) → VAD → STT en streaming
+   → detector de pregunta (+ buffer de ~30 s) → LLM en streaming → isla (expanded)
+```
+
+El detector de preguntas se dispara con un fin de enunciado o un silencio de ~600–800 ms **y** una heurística
+(signo `?`, interrogativos en español/inglés o un listado de opciones). También habrá un atajo manual
+(`answer_now`).
+
+### Estructura del repositorio
+
+```
+Orbit/
+├── docs/
+│   ├── SPEC.md          # Especificación completa (léela antes de tocar la arquitectura)
+│   └── assets/          #   logo e imágenes
+├── CLAUDE.md            # Reglas de trabajo para Claude Code
+├── island.html          # Entrada de la ventana de la isla
+├── settings.html        # Entrada de la ventana de ajustes
+├── src/                 # Frontend (React + TSX)
+│   ├── windows/         #   puntos de entrada, uno por ventana (island/ y settings/)
+│   ├── components/      #   ui/ (primitivos) e island/ (Island, NotchShape, IslandContent)
+│   ├── modules/         #   módulos de la isla (plugins): registry.ts y demo/
+│   ├── features/        #   pantallas de ajustes (settings/)
+│   ├── stores/          #   estado global con Zustand (island, settings, audio)
+│   ├── hooks/           #   useHitTest, useIslandDrag, useReducedMotion…
+│   ├── ipc/             #   única capa que habla con Rust (commands, events, errors)
+│   ├── lib/
+│   │   ├── island/      #     máquina de estados y constantes de animación
+│   │   ├── audio/       #     volumen del audio del sistema como MotionValue
+│   │   └── utils/       #     utilidades puras (cn)
+│   ├── i18n/            #   textos en español e inglés
+│   ├── styles/          #   base.css: tokens y regla global de cursor
+│   ├── test/            #   configuración de Vitest
+│   └── types/           #   tipos compartidos
+└── src-tauri/           # Backend (Rust)
+    ├── tauri.conf.json
+    ├── capabilities/
+    └── src/
+        ├── lib.rs       #   composition root: aquí se eligen los adaptadores
+        ├── app_state.rs #   estado compartido
+        ├── events.rs    #   eventos de dominio y puerto EventSink
+        ├── commands/    #   comandos de Tauri (finos): audio, island y pipeline
+        ├── window/      #   ventana, posicionamiento, notch y platform/ (macOS y Windows)
+        ├── audio/       #   puerto AudioSource, remuestreo, nivel de volumen, permiso y WAV de depuración
+        │   └── platform/ #    ScreenCaptureKit (macOS) y WASAPI loopback (Windows)
+        ├── pipeline/    #   orquestador: audio del sistema → volumen → eventos
+        └── settings/    #   configuración persistida
+```
+
+## Hoja de ruta
+
+| Fase | Contenido                                                                      | Estado       |
+| ---- | ------------------------------------------------------------------------------ | ------------ |
+| 0    | Andamiaje: Tauri 2 + React + Vite + Tailwind, lint, alias `@/`                 | ✅ Hecha¹    |
+| 1    | La isla: ventana, máquina de estados, animaciones, notch, click-through, i18n  | ✅ Hecha     |
+| 2    | Captura del audio del sistema (macOS y Windows), remuestreo y medidor de nivel | 🚧 En curso² |
+| 3    | Transcripción en streaming (Deepgram) y motor local con `whisper-rs`           | ⏳ Pendiente |
+| 4    | Clientes LLM (Anthropic y OpenAI-compatible), detector de preguntas, Prompter  | ⏳ Pendiente |
+| 5    | Ajustes, llavero, atajos globales, tray, onboarding y consentimiento           | ⏳ Pendiente |
+| 6    | Pulido, empaquetado (`.dmg`, `.msi`/`.exe`) y documentación de módulos         | ⏳ Pendiente |

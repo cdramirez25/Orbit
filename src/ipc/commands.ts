@@ -1,5 +1,6 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
 
+import { emitLocal } from '@/ipc/events';
 import type {
   IslandAnchor,
   IslandSettings,
@@ -36,6 +37,36 @@ if (typeof window !== 'undefined' && !isTauri()) {
   document.documentElement.addEventListener('pointerleave', () => {
     browserPointer = null;
   });
+}
+
+// Solo navegador: simula la escucha (estado + volumen) para poder ver las ondas con `pnpm dev`.
+const SIMULATION_TICK_MS = 33;
+let simulation: ReturnType<typeof setInterval> | undefined;
+
+function simulatedLevel(seconds: number): number {
+  const wave =
+    0.5 +
+    0.3 * Math.sin(seconds * 5) +
+    0.15 * Math.sin(seconds * 13.7) +
+    0.1 * Math.sin(seconds * 29);
+  return Math.min(1, Math.max(0, wave));
+}
+
+function startSimulation(): void {
+  if (simulation !== undefined) return;
+  emitLocal('pipeline:state', 'listening');
+  const startedAt = Date.now();
+  simulation = setInterval(
+    () => emitLocal('audio:level', simulatedLevel((Date.now() - startedAt) / 1000)),
+    SIMULATION_TICK_MS,
+  );
+}
+
+function stopSimulation(): void {
+  clearInterval(simulation);
+  simulation = undefined;
+  emitLocal('audio:level', 0);
+  emitLocal('pipeline:state', 'idle');
 }
 
 export const commands = {
@@ -85,6 +116,22 @@ export const commands = {
   /** Abre la pantalla de Ajustes del Sistema donde se concede el permiso. */
   openAudioPermissionSettings: (): Promise<void> =>
     isTauri() ? invoke<void>('open_audio_permission_settings') : Promise.resolve(),
+
+  /** Empieza a escuchar el audio del sistema. Si falla rechaza con `{ code, message }`. */
+  startListening: (): Promise<void> => {
+    if (isTauri()) return invoke<void>('start_listening');
+    startSimulation();
+    return Promise.resolve();
+  },
+
+  stopListening: (): Promise<void> => {
+    if (isTauri()) return invoke<void>('stop_listening');
+    stopSimulation();
+    return Promise.resolve();
+  },
+
+  isListening: (): Promise<boolean> =>
+    isTauri() ? invoke<boolean>('is_listening') : Promise.resolve(simulation !== undefined),
 
   quitApp: (): Promise<void> => (isTauri() ? invoke<void>('quit_app') : Promise.resolve()),
 };

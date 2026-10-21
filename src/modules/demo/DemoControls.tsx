@@ -30,6 +30,13 @@ const PERMISSION_TONE: Record<PermissionStatus, string> = {
 /** Cada cuánto se vuelve a consultar el permiso (el usuario lo concede en Ajustes del Sistema). */
 const PERMISSION_POLL_MS = 2000;
 
+/** Mensaje para el error al escuchar. El de permiso ya se ve en el estado del permiso. */
+function listenErrorKey(code: string): MessageKey | null {
+  if (code === 'audio.permissionDenied') return null;
+  if (code === 'audio.noOutputDevice') return 'audio.error.noDevice';
+  return 'audio.error.generic';
+}
+
 const STATES: ReadonlyArray<{ id: IslandState; label: MessageKey }> = [
   { id: 'hidden', label: 'demo.controls.hidden' },
   { id: 'idle', label: 'demo.controls.idle' },
@@ -69,6 +76,10 @@ export function DemoControls() {
   const refreshPermission = useAudioStore((s) => s.refresh);
   const requestPermission = useAudioStore((s) => s.request);
   const openPermissionSettings = useAudioStore((s) => s.openSettings);
+  const listening = useAudioStore((s) => s.listening);
+  const errorCode = useAudioStore((s) => s.errorCode);
+  const toggleListening = useAudioStore((s) => s.toggleListening);
+  const errorMessage = errorCode ? listenErrorKey(errorCode) : null;
 
   useEffect(() => {
     void refreshPermission();
@@ -176,6 +187,18 @@ export function DemoControls() {
           >
             <span className="size-1.5 rounded-full bg-current" aria-hidden />
             {t(PERMISSION_LABEL[permission])}
+          </span>
+        )}
+        <Button
+          size="sm"
+          variant={listening ? 'danger' : 'primary'}
+          onClick={() => void toggleListening()}
+        >
+          {t(listening ? 'audio.stop' : 'audio.listen')}
+        </Button>
+        {errorMessage && (
+          <span role="alert" className="text-[11px] whitespace-nowrap text-danger">
+            {t(errorMessage)}
           </span>
         )}
         {permission === 'notDetermined' && (

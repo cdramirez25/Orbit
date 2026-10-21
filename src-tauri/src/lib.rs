@@ -8,17 +8,22 @@ mod app_state;
 mod audio;
 mod commands;
 mod events;
+mod pipeline;
 mod settings;
 mod window;
 
-use std::sync::Arc;
+use std::path::PathBuf;
+use std::sync::{Arc, PoisonError};
+use std::time::Duration;
 
 use tauri::Manager;
 use tracing_subscriber::EnvFilter;
 
 use crate::app_state::AppState;
 use crate::audio::permission::{status_of, AudioPermission};
+use crate::audio::AudioSource;
 use crate::events::{DomainEvent, EventSink, PipelineState, TauriEventSink};
+use crate::pipeline::{Pipeline, PipelineConfig};
 use crate::settings::Settings;
 
 pub fn run() {
@@ -33,6 +38,9 @@ pub fn run() {
             commands::audio::get_audio_permission,
             commands::audio::request_audio_permission,
             commands::audio::open_audio_permission_settings,
+            commands::pipeline::start_listening,
+            commands::pipeline::stop_listening,
+            commands::pipeline::is_listening,
             commands::island::get_notch_info,
             commands::island::set_island_interactive,
             commands::island::get_pointer_position,
@@ -50,19 +58,28 @@ pub fn run() {
             let settings_path = app.path().app_config_dir()?.join("settings.json");
             let settings = Settings::load(&settings_path);
 
-            // Adaptadores de salida (eventos hacia la interfaz) y del sistema (permiso de audio).
+            // Adaptadores de salida (eventos hacia la interfaz) y del sistema (audio).
             let events: Arc<dyn EventSink> = Arc::new(TauriEventSink::new(app.handle().clone()));
             let audio_permission: Arc<dyn AudioPermission> =
                 Arc::new(audio::platform::current::SystemAudioPermission);
+            let audio_source: Box<dyn AudioSource> =
+                Box::new(audio::platform::current::SystemAudioSource::new());
 
             tracing::info!(
                 status = ?status_of(audio_permission.as_ref(), settings.screen_capture_prompted),
                 "permiso para capturar el audio del sistema"
             );
 
+            // DEPURACIÓN: con ORBIT_DEBUG_WAV=<ruta> el audio normalizado se guarda en un WAV.
+            let config = PipelineConfig {
+                debug_wav: std::env::var_os("ORBIT_DEBUG_WAV").map(PathBuf::from),
+            };
+            let pipeline = Pipeline::new(audio_source, Arc::clone(&events), config);
+
             app.manage(AppState::new(
                 events,
                 audio_permission,
+                pipeline,
                 settings,
                 settings_path,
             ));
@@ -73,6 +90,23 @@ pub fn run() {
             app.state::<AppState>()
                 .events
                 .publish(DomainEvent::PipelineState(PipelineState::Idle));
+
+            // DEPURACIÓN: ORBIT_DEBUG_AUTOSTART=1 empieza a escuchar solo, para probar la captura
+            // sin pulsar nada. Espera a que la interfaz esté lista para recibir los eventos.
+            if std::env::var_os("ORBIT_DEBUG_AUTOSTART").is_some() {
+                let handle = app.handle().clone();
+                std::thread::spawn(move || {
+                    std::thread::sleep(Duration::from_secs(2));
+                    let state = handle.state::<AppState>();
+                    let mut pipeline = state
+                        .pipeline
+                        .lock()
+                        .unwrap_or_else(PoisonError::into_inner);
+                    if let Err(error) = pipeline.start() {
+                        tracing::warn!(%error, "no se pudo empezar a escuchar (autostart)");
+                    }
+                });
+            }
 
             Ok(())
         })

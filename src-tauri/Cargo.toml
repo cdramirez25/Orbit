@@ -24,12 +24,18 @@ thiserror = "2"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
-# Solo macOS: ventana convertida en NSPanel + detección del notch (platform/macos.rs).
+# Solo macOS: ventana convertida en NSPanel + detección del notch (window/platform/macos.rs) y
+# captura del audio del sistema con ScreenCaptureKit (audio/platform/macos_sck.rs).
 [target.'cfg(target_os = "macos")'.dependencies]
 tauri-nspanel = "2.1"
 objc2 = "0.6"
 objc2-foundation = "0.3"
 objc2-app-kit = "0.3"
+screencapturekit = "11" # MIT OR Apache-2.0
+
+# Solo Windows: captura del audio de salida (WASAPI loopback) en audio/platform/windows_wasapi.rs.
+[target.'cfg(target_os = "windows")'.dependencies]
+wasapi = "0.26" # MIT
 
 [lints.clippy]
 unwrap_used = "deny"

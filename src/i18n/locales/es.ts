@@ -58,7 +58,13 @@ export const es = {
   'audio.permission.notRequired': 'No requerido',
   'audio.permission.request': 'Pedir permiso',
   'audio.permission.openSettings': 'Abrir ajustes',
-  'audio.permission.restartHint': 'Tras darlo en Ajustes, reinicia Orbit.',
+  'audio.permission.restartHint': 'Reinicia Orbit tras darlo.',
+
+  // ── Escucha del audio del sistema ───────────────────────────────────────
+  'audio.listen': 'Escuchar',
+  'audio.stop': 'Parar',
+  'audio.error.noDevice': 'Sin dispositivo de salida',
+  'audio.error.generic': 'No se pudo escuchar',
 
   // ── Ventana de ajustes ──────────────────────────────────────────────────
   'settings.placeholder': 'Ajustes de Orbit — próximamente (Fase 5).',

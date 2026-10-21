@@ -2,6 +2,7 @@ import { create } from 'zustand';
 
 import { translate } from '@/i18n/locale.store';
 import { useRegistryStore } from '@/modules/registry';
+import { useAudioStore } from '@/stores/audio.store';
 import { useIslandStore } from '@/stores/island.store';
 import type { IslandState } from '@/types';
 
@@ -60,3 +61,14 @@ export const useDemoStore = create<DemoStore>((set, get) => ({
     island.showAlert({ title: translate('demo.detected'), message: translate('demo.question') });
   },
 }));
+
+/**
+ * Mientras se escucha, la isla muestra la pastilla compacta del módulo (punto + ondas); al parar
+ * vuelve a reposo. (El Prompter real hará esto mismo con sus propias actividades.)
+ */
+export function bindListeningToIsland(): () => void {
+  return useAudioStore.subscribe((state, previous) => {
+    if (state.listening === previous.listening) return;
+    useDemoStore.getState().goTo(state.listening ? 'compact' : 'idle');
+  });
+}

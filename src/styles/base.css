@@ -72,17 +72,7 @@ body[data-dragging] * {
   cursor: grabbing !important;
 }
 
-/* Ondas del indicador "escuchando": solo `transform`, nunca layout. */
-@keyframes orbit-wave {
-  0%,
-  100% {
-    transform: scaleY(0.3);
-  }
-  50% {
-    transform: scaleY(1);
-  }
-}
-
+/* Punto "escuchando" (las ondas ya no son una animación: siguen el volumen real). */
 @keyframes orbit-pulse {
   0%,
   100% {
@@ -94,7 +84,6 @@ body[data-dragging] * {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .orbit-wave,
   .orbit-pulse {
     animation: none !important;
   }

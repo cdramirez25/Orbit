@@ -55,7 +55,13 @@ export const en: Record<MessageKey, string> = {
   'audio.permission.notRequired': 'Not required',
   'audio.permission.request': 'Request access',
   'audio.permission.openSettings': 'Open settings',
-  'audio.permission.restartHint': 'After granting it in Settings, restart Orbit.',
+  'audio.permission.restartHint': 'Restart Orbit after granting.',
+
+  // ── System audio listening ──────────────────────────────────────────────
+  'audio.listen': 'Listen',
+  'audio.stop': 'Stop',
+  'audio.error.noDevice': 'No output device',
+  'audio.error.generic': 'Could not listen',
 
   // ── Settings window ─────────────────────────────────────────────────────
   'settings.placeholder': 'Orbit settings — coming soon (Phase 5).',

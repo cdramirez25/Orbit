@@ -76,7 +76,7 @@ describe('fila de audio del panel de demo', () => {
     mocked.openAudioPermissionSettings.mockResolvedValue(undefined);
     await renderWith('denied');
     expect(screen.getByRole('status')).toHaveTextContent('Denegado');
-    expect(screen.getByText('Tras darlo en Ajustes, reinicia Orbit.')).toBeInTheDocument();
+    expect(screen.getByText('Reinicia Orbit tras darlo.')).toBeInTheDocument();
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Abrir ajustes' }));
@@ -89,7 +89,7 @@ describe('fila de audio del panel de demo', () => {
     await renderWith('denied');
     expect(screen.getByRole('status')).toHaveTextContent('Denied');
     expect(screen.getByRole('button', { name: 'Open settings' })).toBeInTheDocument();
-    expect(screen.getByText('After granting it in Settings, restart Orbit.')).toBeInTheDocument();
+    expect(screen.getByText('Restart Orbit after granting.')).toBeInTheDocument();
   });
 
   it('vuelve a consultar el permiso cada pocos segundos (el usuario lo concede en Ajustes)', async () => {
