@@ -73,6 +73,8 @@ export const es = {
 
   // ── Escucha del audio del sistema ───────────────────────────────────────
   'audio.listen': 'Escuchar',
+  'audio.hint':
+    'Pulsa Escuchar: cuando en lo que suene haya una pregunta, la IA responde en la isla.',
   'audio.stop': 'Parar',
   'audio.error.noDevice': 'Sin dispositivo de salida',
   'audio.error.generic': 'No se pudo escuchar',
@@ -80,6 +82,7 @@ export const es = {
   // ── Transcripción en vivo ───────────────────────────────────────────────
   'transcript.title': 'Transcripción en vivo',
   'transcript.waiting': 'Esperando voz…',
+  'transcript.hint': 'Cuando oiga una pregunta, la IA responde aquí.',
   'transcript.sample1': 'La capital de Australia es Canberra, no Sídney como mucha gente cree.',
   'transcript.sample2': 'El río más largo del mundo es el Nilo según la mayoría de las fuentes.',
   'transcript.sample3': '¿Cuál es la capital de Australia?',
@@ -96,7 +99,7 @@ export const es = {
 
   // ── IA ──────────────────────────────────────────────────────────────────
   'ai.privacy':
-    'Tus claves se guardan solo en este equipo, en el llavero del sistema. Orbit no tiene servidor: nada se envía a nosotros.',
+    'Tus claves se guardan solo en este equipo, en una base de datos SQLite local. Orbit no tiene servidor: nada se envía a nosotros.',
   'ai.providersAria': 'Proveedores de IA',
   'ai.kind.cloud': 'En la nube',
   'ai.kind.local': 'En tu equipo',
@@ -115,6 +118,11 @@ export const es = {
   'ai.action.inUse': 'En uso',
   'ai.action.removeKey': 'Quitar clave',
   'ai.result.ok': 'Funciona',
+  'ai.ask.title': 'Pregúntale algo',
+  'ai.ask.placeholder': 'Escribe una pregunta',
+  'ai.ask.action': 'Preguntar',
+  'ai.ask.hint': 'La respuesta aparece en la isla.',
+  'ai.ask.needActive': 'Primero elige un proveedor con «Usar este».',
   'ai.error.notConfigured': 'Elige un proveedor de IA en Ajustes',
   'ai.error.missingKey': 'Falta la clave de API',
   'ai.error.missingModel': 'Falta el nombre del modelo',
@@ -123,7 +131,7 @@ export const es = {
   'ai.error.rateLimited': 'Demasiadas peticiones: espera un momento',
   'ai.error.provider': 'El proveedor devolvió un error (revisa el modelo)',
   'ai.error.badResponse': 'El proveedor respondió algo inesperado',
-  'ai.error.keychain': 'No se pudo usar el llavero del sistema',
+  'ai.error.storage': 'No se pudo guardar la clave en este equipo',
   'ai.error.generic': 'Algo falló con la IA',
   'ai.provider.claude.description':
     'Modelos Claude de Anthropic. Usa la clave de tu propia cuenta de Anthropic.',

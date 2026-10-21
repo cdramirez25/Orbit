@@ -13,11 +13,11 @@ pub async fn ai_get_status(state: State<'_, AppState>) -> Result<AiStatus, Comma
     let ai = Arc::clone(&state.ai);
     let status = tauri::async_runtime::spawn_blocking(move || ai.status())
         .await
-        .map_err(|error| AiError::Keychain(error.to_string()))?;
+        .map_err(|error| AiError::Storage(error.to_string()))?;
     Ok(status)
 }
 
-/// Guarda la clave (en el llavero del sistema), el modelo y la dirección de un proveedor.
+/// Guarda la clave, el modelo y la dirección de un proveedor en la base de datos local.
 #[tauri::command]
 pub async fn ai_save_provider(
     state: State<'_, AppState>,
@@ -27,7 +27,7 @@ pub async fn ai_save_provider(
     let ai = Arc::clone(&state.ai);
     let status = tauri::async_runtime::spawn_blocking(move || ai.save(id, input))
         .await
-        .map_err(|error| AiError::Keychain(error.to_string()))??;
+        .map_err(|error| AiError::Storage(error.to_string()))??;
     Ok(status)
 }
 
@@ -40,7 +40,7 @@ pub async fn ai_set_active(
     let ai = Arc::clone(&state.ai);
     let status = tauri::async_runtime::spawn_blocking(move || ai.set_active(id))
         .await
-        .map_err(|error| AiError::Keychain(error.to_string()))?;
+        .map_err(|error| AiError::Storage(error.to_string()))??;
     Ok(status)
 }
 
@@ -68,4 +68,11 @@ pub async fn ai_list_models(
         .await
         .map_err(|error| AiError::Network(error.to_string()))??;
     Ok(models)
+}
+
+/// Le hace una pregunta escrita al proveedor activo; la respuesta llega a la isla por los mismos
+/// eventos que las preguntas que salen de la transcripción. Vuelve enseguida: no espera la respuesta.
+#[tauri::command]
+pub fn ai_ask(state: State<'_, AppState>, question: String) {
+    state.prompter.ask(question);
 }

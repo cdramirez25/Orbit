@@ -1,5 +1,5 @@
 //! Configuración de la app, persistida como JSON en el directorio de configuración. Las API keys
-//! NO viven aquí: van al llavero del SO (`keychain.rs`, Fase 5).
+//! NO viven aquí: van a la base de datos local (`db/`, `ai/sqlite.rs`).
 
 use std::fs;
 use std::io;

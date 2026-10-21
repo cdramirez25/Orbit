@@ -16,7 +16,7 @@ interface AiStore {
   /** Proveedor que se está guardando o probando ahora mismo. */
   busy: { id: AiProviderId; action: 'save' | 'test' } | null;
   testResult: AiTestResult | null;
-  /** Último error al guardar un proveedor (`ai.keychain`…); `null` si no hubo. */
+  /** Último error al guardar un proveedor (`ai.storage`…); `null` si no hubo. */
   saveError: { id: AiProviderId; code: string } | null;
   load: () => Promise<void>;
   /** Devuelve si se guardó. La clave sale de aquí hacia Rust y no se conserva. */
@@ -24,6 +24,8 @@ interface AiStore {
   setActive: (id: AiProviderId | null) => Promise<void>;
   test: (id: AiProviderId) => Promise<void>;
   loadModels: (id: AiProviderId) => Promise<void>;
+  /** Le hace una pregunta escrita al proveedor activo; la respuesta sale en la isla. */
+  ask: (question: string) => Promise<void>;
 }
 
 export const useAiStore = create<AiStore>((set, get) => ({
@@ -73,6 +75,14 @@ export const useAiStore = create<AiStore>((set, get) => ({
       set({ testResult: { id, ok: false, code: commandErrorCode(error) ?? 'unknown' } });
     } finally {
       set({ busy: null });
+    }
+  },
+
+  ask: async (question) => {
+    try {
+      await commands.aiAsk(question);
+    } catch {
+      // Si no se pudo enviar, la isla no mostrará nada: no hay otra cosa que hacer aquí.
     }
   },
 

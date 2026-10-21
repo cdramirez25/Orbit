@@ -90,6 +90,7 @@ export function AudioPage() {
             </Button>
           )}
         </div>
+        <p className="text-[11px] leading-snug text-ink-faint">{t('audio.hint')}</p>
         {errorMessage && (
           <span role="alert" className="text-[11px] text-danger">
             {t(errorMessage)}

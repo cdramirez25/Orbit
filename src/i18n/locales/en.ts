@@ -70,6 +70,7 @@ export const en: Record<MessageKey, string> = {
 
   // ── System audio listening ──────────────────────────────────────────────
   'audio.listen': 'Listen',
+  'audio.hint': 'Press Listen: when what plays contains a question, the AI answers in the island.',
   'audio.stop': 'Stop',
   'audio.error.noDevice': 'No output device',
   'audio.error.generic': 'Could not listen',
@@ -77,6 +78,7 @@ export const en: Record<MessageKey, string> = {
   // ── Live transcript ─────────────────────────────────────────────────────
   'transcript.title': 'Live transcript',
   'transcript.waiting': 'Waiting for speech…',
+  'transcript.hint': 'When it hears a question, the AI answers here.',
   'transcript.sample1': 'The capital of Australia is Canberra, not Sydney as many people think.',
   'transcript.sample2': 'The longest river in the world is the Nile according to most sources.',
   'transcript.sample3': 'What is the capital of Australia?',
@@ -93,7 +95,7 @@ export const en: Record<MessageKey, string> = {
 
   // ── AI ──────────────────────────────────────────────────────────────────
   'ai.privacy':
-    'Your keys are stored only on this computer, in the system keychain. Orbit has no server: nothing is sent to us.',
+    'Your keys are stored only on this computer, in a local SQLite database. Orbit has no server: nothing is sent to us.',
   'ai.providersAria': 'AI providers',
   'ai.kind.cloud': 'Cloud',
   'ai.kind.local': 'On your computer',
@@ -112,6 +114,11 @@ export const en: Record<MessageKey, string> = {
   'ai.action.inUse': 'In use',
   'ai.action.removeKey': 'Remove key',
   'ai.result.ok': 'Works',
+  'ai.ask.title': 'Ask it something',
+  'ai.ask.placeholder': 'Type a question',
+  'ai.ask.action': 'Ask',
+  'ai.ask.hint': 'The answer shows up in the island.',
+  'ai.ask.needActive': 'First choose a provider with "Use this".',
   'ai.error.notConfigured': 'Choose an AI provider in Settings',
   'ai.error.missingKey': 'The API key is missing',
   'ai.error.missingModel': 'The model name is missing',
@@ -120,7 +127,7 @@ export const en: Record<MessageKey, string> = {
   'ai.error.rateLimited': 'Too many requests: wait a moment',
   'ai.error.provider': 'The provider returned an error (check the model)',
   'ai.error.badResponse': 'The provider answered something unexpected',
-  'ai.error.keychain': 'Could not use the system keychain',
+  'ai.error.storage': 'Could not save the key on this computer',
   'ai.error.generic': 'Something went wrong with the AI',
   'ai.provider.claude.description':
     'Anthropic Claude models. Use the key from your own Anthropic account.',

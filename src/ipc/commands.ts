@@ -479,6 +479,13 @@ export const commands = {
     return Promise.resolve([`${id}-modelo-1`, `${id}-modelo-2`]);
   },
 
+  /** Le hace una pregunta escrita al proveedor activo; la respuesta sale en la isla. */
+  aiAsk: (question: string): Promise<void> => {
+    if (isTauri()) return invoke<void>('ai_ask', { question });
+    simulateAnswer(question);
+    return Promise.resolve();
+  },
+
   /** Abre la ventana de ajustes (solo en desarrollo) o la trae al frente. */
   openSettingsWindow: (): Promise<void> => {
     if (isTauri()) return invoke<void>('open_settings_window');

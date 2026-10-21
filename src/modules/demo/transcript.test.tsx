@@ -27,6 +27,7 @@ describe('tarjeta del módulo de demo', () => {
     render(<Expanded />);
     expect(screen.getByText('Transcripción en vivo')).toBeInTheDocument();
     expect(screen.getByText('Esperando voz…')).toBeInTheDocument();
+    expect(screen.getByText('Cuando oiga una pregunta, la IA responde aquí.')).toBeInTheDocument();
   });
 
   it('muestra las frases terminadas y la que está en curso', () => {

@@ -50,7 +50,7 @@ function isConfigured(provider: AiProvider, status: AiProviderStatus | undefined
 
 /**
  * Formulario de un proveedor: la nube pide clave de API y modelo; lo local, la dirección del
- * servidor y modelo. La clave solo viaja hacia el llavero del sistema: aquí no se vuelve a mostrar.
+ * servidor y modelo. La clave solo viaja hacia Rust, que la guarda en este equipo: aquí no se vuelve a mostrar.
  */
 function ProviderCard({ provider }: { provider: AiProvider }) {
   const t = useT();
@@ -92,7 +92,7 @@ function ProviderCard({ provider }: { provider: AiProvider }) {
       ...(provider.kind === 'local' && { baseUrl: value.baseUrl }),
       model: value.model,
     });
-    if (ok) setDraft(null); // la clave escrita se descarta en cuanto sale hacia el llavero
+    if (ok) setDraft(null); // la clave escrita se descarta en cuanto sale hacia Rust
   };
 
   const stateLabel = active
@@ -208,6 +208,58 @@ function ProviderCard({ provider }: { provider: AiProvider }) {
   );
 }
 
+/**
+ * Para ver de inmediato cómo responde Orbit sin esperar a que suene una pregunta: se escribe una y
+ * la respuesta sale en la isla, igual que la de una pregunta que se oiga en el audio.
+ */
+function AskBox() {
+  const t = useT();
+  const hasActive = useAiStore((s) => s.status?.active != null);
+  const ask = useAiStore((s) => s.ask);
+  const [question, setQuestion] = useState('');
+  const [asked, setAsked] = useState(false);
+  const ready = hasActive && question.trim() !== '';
+
+  const submit = () => {
+    if (!ready) return;
+    void ask(question.trim());
+    setAsked(true);
+  };
+
+  return (
+    <section className="flex flex-col gap-1.5 border-t border-white/8 pt-3">
+      <h3 className="text-[10px] font-semibold tracking-wider text-ink-faint uppercase">
+        {t('ai.ask.title')}
+      </h3>
+      <form
+        className="flex items-center gap-1.5"
+        onSubmit={(event) => {
+          event.preventDefault();
+          submit();
+        }}
+      >
+        <Input
+          aria-label={t('ai.ask.title')}
+          autoComplete="off"
+          value={question}
+          placeholder={t('ai.ask.placeholder')}
+          onChange={(event) => {
+            setQuestion(event.target.value);
+            setAsked(false);
+          }}
+        />
+        <Button type="submit" size="sm" variant="primary" disabled={!ready}>
+          {t('ai.ask.action')}
+        </Button>
+      </form>
+      <p className="text-[11px] leading-snug text-ink-faint">
+        {t(hasActive ? 'ai.ask.hint' : 'ai.ask.needActive')}
+        {asked && hasActive ? ' …' : ''}
+      </p>
+    </section>
+  );
+}
+
 /** IA: con qué modelo responde Orbit. El usuario trae su propia clave o su propio servidor local. */
 export function AiPage() {
   const t = useT();
@@ -259,6 +311,7 @@ export function AiPage() {
         </div>
 
         {provider && <ProviderCard key={provider.id} provider={provider} />}
+        <AskBox />
       </div>
     </>
   );

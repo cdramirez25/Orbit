@@ -9,6 +9,7 @@ mod app_state;
 mod audio;
 mod clipboard;
 mod commands;
+mod db;
 mod events;
 mod media;
 mod pipeline;
@@ -26,12 +27,14 @@ use tracing_subscriber::EnvFilter;
 
 use crate::ai::client::HttpLlm;
 use crate::ai::prompter::{AnsweringSink, Prompter};
+use crate::ai::sqlite::SqliteAiStore;
 use crate::ai::AiService;
 use crate::app_state::{AppState, Services};
 use crate::audio::permission::{status_of, AudioPermission};
 use crate::audio::AudioSource;
 use crate::clipboard::system::SystemClipboard;
 use crate::clipboard::ClipboardService;
+use crate::db::Db;
 use crate::events::{DomainEvent, EventSink, PipelineState, TauriEventSink};
 use crate::media::MediaService;
 use crate::pipeline::{Pipeline, PipelineConfig};
@@ -56,6 +59,7 @@ pub fn run() {
             commands::ai::ai_set_active,
             commands::ai::ai_test_provider,
             commands::ai::ai_list_models,
+            commands::ai::ai_ask,
             commands::audio::get_audio_permission,
             commands::audio::request_audio_permission,
             commands::audio::open_audio_permission_settings,
@@ -119,16 +123,28 @@ pub fn run() {
             std::thread::spawn(move || primer.prime_disk_cache());
             let stt: Arc<dyn SttEngine> = whisper;
 
-            // IA: las claves van al llavero del sistema y el resto a `ai.json`. El Prompter contesta
-            // las preguntas que salgan de la transcripción, con el proveedor que el usuario eligió.
+            // Base de datos local (SQLite, `orbit.db` en la carpeta de la app). Guarda las claves y la
+            // configuración de la IA. Si no se puede abrir, Orbit sigue funcionando con una base en
+            // memoria (lo que se guarde se pierde al cerrar).
+            let db = match Db::open(&app.path().app_config_dir()?.join("orbit.db")) {
+                Ok(db) => db,
+                Err(error) => {
+                    tracing::warn!(%error, "no se pudo abrir la base de datos; se usa una en memoria");
+                    Db::open_in_memory()?
+                }
+            };
+            // IA: el Prompter contesta las preguntas que salgan de la transcripción (o que se
+            // escriban en Ajustes) con el proveedor que el usuario eligió.
             let ai = Arc::new(AiService::new(
-                Box::new(ai::platform::current::KeychainSecretStore),
+                Box::new(SqliteAiStore::new(db.clone())),
                 Box::new(HttpLlm::new()),
-                app.path().app_config_dir()?.join("ai.json"),
+                Box::new(SqliteAiStore::new(db)),
             ));
-            let prompter = Prompter::new(Arc::clone(&ai), Arc::clone(&events));
-            let pipeline_events: Arc<dyn EventSink> =
-                Arc::new(AnsweringSink::new(Arc::clone(&events), prompter));
+            let prompter = Arc::new(Prompter::new(Arc::clone(&ai), Arc::clone(&events)));
+            let pipeline_events: Arc<dyn EventSink> = Arc::new(AnsweringSink::new(
+                Arc::clone(&events),
+                Arc::clone(&prompter),
+            ));
             let pipeline = Pipeline::new(audio_source, pipeline_events, config).with_stt(stt);
 
             // Clima: ubicación por IP (ipwho.is) + datos de Open-Meteo, con un solo cliente HTTP.
@@ -161,6 +177,7 @@ pub fn run() {
                     clipboard,
                     media,
                     ai,
+                    prompter,
                 },
                 settings,
                 settings_path,

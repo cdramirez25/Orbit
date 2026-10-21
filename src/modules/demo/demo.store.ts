@@ -129,13 +129,16 @@ export function bindTranscriptToIsland(): () => void {
 
 /**
  * Cuando la IA empieza a contestar una pregunta nueva, la tarjeta se abre sola para que se vea la
- * respuesta. No pisa una tarjeta ya abierta ni un aviso; si el usuario la cerró, la siguiente
- * pregunta la vuelve a abrir (es justo lo que viene a buscar).
+ * respuesta, también cuando la pregunta se escribió en Ajustes. No pisa una tarjeta ya abierta ni un
+ * aviso; si el usuario la cerró, la siguiente pregunta la vuelve a abrir (es justo lo que viene a buscar).
  */
 export function bindAnswerToIsland(): () => void {
   return useAnswerStore.subscribe((state, previous) => {
     if (state.question === null || state.question === previous.question) return;
-    if (useIslandStore.getState().snapshot.state === 'compact') {
+    // Una pregunta (oída o escrita en Ajustes) siempre muestra su respuesta: se abre desde reposo,
+    // compacta u oculta. Una tarjeta ya abierta o un aviso no se pisan.
+    const islandState = useIslandStore.getState().snapshot.state;
+    if (islandState === 'compact' || islandState === 'idle' || islandState === 'hidden') {
       useDemoStore.getState().goTo('expanded');
     }
   });

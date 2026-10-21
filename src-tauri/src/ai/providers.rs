@@ -50,6 +50,21 @@ pub struct ProviderSpec {
 }
 
 impl ProviderId {
+    /// El nombre estable del proveedor: el mismo de la interfaz y el que se guarda en la base.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Claude => "claude",
+            Self::ChatGpt => "chatgpt",
+            Self::Groq => "groq",
+            Self::Ollama => "ollama",
+            Self::Docker => "docker",
+        }
+    }
+
+    pub fn parse(text: &str) -> Option<Self> {
+        ALL.into_iter().find(|id| id.as_str() == text)
+    }
+
     pub fn spec(self) -> ProviderSpec {
         match self {
             Self::Claude => ProviderSpec {
@@ -95,17 +110,6 @@ impl ProviderId {
         }
     }
 
-    /// Nombre de la cuenta en el llavero del sistema.
-    pub fn account(self) -> &'static str {
-        match self {
-            Self::Claude => "ai.claude",
-            Self::ChatGpt => "ai.chatgpt",
-            Self::Groq => "ai.groq",
-            Self::Ollama => "ai.ollama",
-            Self::Docker => "ai.docker",
-        }
-    }
-
     /// La dirección que se usará de verdad: la de la nube es fija; la local, la que puso el
     /// usuario (o la de por defecto). Ollama se acepta con o sin `/v1`.
     pub fn resolve_base_url(self, saved: Option<&str>) -> String {
@@ -140,6 +144,19 @@ mod tests {
         let id: ProviderId = serde_json::from_str("\"groq\"").unwrap();
         assert_eq!(id, ProviderId::Groq);
         assert!(serde_json::from_str::<ProviderId>("\"gemini\"").is_err());
+    }
+
+    #[test]
+    fn the_stored_name_matches_the_interface_name_and_parses_back() {
+        for id in ALL {
+            assert_eq!(
+                serde_json::to_string(&id).unwrap(),
+                format!("\"{}\"", id.as_str())
+            );
+            assert_eq!(ProviderId::parse(id.as_str()), Some(id));
+        }
+        assert_eq!(ProviderId::parse("gemini"), None);
+        assert_eq!(ProviderId::parse(""), None);
     }
 
     #[test]
@@ -195,13 +212,5 @@ mod tests {
         for id in [ProviderId::ChatGpt, ProviderId::Ollama, ProviderId::Docker] {
             assert_eq!(id.spec().default_model, None, "{id:?}");
         }
-    }
-
-    #[test]
-    fn accounts_are_distinct() {
-        let mut accounts: Vec<_> = ALL.iter().map(|id| id.account()).collect();
-        accounts.sort_unstable();
-        accounts.dedup();
-        assert_eq!(accounts.len(), ALL.len());
     }
 }

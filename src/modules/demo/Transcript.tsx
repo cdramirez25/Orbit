@@ -19,7 +19,10 @@ export function Transcript() {
       </p>
       {errorKey && <p className="mb-1 text-[12px] text-ink-dim">{t(errorKey)}</p>}
       {empty && !errorKey && (
-        <p className="text-[13px] text-ink-faint">{t('transcript.waiting')}</p>
+        <>
+          <p className="text-[13px] text-ink-faint">{t('transcript.waiting')}</p>
+          <p className="mt-1 text-[11px] leading-snug text-ink-faint">{t('transcript.hint')}</p>
+        </>
       )}
       <div className="flex flex-col gap-1">
         {lines.map((line) => (

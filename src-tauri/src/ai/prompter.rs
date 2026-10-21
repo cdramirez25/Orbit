@@ -16,6 +16,8 @@ la respuesta directa en una frase corta y, solo si ayuda, una segunda frase brev
 Sin saludos, sin listas y sin formato markdown. Si la frase no es una pregunta, responde solo: -";
 /// Tope de la respuesta: unas pocas frases, más lo que gaste un modelo que "piensa" antes de contestar.
 const MAX_TOKENS: u32 = 500;
+/// Una pregunta más larga que esto se recorta (una transcripción larguísima no debe salir cara).
+const MAX_QUESTION_CHARS: usize = 600;
 /// Una pregunta de menos palabras que esto es ruido ("¿sí?", "¿eh?").
 const MIN_WORDS: usize = 3;
 
@@ -60,8 +62,13 @@ impl Prompter {
         }
     }
 
-    /// Hace la pregunta en un hilo aparte (el proveedor puede tardar) y publica la respuesta.
+    /// Hace la pregunta en un hilo aparte (el proveedor puede tardar) y publica la respuesta. Una
+    /// pregunta vacía no se hace, y una larguísima se recorta.
     pub fn ask(&self, question: String) {
+        let question: String = question.trim().chars().take(MAX_QUESTION_CHARS).collect();
+        if question.is_empty() {
+            return;
+        }
         let id = self.generation.fetch_add(1, Ordering::SeqCst) + 1;
         let ai = Arc::clone(&self.ai);
         let events = Arc::clone(&self.events);
@@ -105,11 +112,11 @@ impl Prompter {
 /// transcripción no sabe nada de la IA (§4.0).
 pub struct AnsweringSink {
     inner: Arc<dyn EventSink>,
-    prompter: Prompter,
+    prompter: Arc<Prompter>,
 }
 
 impl AnsweringSink {
-    pub fn new(inner: Arc<dyn EventSink>, prompter: Prompter) -> Self {
+    pub fn new(inner: Arc<dyn EventSink>, prompter: Arc<Prompter>) -> Self {
         Self { inner, prompter }
     }
 }
@@ -129,13 +136,12 @@ impl EventSink for AnsweringSink {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
     use std::sync::Mutex;
     use std::time::{Duration, Instant};
 
     use super::*;
     use crate::ai::providers::ProviderId;
-    use crate::ai::testing::{FakeClient, FakeSecrets};
+    use crate::ai::testing::{FakeClient, FakeConfig, FakeSecrets};
     use crate::ai::{LlmClient, Request, SaveInput, Target};
     use crate::events::testing::FakeEventSink;
 
@@ -175,25 +181,15 @@ mod tests {
         sink: AnsweringSink,
         events: Arc<FakeEventSink>,
         client: Arc<FakeClient>,
-        path: PathBuf,
     }
 
-    impl Drop for Harness {
-        fn drop(&mut self) {
-            let _ = std::fs::remove_file(&self.path);
-        }
-    }
-
-    fn harness(name: &str, active: bool) -> Harness {
+    fn harness(_name: &str, active: bool) -> Harness {
         let secrets = Arc::new(FakeSecrets::default());
         let client = Arc::new(FakeClient::default());
-        let path =
-            std::env::temp_dir().join(format!("orbit-prompter-{}-{name}.json", std::process::id()));
-        let _ = std::fs::remove_file(&path);
         let ai = Arc::new(AiService::new(
             Box::new(Arc::clone(&secrets)),
             Box::new(Arc::clone(&client)),
-            path.clone(),
+            Box::new(Arc::new(FakeConfig::default())),
         ));
         if active {
             ai.save(
@@ -205,15 +201,14 @@ mod tests {
                 },
             )
             .unwrap();
-            ai.set_active(Some(ProviderId::Groq));
+            ai.set_active(Some(ProviderId::Groq)).unwrap();
         }
         let events = Arc::new(FakeEventSink::default());
-        let prompter = Prompter::new(ai, events.clone());
+        let prompter = Arc::new(Prompter::new(ai, events.clone()));
         Harness {
             sink: AnsweringSink::new(events.clone(), prompter),
             events,
             client,
-            path,
         }
     }
 
@@ -261,6 +256,38 @@ mod tests {
         let calls = h.client.calls.lock().unwrap();
         assert_eq!(calls[0].2, "¿Cuál es la capital de Australia?");
         assert_eq!(calls[0].0.model, "llama");
+    }
+
+    #[test]
+    fn asking_directly_works_and_empty_or_huge_questions_are_handled() {
+        let secrets = Arc::new(FakeSecrets::default());
+        let client = Arc::new(FakeClient::default());
+        let ai = Arc::new(AiService::new(
+            Box::new(Arc::clone(&secrets)),
+            Box::new(Arc::clone(&client)),
+            Box::new(Arc::new(FakeConfig::default())),
+        ));
+        ai.save(
+            ProviderId::Groq,
+            SaveInput {
+                api_key: Some("k".into()),
+                model: Some("m".into()),
+                ..SaveInput::default()
+            },
+        )
+        .unwrap();
+        ai.set_active(Some(ProviderId::Groq)).unwrap();
+        *client.chunks.lock().unwrap() = vec!["ok".into()];
+        let events = Arc::new(FakeEventSink::default());
+        let prompter = Prompter::new(ai, events.clone());
+
+        prompter.ask("   ".into()); // vacía: no hace nada
+        prompter.ask("x".repeat(5_000)); // larguísima: se recorta
+        assert!(wait_for(&events, |e| e.contains(&DomainEvent::LlmDone)));
+
+        let calls = client.calls.lock().unwrap();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].2.chars().count(), MAX_QUESTION_CHARS);
     }
 
     #[test]
@@ -339,13 +366,10 @@ mod tests {
         let slow = Arc::new(SlowEcho {
             stops: Mutex::new(Vec::new()),
         });
-        let path =
-            std::env::temp_dir().join(format!("orbit-prompter-{}-cut.json", std::process::id()));
-        let _ = std::fs::remove_file(&path);
         let ai = Arc::new(AiService::new(
             Box::new(Arc::clone(&secrets)),
             Box::new(Arc::clone(&slow)),
-            path.clone(),
+            Box::new(Arc::new(FakeConfig::default())),
         ));
         ai.save(
             ProviderId::Groq,
@@ -356,9 +380,9 @@ mod tests {
             },
         )
         .unwrap();
-        ai.set_active(Some(ProviderId::Groq));
+        ai.set_active(Some(ProviderId::Groq)).unwrap();
         let events = Arc::new(FakeEventSink::default());
-        let sink = AnsweringSink::new(events.clone(), Prompter::new(ai, events.clone()));
+        let sink = AnsweringSink::new(events.clone(), Arc::new(Prompter::new(ai, events.clone())));
 
         sink.publish(final_text("¿Primera pregunta de prueba?"));
         assert!(wait_for(&events, |e| e
@@ -383,6 +407,5 @@ mod tests {
             1
         );
         assert_eq!(slow.stops.lock().unwrap().len(), 1);
-        let _ = std::fs::remove_file(&path);
     }
 }

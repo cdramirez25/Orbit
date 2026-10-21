@@ -3,6 +3,7 @@
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, RwLock};
 
+use crate::ai::prompter::Prompter;
 use crate::ai::AiService;
 use crate::audio::permission::AudioPermission;
 use crate::clipboard::ClipboardService;
@@ -25,8 +26,10 @@ pub struct AppState {
     pub clipboard: Arc<ClipboardService>,
     /// Lo que suena y sus controles (módulo Música de la isla).
     pub media: Arc<MediaService>,
-    /// Proveedores de IA, sus claves (en el llavero) y las respuestas del Prompter.
+    /// Proveedores de IA, sus claves (en la base de datos local) y las respuestas del Prompter.
     pub ai: Arc<AiService>,
+    /// Contesta las preguntas (las de la transcripción y las que se escriben en Ajustes).
+    pub prompter: Arc<Prompter>,
     settings: RwLock<Settings>,
     settings_path: PathBuf,
 }
@@ -39,6 +42,7 @@ pub struct Services {
     pub clipboard: Arc<ClipboardService>,
     pub media: Arc<MediaService>,
     pub ai: Arc<AiService>,
+    pub prompter: Arc<Prompter>,
 }
 
 impl AppState {
@@ -56,6 +60,7 @@ impl AppState {
             clipboard: services.clipboard,
             media: services.media,
             ai: services.ai,
+            prompter: services.prompter,
             settings: RwLock::new(settings),
             settings_path,
         }

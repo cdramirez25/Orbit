@@ -26,6 +26,7 @@ vi.mock('@/ipc/commands', () => ({
     aiSetActive: vi.fn(),
     aiTestProvider: vi.fn(),
     aiListModels: vi.fn(),
+    aiAsk: vi.fn(),
   },
 }));
 
@@ -77,6 +78,7 @@ function fakeBackend() {
   });
   mocked.aiTestProvider.mockResolvedValue('ok');
   mocked.aiListModels.mockResolvedValue([]);
+  mocked.aiAsk.mockResolvedValue();
 }
 
 async function openAi() {
@@ -114,9 +116,9 @@ beforeEach(() => {
 });
 
 describe('página de IA de los ajustes', () => {
-  it('explica que las claves se quedan en el equipo, en el llavero', async () => {
+  it('explica que las claves se quedan en el equipo, en SQLite', async () => {
     await openAi();
-    expect(screen.getByText(/en el llavero del sistema/)).toBeInTheDocument();
+    expect(screen.getByText(/en una base de datos SQLite local/)).toBeInTheDocument();
     expect(mocked.aiGetStatus).toHaveBeenCalledTimes(1);
   });
 
@@ -242,14 +244,16 @@ describe('página de IA de los ajustes', () => {
     );
   });
 
-  it('si el llavero falla al guardar, lo dice', async () => {
-    mocked.aiSaveProvider.mockRejectedValue({ code: 'ai.keychain', message: 'x' });
+  it('si no se puede guardar la clave, lo dice', async () => {
+    mocked.aiSaveProvider.mockRejectedValue({ code: 'ai.storage', message: 'x' });
     await openAi();
     await choose('Groq');
     type('Clave de API', 'gsk_prueba');
     await click('Guardar');
 
-    expect(screen.getByRole('status')).toHaveTextContent('No se pudo usar el llavero del sistema');
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'No se pudo guardar la clave en este equipo',
+    );
   });
 
   it('ofrece como sugerencias los modelos que da el proveedor, una vez guardada la clave', async () => {
@@ -297,8 +301,55 @@ describe('página de IA de los ajustes', () => {
     await act(async () => {});
     expect(screen.getByLabelText('API key')).toBeInTheDocument();
     expect(
-      screen.getByText(/stored only on this computer, in the system keychain/),
+      screen.getByText(/stored only on this computer, in a local SQLite database/),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
+  });
+
+  describe('caja para preguntarle algo', () => {
+    const questionField = () => screen.getByLabelText('Pregúntale algo');
+
+    it('sin proveedor en uso pide elegir uno y no deja preguntar', async () => {
+      await openAi();
+      type('Pregúntale algo', '¿Qué hora es?');
+
+      expect(screen.getByText('Primero elige un proveedor con «Usar este».')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Preguntar' })).toBeDisabled();
+    });
+
+    it('con un proveedor en uso manda la pregunta y dice que la respuesta sale en la isla', async () => {
+      status.active = 'groq';
+      await openAi();
+      expect(screen.getByRole('button', { name: 'Preguntar' })).toBeDisabled(); // vacía
+
+      type('Pregúntale algo', '  ¿Cuál es la capital de Australia?  ');
+      await click('Preguntar');
+
+      expect(mocked.aiAsk).toHaveBeenCalledTimes(1);
+      expect(mocked.aiAsk).toHaveBeenCalledWith('¿Cuál es la capital de Australia?');
+      expect(screen.getByText(/La respuesta aparece en la isla/)).toBeInTheDocument();
+    });
+
+    it('Enter también pregunta, y una pregunta en blanco no se manda', async () => {
+      status.active = 'groq';
+      await openAi();
+
+      type('Pregúntale algo', '   ');
+      fireEvent.submit(questionField().closest('form') as HTMLFormElement);
+      expect(mocked.aiAsk).not.toHaveBeenCalled();
+
+      type('Pregúntale algo', 'Hola?');
+      fireEvent.submit(questionField().closest('form') as HTMLFormElement);
+      expect(mocked.aiAsk).toHaveBeenCalledWith('Hola?');
+    });
+  });
+
+  it('en Audio explica cuándo responde la IA', async () => {
+    render(<SettingsPanel />);
+    fireEvent.click(screen.getByRole('button', { name: 'Audio' }));
+    await act(async () => {});
+    expect(
+      screen.getByText(/cuando en lo que suene haya una pregunta, la IA responde en la isla/),
+    ).toBeInTheDocument();
   });
 });

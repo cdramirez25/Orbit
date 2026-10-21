@@ -70,4 +70,26 @@ describe('la respuesta de la IA y la isla', () => {
     useAnswerStore.getState().clear();
     expect(island()).toBe('compact');
   });
+
+  it('una pregunta escrita en Ajustes abre la isla aunque esté en reposo u oculta', () => {
+    useIslandStore.getState().goTo('idle');
+    expect(island()).toBe('idle');
+    useAnswerStore.setState({ question: 'Desde reposo' });
+    expect(island()).toBe('expanded');
+
+    useIslandStore.getState().goTo('hidden');
+    expect(island()).toBe('hidden');
+    useAnswerStore.setState({ question: 'Desde oculta' });
+    expect(island()).toBe('expanded');
+  });
+
+  it('no pisa un aviso que se está mostrando', () => {
+    useIslandStore.getState().showAlert({ title: 'Aviso' }, 60_000);
+    expect(island()).toBe('alert');
+
+    useAnswerStore.setState({ question: 'Mientras hay aviso' });
+
+    expect(island()).toBe('alert');
+    vi.clearAllTimers();
+  });
 });

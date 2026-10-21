@@ -11,6 +11,7 @@ vi.mock('@/ipc/commands', () => ({
     aiSetActive: vi.fn(),
     aiTestProvider: vi.fn(),
     aiListModels: vi.fn(),
+    aiAsk: vi.fn(),
   },
 }));
 
@@ -58,11 +59,11 @@ describe('store de IA', () => {
   });
 
   it('save guarda el código del error y devuelve false', async () => {
-    mocked.aiSaveProvider.mockRejectedValue({ code: 'ai.keychain', message: 'x' });
+    mocked.aiSaveProvider.mockRejectedValue({ code: 'ai.storage', message: 'x' });
     const ok = await useAiStore.getState().save('groq', { apiKey: 'gsk_x' });
 
     expect(ok).toBe(false);
-    expect(useAiStore.getState().saveError).toEqual({ id: 'groq', code: 'ai.keychain' });
+    expect(useAiStore.getState().saveError).toEqual({ id: 'groq', code: 'ai.storage' });
     expect(useAiStore.getState().busy).toBeNull();
 
     mocked.aiSaveProvider.mockRejectedValue(new Error('raro'));
@@ -112,5 +113,14 @@ describe('store de IA', () => {
     mocked.aiListModels.mockRejectedValue(new Error('x'));
     await useAiStore.getState().loadModels('claude');
     expect(useAiStore.getState().models.claude).toEqual([]);
+  });
+
+  it('ask manda la pregunta y, si falla, no rompe nada', async () => {
+    mocked.aiAsk.mockResolvedValue();
+    await useAiStore.getState().ask('¿Hola?');
+    expect(mocked.aiAsk).toHaveBeenCalledWith('¿Hola?');
+
+    mocked.aiAsk.mockRejectedValue(new Error('x'));
+    await expect(useAiStore.getState().ask('otra')).resolves.toBeUndefined();
   });
 });

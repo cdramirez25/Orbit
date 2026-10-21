@@ -1,19 +1,18 @@
 //! IA: el proveedor con el que Orbit responde (Claude, ChatGPT, Groq, Ollama o Docker). El usuario
 //! trae SU clave o SU servidor local; Orbit no tiene servidor y nada pasa por nosotros.
 //!
-//! Núcleo (§4.0): solo conoce los puertos `SecretStore` (dónde se guardan las claves) y `LlmClient`
-//! (cómo se habla con el proveedor); los adaptadores los elige `lib.rs`. Nunca se registra una
+//! Núcleo (§4.0): solo conoce los puertos `SecretStore` (dónde se guardan las claves), `AiConfigStore`
+//! (dónde se guarda el resto) y `LlmClient` (cómo se habla con el proveedor); los adaptadores los elige `lib.rs`. Nunca se registra una
 //! clave, una pregunta ni una respuesta.
 
 pub mod client;
 pub mod config;
 #[cfg(test)]
 mod live;
-pub mod platform;
 pub mod prompter;
 pub mod providers;
+pub mod sqlite;
 
-use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use serde::{Deserialize, Serialize};
@@ -29,8 +28,8 @@ pub enum AiError {
     MissingKey,
     #[error("falta el nombre del modelo")]
     MissingModel,
-    #[error("no se pudo usar el llavero del sistema: {0}")]
-    Keychain(String),
+    #[error("no se pudo leer o guardar la clave en este equipo: {0}")]
+    Storage(String),
     #[error("no se pudo conectar con el proveedor: {0}")]
     Network(String),
     #[error("el proveedor rechazó la clave")]
@@ -50,7 +49,7 @@ impl AiError {
             Self::NotConfigured => "ai.notConfigured",
             Self::MissingKey => "ai.missingKey",
             Self::MissingModel => "ai.missingModel",
-            Self::Keychain(_) => "ai.keychain",
+            Self::Storage(_) => "ai.storage",
             Self::Network(_) => "ai.network",
             Self::Unauthorized => "ai.unauthorized",
             Self::RateLimited => "ai.rateLimited",
@@ -60,12 +59,18 @@ impl AiError {
     }
 }
 
-/// Puerto: dónde se guardan las claves de API (el llavero del sistema; en tests, memoria).
+/// Puerto: dónde se guardan las claves de API (la base de datos local; en tests, memoria).
 pub trait SecretStore: Send + Sync {
     fn get(&self, id: ProviderId) -> Result<Option<String>, AiError>;
     fn set(&self, id: ProviderId, secret: &str) -> Result<(), AiError>;
     /// Borrar una clave que no existe no es un error.
     fn delete(&self, id: ProviderId) -> Result<(), AiError>;
+}
+
+/// Puerto: dónde se guarda lo que no es secreto (proveedor activo, modelo y dirección de cada uno).
+pub trait AiConfigStore: Send + Sync {
+    fn load(&self) -> Result<AiConfig, AiError>;
+    fn save(&self, config: &AiConfig) -> Result<(), AiError>;
 }
 
 /// A quién se le habla: proveedor, dirección, modelo y (si la pide) la clave.
@@ -119,7 +124,7 @@ pub struct ProviderStatus {
     pub model: Option<String>,
     /// El modelo que se usará si no se elige uno (puede no haber).
     pub default_model: Option<&'static str>,
-    /// ¿Hay una clave guardada? La clave en sí nunca sale del llavero hacia la interfaz.
+    /// ¿Hay una clave guardada? La clave en sí nunca sale del equipo hacia la interfaz.
     pub has_key: bool,
 }
 
@@ -143,33 +148,34 @@ pub struct SaveInput {
 pub struct AiService {
     secrets: Box<dyn SecretStore>,
     client: Box<dyn LlmClient>,
+    store: Box<dyn AiConfigStore>,
     config: Mutex<AiConfig>,
-    config_path: PathBuf,
 }
 
 impl AiService {
     pub fn new(
         secrets: Box<dyn SecretStore>,
         client: Box<dyn LlmClient>,
-        config_path: PathBuf,
+        store: Box<dyn AiConfigStore>,
     ) -> Self {
-        let config = AiConfig::load(&config_path);
+        // Si la base no se puede leer, se arranca sin configuración: la pantalla de ajustes lo dirá.
+        let config = store.load().unwrap_or_else(|error| {
+            tracing::warn!(
+                code = error.code(),
+                "no se pudo leer la configuración de IA"
+            );
+            AiConfig::default()
+        });
         Self {
             secrets,
             client,
+            store,
             config: Mutex::new(config),
-            config_path,
         }
     }
 
     fn config_guard(&self) -> MutexGuard<'_, AiConfig> {
         self.config.lock().unwrap_or_else(PoisonError::into_inner)
-    }
-
-    fn persist(&self, config: &AiConfig) {
-        if let Err(error) = config.save(&self.config_path) {
-            tracing::warn!(%error, "no se pudo guardar la configuración de IA");
-        }
     }
 
     pub fn status(&self) -> AiStatus {
@@ -183,7 +189,7 @@ impl AiService {
                     base_url: saved.base_url,
                     model: saved.model,
                     default_model: id.spec().default_model,
-                    // Si el llavero falla, se muestra como "sin clave"; el error saldrá al probar.
+                    // Si la base de datos falla, se muestra como "sin clave"; el error saldrá al probar.
                     has_key: id.spec().needs_key && matches!(self.secrets.get(id), Ok(Some(_))),
                 }
             })
@@ -194,7 +200,7 @@ impl AiService {
         }
     }
 
-    /// Guarda la clave (en el llavero) y el modelo y la dirección (en el JSON) de un proveedor.
+    /// Guarda la clave, el modelo y la dirección de un proveedor en la base de datos local.
     pub fn save(&self, id: ProviderId, input: SaveInput) -> Result<AiStatus, AiError> {
         let spec = id.spec();
         if spec.needs_key {
@@ -222,19 +228,19 @@ impl AiService {
                 }
             }
             config.providers.insert(id, saved);
-            self.persist(&config);
+            self.store.save(&config)?;
         }
         Ok(self.status())
     }
 
     /// Elige con qué proveedor responde Orbit (`None`: ninguno).
-    pub fn set_active(&self, id: Option<ProviderId>) -> AiStatus {
+    pub fn set_active(&self, id: Option<ProviderId>) -> Result<AiStatus, AiError> {
         {
             let mut config = self.config_guard();
             config.active = id;
-            self.persist(&config);
+            self.store.save(&config)?;
         }
-        self.status()
+        Ok(self.status())
     }
 
     /// A quién se le habla. `need_model`: para listar modelos no hace falta uno elegido.
@@ -319,7 +325,7 @@ pub mod testing {
 
     use super::*;
 
-    /// Llavero simulado en memoria.
+    /// Almacén de claves simulado en memoria.
     #[derive(Default)]
     pub struct FakeSecrets {
         pub map: Mutex<HashMap<ProviderId, String>>,
@@ -329,19 +335,41 @@ pub mod testing {
     impl SecretStore for std::sync::Arc<FakeSecrets> {
         fn get(&self, id: ProviderId) -> Result<Option<String>, AiError> {
             if *self.fails.lock().unwrap() {
-                return Err(AiError::Keychain("bloqueado".into()));
+                return Err(AiError::Storage("bloqueado".into()));
             }
             Ok(self.map.lock().unwrap().get(&id).cloned())
         }
         fn set(&self, id: ProviderId, secret: &str) -> Result<(), AiError> {
             if *self.fails.lock().unwrap() {
-                return Err(AiError::Keychain("bloqueado".into()));
+                return Err(AiError::Storage("bloqueado".into()));
             }
             self.map.lock().unwrap().insert(id, secret.to_string());
             Ok(())
         }
         fn delete(&self, id: ProviderId) -> Result<(), AiError> {
             self.map.lock().unwrap().remove(&id);
+            Ok(())
+        }
+    }
+
+    /// Almacén de configuración simulado en memoria.
+    #[derive(Default)]
+    pub struct FakeConfig {
+        pub saved: Mutex<AiConfig>,
+        pub fails: Mutex<bool>,
+        pub saves: std::sync::atomic::AtomicUsize,
+    }
+
+    impl AiConfigStore for std::sync::Arc<FakeConfig> {
+        fn load(&self) -> Result<AiConfig, AiError> {
+            Ok(self.saved.lock().unwrap().clone())
+        }
+        fn save(&self, config: &AiConfig) -> Result<(), AiError> {
+            if *self.fails.lock().unwrap() {
+                return Err(AiError::Storage("sin espacio".into()));
+            }
+            *self.saved.lock().unwrap() = config.clone();
+            self.saves.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             Ok(())
         }
     }
@@ -397,38 +425,30 @@ pub mod testing {
 mod tests {
     use std::sync::Arc;
 
-    use super::testing::{FakeClient, FakeSecrets};
+    use super::testing::{FakeClient, FakeConfig, FakeSecrets};
     use super::*;
 
     struct Harness {
         service: AiService,
         secrets: Arc<FakeSecrets>,
         client: Arc<FakeClient>,
-        path: PathBuf,
+        config: Arc<FakeConfig>,
     }
 
-    impl Drop for Harness {
-        fn drop(&mut self) {
-            let _ = std::fs::remove_file(&self.path);
-        }
-    }
-
-    fn harness(name: &str) -> Harness {
+    fn harness(_name: &str) -> Harness {
         let secrets = Arc::new(FakeSecrets::default());
         let client = Arc::new(FakeClient::default());
-        let path =
-            std::env::temp_dir().join(format!("orbit-ai-svc-{}-{name}.json", std::process::id()));
-        let _ = std::fs::remove_file(&path);
+        let config = Arc::new(FakeConfig::default());
         let service = AiService::new(
             Box::new(Arc::clone(&secrets)),
             Box::new(Arc::clone(&client)),
-            path.clone(),
+            Box::new(Arc::clone(&config)),
         );
         Harness {
             service,
             secrets,
             client,
-            path,
+            config,
         }
     }
 
@@ -462,7 +482,7 @@ mod tests {
     }
 
     #[test]
-    fn saving_puts_the_key_in_the_keychain_and_the_model_in_the_config() {
+    fn saving_puts_the_key_in_the_secret_store_and_the_model_in_the_config() {
         let h = harness("save");
         let status = h
             .service
@@ -482,9 +502,9 @@ mod tests {
             Some("gsk_secreta")
         );
 
-        // La clave no está en el JSON de configuración ni en lo que ve la interfaz.
-        let json = std::fs::read_to_string(&h.path).unwrap();
-        assert!(!json.contains("gsk_secreta"), "{json}");
+        // La clave no está en la configuración que se guarda ni en lo que ve la interfaz.
+        let saved = format!("{:?}", h.config.saved.lock().unwrap());
+        assert!(!saved.contains("gsk_secreta"), "{saved}");
         assert!(!serde_json::to_string(&status)
             .unwrap()
             .contains("gsk_secreta"));
@@ -575,17 +595,17 @@ mod tests {
     }
 
     #[test]
-    fn the_config_survives_a_restart_but_the_key_stays_in_the_keychain() {
+    fn the_config_survives_a_restart_and_the_key_stays_in_the_secret_store() {
         let h = harness("restart");
         h.service
             .save(ProviderId::Groq, groq("gsk_x", "llama"))
             .unwrap();
-        h.service.set_active(Some(ProviderId::Groq));
+        h.service.set_active(Some(ProviderId::Groq)).unwrap();
 
         let again = AiService::new(
             Box::new(Arc::clone(&h.secrets)),
             Box::new(Arc::clone(&h.client)),
-            h.path.clone(),
+            Box::new(Arc::clone(&h.config)),
         );
         let status = again.status();
         assert_eq!(status.active, Some(ProviderId::Groq));
@@ -733,7 +753,7 @@ mod tests {
         h.service
             .save(ProviderId::Groq, groq("gsk_x", "llama"))
             .unwrap();
-        h.service.set_active(Some(ProviderId::Groq));
+        h.service.set_active(Some(ProviderId::Groq)).unwrap();
         *h.client.chunks.lock().unwrap() = vec!["Can".into(), "berra".into()];
 
         let mut text = String::new();
@@ -758,7 +778,7 @@ mod tests {
         h.service
             .save(ProviderId::Groq, groq("gsk_x", "llama"))
             .unwrap();
-        h.service.set_active(Some(ProviderId::Groq));
+        h.service.set_active(Some(ProviderId::Groq)).unwrap();
         *h.client.chunks.lock().unwrap() = vec!["a".into(), "b".into(), "c".into()];
 
         let mut seen = 0;
@@ -772,16 +792,35 @@ mod tests {
     }
 
     #[test]
-    fn a_failing_keychain_is_an_error_and_not_a_crash() {
-        let h = harness("keychain");
+    fn a_failing_secret_store_is_an_error_and_not_a_crash() {
+        let h = harness("storage");
         *h.secrets.fails.lock().unwrap() = true;
         let error = h
             .service
             .save(ProviderId::Groq, groq("gsk_x", "m"))
             .unwrap_err();
-        assert_eq!(error.code(), "ai.keychain");
+        assert_eq!(error.code(), "ai.storage");
         // El estado sigue funcionando: se ve como "sin clave".
         assert!(!provider(&h.service.status(), ProviderId::Groq).has_key);
+    }
+
+    #[test]
+    fn a_failing_config_store_is_reported_when_saving_or_choosing() {
+        let h = harness("configfail");
+        *h.config.fails.lock().unwrap() = true;
+
+        let error = h
+            .service
+            .save(ProviderId::Groq, groq("gsk_x", "m"))
+            .unwrap_err();
+        assert_eq!(error.code(), "ai.storage");
+        assert_eq!(
+            h.service
+                .set_active(Some(ProviderId::Groq))
+                .unwrap_err()
+                .code(),
+            "ai.storage"
+        );
     }
 
     #[test]
@@ -802,7 +841,7 @@ mod tests {
             (AiError::NotConfigured, "ai.notConfigured"),
             (AiError::MissingKey, "ai.missingKey"),
             (AiError::MissingModel, "ai.missingModel"),
-            (AiError::Keychain("x".into()), "ai.keychain"),
+            (AiError::Storage("x".into()), "ai.storage"),
             (AiError::Network("x".into()), "ai.network"),
             (AiError::Unauthorized, "ai.unauthorized"),
             (AiError::RateLimited, "ai.rateLimited"),
