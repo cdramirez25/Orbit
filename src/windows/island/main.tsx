@@ -5,7 +5,11 @@ import { createRoot } from 'react-dom/client';
 
 import { clipboardModule } from '@/modules/clipboard';
 import { demoModule } from '@/modules/demo';
-import { bindDemoToIsland, bindListeningToIsland } from '@/modules/demo/demo.store';
+import {
+  bindDemoToIsland,
+  bindListeningToIsland,
+  bindTranscriptToIsland,
+} from '@/modules/demo/demo.store';
 import { musicModule } from '@/modules/music';
 import { bindRegistryToIsland, useRegistryStore } from '@/modules/registry';
 import { weatherModule } from '@/modules/weather';
@@ -14,6 +18,7 @@ import { useClipboardStore } from '@/stores/clipboard.store';
 import { useIslandStore } from '@/stores/island.store';
 import { useMediaStore } from '@/stores/media.store';
 import { useSettingsStore } from '@/stores/settings.store';
+import { useTranscriptStore } from '@/stores/transcript.store';
 import { useWeatherStore } from '@/stores/weather.store';
 import { App } from '@/windows/island/App';
 import { bindRemoteControl } from '@/windows/island/remote';
@@ -37,8 +42,11 @@ registry.startActivity(musicModule.id);
 
 // Escucha del audio del sistema: volumen y estado desde Rust → las ondas de la isla.
 void useAudioStore.getState().bind();
+// Lo que se dice (Whisper, en Rust) llega como parciales y finales.
+void useTranscriptStore.getState().bind();
 bindListeningToIsland();
 bindDemoToIsland();
+bindTranscriptToIsland();
 
 // La ventana de ajustes (otra ventana) controla la isla con mensajes.
 bindRemoteControl();

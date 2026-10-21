@@ -77,6 +77,15 @@ export const es = {
   'audio.error.noDevice': 'Sin dispositivo de salida',
   'audio.error.generic': 'No se pudo escuchar',
 
+  // ── Transcripción en vivo ───────────────────────────────────────────────
+  'transcript.title': 'Transcripción en vivo',
+  'transcript.waiting': 'Esperando voz…',
+  'transcript.sample1': 'La capital de Australia es Canberra, no Sídney como mucha gente cree.',
+  'transcript.sample2': 'El río más largo del mundo es el Nilo según la mayoría de las fuentes.',
+  'stt.error.modelMissing': 'Falta el modelo de transcripción',
+  'stt.error.modelLoad': 'No se pudo cargar el modelo de transcripción',
+  'stt.error.generic': 'Falló la transcripción',
+
   // ── Selector de módulos ─────────────────────────────────────────────────
   'modules.switcherAria': 'Módulos de la isla',
   'demo.module': 'Demo',

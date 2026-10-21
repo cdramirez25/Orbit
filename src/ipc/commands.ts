@@ -1,5 +1,6 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
 
+import { translate } from '@/i18n/locale.store';
 import { emitLocal } from '@/ipc/events';
 import { simulatedLevel } from '@/lib/audio/simulated-level';
 import type {
@@ -48,9 +49,32 @@ if (typeof window !== 'undefined' && !isTauri()) {
 const SIMULATION_TICK_MS = 33;
 let simulation: ReturnType<typeof setInterval> | undefined;
 
+// Frases de ejemplo (en el idioma activo) que llegan palabra a palabra, como las del motor real.
+const SAMPLE_PHRASES = ['transcript.sample1', 'transcript.sample2'] as const;
+const WORD_MS = 280;
+let transcriptSimulation: ReturnType<typeof setInterval> | undefined;
+
+function simulateTranscript(): void {
+  let phrase = 0;
+  let shown = 0;
+  transcriptSimulation = setInterval(() => {
+    const text = translate(SAMPLE_PHRASES[phrase % SAMPLE_PHRASES.length] ?? 'transcript.sample1');
+    const words = text.split(' ');
+    shown += 1;
+    if (shown >= words.length) {
+      emitLocal('stt:final', { text, endOfUtterance: true });
+      phrase += 1;
+      shown = 0;
+    } else {
+      emitLocal('stt:partial', { text: words.slice(0, shown).join(' ') });
+    }
+  }, WORD_MS);
+}
+
 function startSimulation(): void {
   if (simulation !== undefined) return;
   emitLocal('pipeline:state', 'listening');
+  simulateTranscript();
   const startedAt = Date.now();
   simulation = setInterval(
     () => emitLocal('audio:level', simulatedLevel((Date.now() - startedAt) / 1000)),
@@ -60,7 +84,9 @@ function startSimulation(): void {
 
 function stopSimulation(): void {
   clearInterval(simulation);
+  clearInterval(transcriptSimulation);
   simulation = undefined;
+  transcriptSimulation = undefined;
   emitLocal('audio:level', 0);
   emitLocal('pipeline:state', 'idle');
 }

@@ -5,6 +5,7 @@ import { Button, Tab, Toggle } from '@/components/ui';
 import { useLocaleStore } from '@/i18n/locale.store';
 import { LOCALE_NAMES, type MessageKey } from '@/i18n/messages';
 import { useT } from '@/i18n/useT';
+import { sttErrorKey } from '@/lib/audio/stt-error';
 import { cn } from '@/lib/utils/cn';
 import { useAudioStore } from '@/stores/audio.store';
 import { useControlStore } from '@/stores/control.store';
@@ -32,7 +33,7 @@ const PERMISSION_POLL_MS = 2000;
 function listenErrorKey(code: string): MessageKey | null {
   if (code === 'audio.permissionDenied') return null;
   if (code === 'audio.noOutputDevice') return 'audio.error.noDevice';
-  return 'audio.error.generic';
+  return sttErrorKey(code) ?? 'audio.error.generic';
 }
 
 const STATES: ReadonlyArray<{ id: IslandState; label: MessageKey }> = [

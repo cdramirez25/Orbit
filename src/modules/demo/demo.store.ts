@@ -4,6 +4,7 @@ import { translate } from '@/i18n/locale.store';
 import { useRegistryStore } from '@/modules/registry';
 import { useAudioStore } from '@/stores/audio.store';
 import { useIslandStore } from '@/stores/island.store';
+import { useTranscriptStore } from '@/stores/transcript.store';
 import type { IslandState } from '@/types';
 
 export const DEMO_MODULE_ID = 'demo';
@@ -21,6 +22,8 @@ interface DemoStore {
   goTo: (target: IslandState) => void;
   /** Simula la respuesta del LLM llegando token a token (para ver crecer la tarjeta). */
   streamAnswer: () => void;
+  /** Descarta la respuesta simulada (por ejemplo, al empezar a escuchar de nuevo). */
+  resetAnswer: () => void;
   showDemoAlert: () => void;
 }
 
@@ -53,6 +56,11 @@ export const useDemoStore = create<DemoStore>((set, get) => ({
         set({ streaming: false });
       }
     }, TICK_MS);
+  },
+
+  resetAnswer: () => {
+    clearInterval(streamTimer);
+    set({ answer: null, streaming: false });
   },
 
   showDemoAlert: () => {
@@ -88,6 +96,9 @@ export function bindListeningToIsland(): () => void {
   return useAudioStore.subscribe((state, previous) => {
     if (state.listening === previous.listening) return;
     if (state.listening) {
+      // Cada escucha empieza con la transcripción limpia y sin la respuesta simulada.
+      useTranscriptStore.getState().clear();
+      useDemoStore.getState().resetAnswer();
       useDemoStore.getState().goTo('compact');
       return;
     }
@@ -95,5 +106,21 @@ export function bindListeningToIsland(): () => void {
     useRegistryStore.getState().endActivity(DEMO_MODULE_ID);
     const othersActive = useRegistryStore.getState().activities.length > 0;
     useIslandStore.getState().goTo(othersActive ? 'compact' : 'idle');
+  });
+}
+
+/**
+ * Cuando llega la primera palabra de una escucha, la tarjeta se abre sola para que se vea la
+ * transcripción. Solo una vez por escucha (la transcripción se vacía al empezar): si el usuario la
+ * cierra, no se vuelve a abrir con cada frase. No pisa una tarjeta ya abierta ni un aviso.
+ */
+export function bindTranscriptToIsland(): () => void {
+  return useTranscriptStore.subscribe((state, previous) => {
+    const hasText = (s: typeof state) => s.lines.length > 0 || s.partial !== '';
+    if (!hasText(state) || hasText(previous)) return;
+    if (!useAudioStore.getState().listening) return;
+    if (useIslandStore.getState().snapshot.state === 'compact') {
+      useDemoStore.getState().goTo('expanded');
+    }
   });
 }

@@ -74,6 +74,15 @@ export const en: Record<MessageKey, string> = {
   'audio.error.noDevice': 'No output device',
   'audio.error.generic': 'Could not listen',
 
+  // ── Live transcript ─────────────────────────────────────────────────────
+  'transcript.title': 'Live transcript',
+  'transcript.waiting': 'Waiting for speech…',
+  'transcript.sample1': 'The capital of Australia is Canberra, not Sydney as many people think.',
+  'transcript.sample2': 'The longest river in the world is the Nile according to most sources.',
+  'stt.error.modelMissing': 'Transcription model not found',
+  'stt.error.modelLoad': 'Could not load the transcription model',
+  'stt.error.generic': 'Transcription failed',
+
   // ── Module switcher ─────────────────────────────────────────────────────
   'modules.switcherAria': 'Island modules',
   'demo.module': 'Demo',
