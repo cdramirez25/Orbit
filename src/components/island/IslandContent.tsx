@@ -1,13 +1,27 @@
 import { AnimatePresence, motion, type Variants } from 'motion/react';
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 
-import { IconButton } from '@/components/ui';
+import { Button, IconButton } from '@/components/ui';
 import { useElementHeight } from '@/hooks/useElementHeight';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
-import { CONTENT, REDUCED_MOTION, resolveIslandTarget, SIZE } from '@/lib/island/island.motion';
+import { useT } from '@/i18n/useT';
+import {
+  CONTENT,
+  expandedMaxHeight,
+  REDUCED_MOTION,
+  resolveIslandTarget,
+  SIZE,
+} from '@/lib/island/island.motion';
 import { selectActiveModule, useRegistryStore } from '@/modules/registry';
 import { useIslandStore } from '@/stores/island.store';
-import type { IslandAlert, IslandState, IslandStyle, NotchInfo, OrbitModule } from '@/types';
+import type {
+  ExpandedSize,
+  IslandAlert,
+  IslandState,
+  IslandStyle,
+  NotchInfo,
+  OrbitModule,
+} from '@/types';
 
 interface IslandContentProps {
   state: IslandState;
@@ -52,7 +66,9 @@ function useLayerVariants(): Variants {
 function Layer({ variants, children }: { variants: Variants; children: ReactNode }) {
   return (
     <motion.div
-      className="absolute inset-0 flex justify-center"
+      // `items-start`: el contenido toma su alto natural. Con `stretch` (por defecto) se estiraba
+      // al alto actual de la isla y lo medido nunca crecía: la tarjeta se quedaba pequeña.
+      className="absolute inset-0 flex items-start justify-center"
       variants={variants}
       initial="hidden"
       animate="visible"
@@ -63,33 +79,59 @@ function Layer({ variants, children }: { variants: Variants; children: ReactNode
   );
 }
 
+function Chevron({ up }: { up: boolean }) {
+  return (
+    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden>
+      <path
+        d={up ? 'M2 6.5l3-3 3 3' : 'M2 3.5l3 3 3-3'}
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 function ExpandedView({
   module,
   topInset,
+  size,
   onMeasure,
   onCollapse,
+  onToggleSize,
 }: {
   module: OrbitModule;
   topInset: number;
+  size: ExpandedSize;
   onMeasure: (height: number) => void;
   onCollapse: () => void;
+  onToggleSize: () => void;
 }) {
+  const t = useT();
   const boxRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // ¿El contenido no cabe y hay que deslizar? Entonces se ofrece "Alargar".
+  const [overflowing, setOverflowing] = useState(false);
 
   useElementHeight(boxRef, onMeasure);
 
-  // Texto en streaming: cuando pasa del tope de altura, el scroll interno sigue al final.
+  // Texto en streaming: el scroll interno sigue al final, y se detecta si el texto desborda
+  // (al crecer el texto o al cambiar el tamaño de la tarjeta).
   useEffect(() => {
     const scroller = scrollRef.current;
     const inner = scroller?.firstElementChild;
     if (!scroller || !inner) return;
     const observer = new ResizeObserver(() => {
       scroller.scrollTop = scroller.scrollHeight;
+      setOverflowing(scroller.scrollHeight > scroller.clientHeight + 1);
     });
     observer.observe(inner);
+    observer.observe(scroller);
     return () => observer.disconnect();
   }, []);
+
+  const tall = size === 'tall';
 
   return (
     <div
@@ -97,11 +139,15 @@ function ExpandedView({
       className="relative flex shrink-0 flex-col"
       style={{
         width: SIZE.expanded.width,
-        maxHeight: SIZE.expanded.maxHeight,
+        maxHeight: expandedMaxHeight(size, topInset),
         paddingTop: topInset,
       }}
     >
-      <IconButton label="Contraer" className="absolute top-2 right-3 z-10" onClick={onCollapse}>
+      <IconButton
+        label={t('island.collapse')}
+        className="absolute top-2 right-3 z-10"
+        onClick={onCollapse}
+      >
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden>
           <path
             d="M1 1l8 8M9 1L1 9"
@@ -113,12 +159,28 @@ function ExpandedView({
       </IconButton>
       <div
         ref={scrollRef}
-        className="min-h-0 flex-1 [scrollbar-width:none] overflow-y-auto px-5 pt-3 pb-4 [&::-webkit-scrollbar]:hidden"
+        className="min-h-0 flex-initial [scrollbar-width:none] overflow-y-auto px-5 pt-3 pb-4 [&::-webkit-scrollbar]:hidden"
       >
         <div>
           <module.Expanded />
         </div>
       </div>
+
+      {/* Abajo, dentro de la isla: estira la tarjeta (4 → 8 filas) y la devuelve a su tamaño. */}
+      {(overflowing || tall) && (
+        <div className="flex h-8 shrink-0 items-center justify-center">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={onToggleSize}
+            aria-label={t(tall ? 'island.shrinkAria' : 'island.stretchAria')}
+            aria-expanded={tall}
+          >
+            <Chevron up={tall} />
+            {t(tall ? 'island.shrink' : 'island.stretch')}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
@@ -151,6 +213,8 @@ export function IslandContent({ state, style, notch, topInset, onMeasure }: Isla
   const activeModule = useRegistryStore(selectActiveModule);
   const alert = useIslandStore((s) => s.alert);
   const send = useIslandStore((s) => s.send);
+  const expandedSize = useIslandStore((s) => s.expandedSize);
+  const toggleExpandedSize = useIslandStore((s) => s.toggleExpandedSize);
   const variants = useLayerVariants();
 
   const dims = { style, notch, hovered: false, contentHeight: 0 } as const;
@@ -172,8 +236,10 @@ export function IslandContent({ state, style, notch, topInset, onMeasure }: Isla
           <ExpandedView
             module={activeModule}
             topInset={topInset}
+            size={expandedSize}
             onMeasure={onMeasure}
             onCollapse={() => send({ type: 'COLLAPSE' })}
+            onToggleSize={toggleExpandedSize}
           />
         </Layer>
       )}

@@ -5,6 +5,8 @@ import { IslandContent } from '@/components/island/IslandContent';
 import { NotchShape } from '@/components/island/NotchShape';
 import { useIslandDrag } from '@/hooks/useIslandDrag';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
+import type { MessageKey } from '@/i18n/messages';
+import { useT } from '@/i18n/useT';
 import {
   CONTENT,
   isShrinking,
@@ -17,18 +19,21 @@ import {
 import { cn } from '@/lib/utils/cn';
 import { useIslandStore } from '@/stores/island.store';
 import { useSettingsStore } from '@/stores/settings.store';
+import type { IslandState } from '@/types';
 
-const ARIA_LABEL = {
-  idle: 'Abrir Orbit',
-  compact: 'Expandir Orbit',
-  alert: 'Cerrar aviso',
-} as const;
+/** Texto accesible de la isla cuando es clicable, según su estado. */
+const ARIA_LABEL: Partial<Record<IslandState, MessageKey>> = {
+  idle: 'island.open',
+  compact: 'island.expand',
+  alert: 'island.dismissAlert',
+};
 
 /**
  * El único contenedor que morfa (§3.2): ancho, alto y radios con un spring. Los valores son
  * `MotionValue`s, así que Motion los escribe en el DOM frame a frame sin re-renderizar React.
  */
 export function Island() {
+  const t = useT();
   const state = useIslandStore((s) => s.snapshot.state);
   const hovered = useIslandStore((s) => s.snapshot.hovered);
   const rawNotch = useIslandStore((s) => s.notch);
@@ -36,13 +41,21 @@ export function Island() {
   const chosenStyle = useSettingsStore((s) => s.islandStyle);
   const anchor = useSettingsStore((s) => s.anchor);
   const reduced = useReducedMotion();
+  const expandedSize = useIslandStore((s) => s.expandedSize);
   const drag = useIslandDrag(anchor === 'free');
 
   // Solo en el centro la isla está sobre el notch real; en modo libre siempre flota.
   const { style, notch } = resolveLayout({ anchor, style: chosenStyle, notch: rawNotch });
 
   const [contentHeight, setContentHeight] = useState<number>(SIZE.expanded.minHeight);
-  const target = resolveIslandTarget({ state, hovered, style, notch, contentHeight });
+  const target = resolveIslandTarget({
+    state,
+    hovered,
+    style,
+    notch,
+    contentHeight,
+    expandedSize,
+  });
   const marginTop = style === 'floating' ? SHAPE.floatingMarginTop : 0;
 
   const width = useMotionValue(target.width);
@@ -131,7 +144,7 @@ export function Island() {
           data-clickable={clickable ? '' : undefined}
           role={clickable ? 'button' : undefined}
           tabIndex={clickable ? 0 : undefined}
-          aria-label={clickable ? ARIA_LABEL[state as keyof typeof ARIA_LABEL] : undefined}
+          aria-label={clickable && ARIA_LABEL[state] ? t(ARIA_LABEL[state]) : undefined}
           aria-hidden={state === 'hidden' ? true : undefined}
           onClick={clickable ? handleClick : undefined}
           onPointerDown={drag.onPointerDown}

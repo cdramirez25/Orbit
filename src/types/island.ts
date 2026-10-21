@@ -7,6 +7,12 @@ export type RestingState = 'idle' | 'compact' | 'expanded';
 /** `attached`: pegada al borde superior (con orejas). `floating`: pastilla con margen. */
 export type IslandStyle = 'attached' | 'floating';
 
+/**
+ * Tamaño de la tarjeta expandida: `normal` ≈ 4 filas de respuesta; `tall` ≈ 8 (botón "Alargar").
+ * Es una variante de visualización de `expanded`, no un estado de la máquina.
+ */
+export type ExpandedSize = 'normal' | 'tall';
+
 export interface ScreenFrame {
   x: number;
   y: number;

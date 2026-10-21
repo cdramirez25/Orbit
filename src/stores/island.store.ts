@@ -8,7 +8,7 @@ import {
   type IslandEvent,
   type IslandSnapshot,
 } from '@/lib/island/island.machine';
-import type { IslandAlert, IslandState, NotchInfo } from '@/types';
+import type { ExpandedSize, IslandAlert, IslandState, NotchInfo } from '@/types';
 
 const ALERT_DURATION_MS = 2800;
 
@@ -18,6 +18,9 @@ interface IslandStore {
   snapshot: IslandSnapshot;
   alert: IslandAlert | null;
   notch: NotchInfo | null;
+  /** Tarjeta expandida normal (~4 filas) o alargada (~8). Vuelve a `normal` al salir de `expanded`. */
+  expandedSize: ExpandedSize;
+  toggleExpandedSize: () => void;
   /** Mientras se arrastra la isla (modo libre) la ventana debe seguir capturando el mouse. */
   dragging: boolean;
   setDragging: (dragging: boolean) => void;
@@ -33,7 +36,13 @@ export const useIslandStore = create<IslandStore>((set, get) => ({
   snapshot: INITIAL_SNAPSHOT,
   alert: null,
   notch: null,
+  expandedSize: 'normal',
   dragging: false,
+
+  toggleExpandedSize: () => {
+    if (get().snapshot.state !== 'expanded') return;
+    set((s) => ({ expandedSize: s.expandedSize === 'tall' ? 'normal' : 'tall' }));
+  },
 
   setDragging: (dragging) => {
     set({ dragging });
@@ -44,7 +53,13 @@ export const useIslandStore = create<IslandStore>((set, get) => ({
   send: (...events) => {
     const current = get().snapshot;
     const next = reduceAll(current, events);
-    if (next !== current) set({ snapshot: next });
+    if (next === current) return;
+
+    // La tarjeta alargada vuelve a su tamaño normal al salir de `expanded` (salvo si es un
+    // `alert` que regresará a ella: entonces se conserva).
+    const staysExpanded =
+      next.state === 'expanded' || (next.state === 'alert' && next.returnTo === 'expanded');
+    set(staysExpanded ? { snapshot: next } : { snapshot: next, expandedSize: 'normal' });
   },
 
   goTo: (target) => {

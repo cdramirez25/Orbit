@@ -1,19 +1,11 @@
 import { create } from 'zustand';
 
+import { translate } from '@/i18n/locale.store';
 import { useRegistryStore } from '@/modules/registry';
 import { useIslandStore } from '@/stores/island.store';
 import type { IslandState } from '@/types';
 
 export const DEMO_MODULE_ID = 'demo';
-
-const SAMPLE_QUESTION = '¿Cuál es la capital de Australia?';
-const SAMPLE_ANSWER = 'Canberra';
-
-const STREAM_TEXT =
-  'Canberra. Muchos piensan que es Sídney o Melbourne, pero se eligió como capital en 1908 ' +
-  'precisamente como punto medio entre ambas ciudades rivales. Se fundó en 1913 y el Parlamento ' +
-  'se trasladó allí en 1927. Es la ciudad más grande del interior de Australia, y su nombre ' +
-  'viene de una palabra aborigen que se suele traducir como "lugar de encuentro".';
 
 const CHARS_PER_TICK = 3;
 const TICK_MS = 35;
@@ -21,8 +13,8 @@ const TICK_MS = 35;
 let streamTimer: ReturnType<typeof setInterval> | undefined;
 
 interface DemoStore {
-  question: string;
-  answer: string;
+  /** Respuesta que va llegando; `null` = todavía no se simuló nada (se muestra la corta). */
+  answer: string | null;
   streaming: boolean;
   /** Va a un estado de la isla, arrancando/terminando la actividad del módulo cuando toca. */
   goTo: (target: IslandState) => void;
@@ -32,8 +24,7 @@ interface DemoStore {
 }
 
 export const useDemoStore = create<DemoStore>((set, get) => ({
-  question: SAMPLE_QUESTION,
-  answer: SAMPLE_ANSWER,
+  answer: null,
   streaming: false,
 
   goTo: (target) => {
@@ -50,11 +41,13 @@ export const useDemoStore = create<DemoStore>((set, get) => ({
     get().goTo('expanded');
     set({ answer: '', streaming: true });
 
+    // El texto de ejemplo sale del diccionario del idioma activo al empezar.
+    const text = translate('demo.answerLong');
     let shown = 0;
     streamTimer = setInterval(() => {
-      shown = Math.min(shown + CHARS_PER_TICK, STREAM_TEXT.length);
-      set({ answer: STREAM_TEXT.slice(0, shown) });
-      if (shown >= STREAM_TEXT.length) {
+      shown = Math.min(shown + CHARS_PER_TICK, text.length);
+      set({ answer: text.slice(0, shown) });
+      if (shown >= text.length) {
         clearInterval(streamTimer);
         set({ streaming: false });
       }
@@ -64,6 +57,6 @@ export const useDemoStore = create<DemoStore>((set, get) => ({
   showDemoAlert: () => {
     const island = useIslandStore.getState();
     if (island.snapshot.state === 'hidden') island.goTo('idle');
-    island.showAlert({ title: 'Pregunta detectada', message: SAMPLE_QUESTION });
+    island.showAlert({ title: translate('demo.detected'), message: translate('demo.question') });
   },
 }));

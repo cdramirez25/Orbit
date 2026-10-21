@@ -72,7 +72,7 @@ describe('resolveIslandTarget', () => {
     const small = resolveIslandTarget({ ...base, state: 'expanded', contentHeight: 10 });
     const big = resolveIslandTarget({ ...base, state: 'expanded', contentHeight: 9999 });
     expect(small.height).toBe(SIZE.expanded.minHeight);
-    expect(big.height).toBe(SIZE.expanded.maxHeight);
+    expect(big.height).toBe(SIZE.expanded.maxHeight.normal);
   });
 
   it('expanded attached reserva la franja del notch arriba', () => {
@@ -99,6 +99,43 @@ describe('resolveIslandTarget', () => {
   it('el radio nunca supera la mitad del alto', () => {
     const t = resolveIslandTarget(base);
     expect(t.bottomRadius).toBeLessThanOrEqual(t.height / 2);
+  });
+});
+
+describe('tarjeta alargada (expandedSize)', () => {
+  const expanded = { ...base, state: 'expanded' as const, contentHeight: 9999 };
+
+  it('alargar deja más alto el tope que el tamaño normal', () => {
+    const normal = resolveIslandTarget({ ...expanded, expandedSize: 'normal' });
+    const tall = resolveIslandTarget({ ...expanded, expandedSize: 'tall' });
+    expect(normal.height).toBe(SIZE.expanded.maxHeight.normal);
+    expect(tall.height).toBe(SIZE.expanded.maxHeight.tall);
+    expect(tall.height).toBeGreaterThan(normal.height);
+  });
+
+  it('sin indicar tamaño se usa el normal', () => {
+    expect(resolveIslandTarget(expanded).height).toBe(SIZE.expanded.maxHeight.normal);
+  });
+
+  it('en attached el tope suma la franja del notch para no perder filas', () => {
+    const tall = resolveIslandTarget({
+      ...expanded,
+      style: 'attached',
+      notch,
+      expandedSize: 'tall',
+    });
+    expect(tall.height).toBe(SIZE.expanded.maxHeight.tall + notch.notchHeight);
+  });
+
+  it('con poco contenido la tarjeta no se estira aunque esté alargada', () => {
+    const tall = resolveIslandTarget({ ...expanded, contentHeight: 150, expandedSize: 'tall' });
+    expect(tall.height).toBe(150);
+  });
+
+  it('alargado cabe en la ventana nativa con el panel de demo debajo', () => {
+    const attachedTall = SIZE.expanded.maxHeight.tall + notch.notchHeight;
+    const demoPanel = 120; // alto aproximado del panel de demo + su margen
+    expect(SHAPE.floatingMarginTop + attachedTall + demoPanel).toBeLessThanOrEqual(480);
   });
 });
 

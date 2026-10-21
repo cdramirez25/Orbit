@@ -1,4 +1,5 @@
 export type {
+  ExpandedSize,
   IslandAlert,
   IslandAnchor,
   IslandState,
@@ -9,6 +10,7 @@ export type {
   RestingState,
   ScreenFrame,
 } from './island';
+export type { Locale } from './i18n';
 export type { OrbitModule } from './module';
 export type {
   LlmDelta,

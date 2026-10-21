@@ -1,6 +1,6 @@
 import type { Transition } from 'motion/react';
 
-import type { IslandAnchor, IslandState, IslandStyle, NotchInfo } from '@/types';
+import type { ExpandedSize, IslandAnchor, IslandState, IslandStyle, NotchInfo } from '@/types';
 
 /**
  * ÚNICA fuente de constantes de animación y de forma de la isla (§3.2). Se ajustan a ojo aquí
@@ -8,7 +8,7 @@ import type { IslandAnchor, IslandState, IslandStyle, NotchInfo } from '@/types'
  */
 
 /** Tamaño de la ventana nativa (fijo, nunca se anima). Debe coincidir con `window::island_window`. */
-export const WINDOW = { width: 640, height: 320 } as const;
+export const WINDOW = { width: 640, height: 480 } as const;
 
 /**
  * Springs. `visualDuration` ≈ "respuesta" de 0.35 s; `bounce` = 1 − amortiguación.
@@ -66,10 +66,19 @@ export const SIZE = {
   expanded: {
     width: 520,
     minHeight: 120,
-    /** Tope de altura; el contenido que sobre hace scroll interno. */
-    maxHeight: 196,
+    /**
+     * Tope de altura del contenido (sin la franja del notch); lo que sobre hace scroll interno.
+     * Incluye la fila del botón Alargar/Reducir (32 px). Con respuesta de 19 px / 26 px por
+     * fila: `normal` deja 4 filas y `tall` 8.
+     */
+    maxHeight: { normal: 212, tall: 316 },
   },
 } as const;
+
+/** Tope total de la tarjeta expandida: el contenido más la franja del notch (si es `attached`). */
+export function expandedMaxHeight(size: ExpandedSize, topInset: number): number {
+  return SIZE.expanded.maxHeight[size] + topInset;
+}
 
 /** Orden de "tamaño" de cada estado: sirve para saber si una transición contrae el contenedor. */
 const STATE_RANK: Record<IslandState, number> = {
@@ -112,6 +121,8 @@ export interface ResolveArgs {
   notch: NotchInfo | null;
   /** Alto natural medido del contenido expandido (incluye el inset del notch). */
   contentHeight: number;
+  /** Tarjeta normal o alargada (por defecto, normal). */
+  expandedSize?: ExpandedSize;
 }
 
 export interface IslandTarget {
@@ -135,6 +146,7 @@ export function resolveIslandTarget({
   style,
   notch,
   contentHeight,
+  expandedSize = 'normal',
 }: ResolveArgs): IslandTarget {
   const attached = style === 'attached';
   const realNotch = notch?.hasNotch === true;
@@ -174,9 +186,13 @@ export function resolveIslandTarget({
     }
     case 'expanded': {
       width = SIZE.expanded.width;
-      height = clamp(contentHeight, SIZE.expanded.minHeight, SIZE.expanded.maxHeight);
-      bottomRadius = SHAPE.radius.expanded;
       topInset = attached ? notchHeight : 0;
+      height = clamp(
+        contentHeight,
+        SIZE.expanded.minHeight,
+        expandedMaxHeight(expandedSize, topInset),
+      );
+      bottomRadius = SHAPE.radius.expanded;
       break;
     }
   }
