@@ -18,7 +18,7 @@ pub const LABEL: &str = "island";
 
 /// Tamaño lógico de la ventana. Debe coincidir con `WINDOW` en `src/lib/island/island.motion.ts`.
 pub const WIDTH: f64 = 640.0;
-pub const HEIGHT: f64 = 480.0;
+pub const HEIGHT: f64 = 520.0;
 
 /// Cuánto de la isla debe quedar siempre dentro del monitor al arrastrarla (puntos).
 const REACH: f64 = 80.0;

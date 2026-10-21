@@ -134,8 +134,8 @@ describe('tarjeta alargada (expandedSize)', () => {
 
   it('alargado cabe en la ventana nativa con el panel de demo debajo', () => {
     const attachedTall = SIZE.expanded.maxHeight.tall + notch.notchHeight;
-    const demoPanel = 120; // alto aproximado del panel de demo + su margen
-    expect(SHAPE.floatingMarginTop + attachedTall + demoPanel).toBeLessThanOrEqual(480);
+    const demoPanel = 150; // alto aproximado del panel de demo (4 filas) + su margen
+    expect(SHAPE.floatingMarginTop + attachedTall + demoPanel).toBeLessThanOrEqual(520);
   });
 });
 

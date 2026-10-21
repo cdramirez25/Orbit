@@ -1,13 +1,34 @@
+import { useEffect } from 'react';
+
 import { Button, Tab, Toggle } from '@/components/ui';
 import { HIT_TARGET_ATTR } from '@/hooks/useHitTest';
 import { useLocaleStore } from '@/i18n/locale.store';
 import { LOCALE_NAMES, type MessageKey } from '@/i18n/messages';
 import { useT } from '@/i18n/useT';
 import { commands } from '@/ipc/commands';
+import { cn } from '@/lib/utils/cn';
 import { useDemoStore } from '@/modules/demo/demo.store';
+import { useAudioStore } from '@/stores/audio.store';
 import { useIslandStore } from '@/stores/island.store';
 import { useSettingsStore } from '@/stores/settings.store';
-import type { IslandAnchor, IslandState, Locale } from '@/types';
+import type { IslandAnchor, IslandState, Locale, PermissionStatus } from '@/types';
+
+const PERMISSION_LABEL: Record<PermissionStatus, MessageKey> = {
+  granted: 'audio.permission.granted',
+  denied: 'audio.permission.denied',
+  notDetermined: 'audio.permission.notDetermined',
+  notRequired: 'audio.permission.notRequired',
+};
+
+const PERMISSION_TONE: Record<PermissionStatus, string> = {
+  granted: 'text-accent',
+  denied: 'text-danger',
+  notDetermined: 'text-ink-dim',
+  notRequired: 'text-ink-dim',
+};
+
+/** Cada cuánto se vuelve a consultar el permiso (el usuario lo concede en Ajustes del Sistema). */
+const PERMISSION_POLL_MS = 2000;
 
 const STATES: ReadonlyArray<{ id: IslandState; label: MessageKey }> = [
   { id: 'hidden', label: 'demo.controls.hidden' },
@@ -44,6 +65,16 @@ export function DemoControls() {
   const setAnchor = useSettingsStore((s) => s.setAnchor);
   const hideFromShare = useSettingsStore((s) => s.hideFromScreenShare);
   const setHideFromShare = useSettingsStore((s) => s.setHideFromScreenShare);
+  const permission = useAudioStore((s) => s.permission);
+  const refreshPermission = useAudioStore((s) => s.refresh);
+  const requestPermission = useAudioStore((s) => s.request);
+  const openPermissionSettings = useAudioStore((s) => s.openSettings);
+
+  useEffect(() => {
+    void refreshPermission();
+    const timer = setInterval(() => void refreshPermission(), PERMISSION_POLL_MS);
+    return () => clearInterval(timer);
+  }, [refreshPermission]);
 
   const hitTarget = { [HIT_TARGET_ATTR]: '' };
 
@@ -130,6 +161,37 @@ export function DemoControls() {
           <span className="text-[11px] whitespace-nowrap text-ink-faint">
             {t('demo.controls.freeHint')}
           </span>
+        )}
+      </div>
+
+      <div className="flex items-center gap-1.5" role="group" aria-label={t('demo.controls.audio')}>
+        <span className="text-[11px] text-ink-faint">{t('demo.controls.audio')}</span>
+        {permission && (
+          <span
+            role="status"
+            className={cn(
+              'inline-flex items-center gap-1 rounded-full bg-white/8 px-2 py-0.5 text-[11px] font-medium',
+              PERMISSION_TONE[permission],
+            )}
+          >
+            <span className="size-1.5 rounded-full bg-current" aria-hidden />
+            {t(PERMISSION_LABEL[permission])}
+          </span>
+        )}
+        {permission === 'notDetermined' && (
+          <Button size="sm" variant="primary" onClick={() => void requestPermission()}>
+            {t('audio.permission.request')}
+          </Button>
+        )}
+        {permission === 'denied' && (
+          <>
+            <Button size="sm" variant="primary" onClick={() => void openPermissionSettings()}>
+              {t('audio.permission.openSettings')}
+            </Button>
+            <span className="text-[11px] whitespace-nowrap text-ink-faint">
+              {t('audio.permission.restartHint')}
+            </span>
+          </>
         )}
       </div>
     </div>

@@ -35,6 +35,9 @@ pub struct Settings {
     pub island_anchor: IslandAnchor,
     /// Esquina superior izquierda de la ventana en modo libre.
     pub free_origin: Option<Point>,
+    /// ¿Ya se le pidió al usuario el permiso para capturar el audio del sistema? macOS no dice si
+    /// un permiso está "denegado" o "sin pedir": hay que recordarlo para mostrar el mensaje justo.
+    pub screen_capture_prompted: bool,
 }
 
 impl Default for Settings {
@@ -43,6 +46,7 @@ impl Default for Settings {
             hide_from_screen_share: true,
             island_anchor: IslandAnchor::Center,
             free_origin: None,
+            screen_capture_prompted: false,
         }
     }
 }
@@ -93,6 +97,7 @@ mod tests {
             hide_from_screen_share: false,
             island_anchor: IslandAnchor::Free,
             free_origin: Some(Point { x: 120.5, y: 40.0 }),
+            screen_capture_prompted: true,
         };
         settings.save(&path).unwrap();
         assert_eq!(Settings::load(&path), settings);

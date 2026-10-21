@@ -3,20 +3,29 @@
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 
+use crate::audio::permission::AudioPermission;
 use crate::events::EventSink;
 use crate::settings::Settings;
 
 pub struct AppState {
     /// Puerto de salida de eventos de dominio; el adaptador concreto lo elige `lib.rs`.
     pub events: Arc<dyn EventSink>,
+    /// Puerto del permiso de audio del sistema; el adaptador (macOS / Windows) lo elige `lib.rs`.
+    pub audio_permission: Arc<dyn AudioPermission>,
     settings: RwLock<Settings>,
     settings_path: PathBuf,
 }
 
 impl AppState {
-    pub fn new(events: Arc<dyn EventSink>, settings: Settings, settings_path: PathBuf) -> Self {
+    pub fn new(
+        events: Arc<dyn EventSink>,
+        audio_permission: Arc<dyn AudioPermission>,
+        settings: Settings,
+        settings_path: PathBuf,
+    ) -> Self {
         Self {
             events,
+            audio_permission,
             settings: RwLock::new(settings),
             settings_path,
         }

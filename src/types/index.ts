@@ -10,6 +10,7 @@ export type {
   RestingState,
   ScreenFrame,
 } from './island';
+export type { PermissionStatus } from './audio';
 export type { Locale } from './i18n';
 export type { OrbitModule } from './module';
 export type {

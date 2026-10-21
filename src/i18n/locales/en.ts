@@ -46,6 +46,16 @@ export const en: Record<MessageKey, string> = {
   'demo.controls.free': 'Free',
   'demo.controls.freeHint': 'drag the island and drop it',
   'demo.controls.languageAria': 'Language',
+  'demo.controls.audio': 'System audio',
+
+  // ── System audio capture permission ─────────────────────────────────────
+  'audio.permission.granted': 'Granted',
+  'audio.permission.denied': 'Denied',
+  'audio.permission.notDetermined': 'Not requested',
+  'audio.permission.notRequired': 'Not required',
+  'audio.permission.request': 'Request access',
+  'audio.permission.openSettings': 'Open settings',
+  'audio.permission.restartHint': 'After granting it in Settings, restart Orbit.',
 
   // ── Settings window ─────────────────────────────────────────────────────
   'settings.placeholder': 'Orbit settings — coming soon (Phase 5).',

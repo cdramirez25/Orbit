@@ -8,7 +8,7 @@ import type { ExpandedSize, IslandAnchor, IslandState, IslandStyle, NotchInfo } 
  */
 
 /** Tamaño de la ventana nativa (fijo, nunca se anima). Debe coincidir con `window::island_window`. */
-export const WINDOW = { width: 640, height: 480 } as const;
+export const WINDOW = { width: 640, height: 520 } as const;
 
 /**
  * Springs. `visualDuration` ≈ "respuesta" de 0.35 s; `bounce` = 1 − amortiguación.

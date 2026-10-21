@@ -1,6 +1,7 @@
 //! Comandos de Tauri (adaptadores de entrada): finos, validan, llaman al núcleo y devuelven.
 //! Sin lógica de negocio.
 
+pub mod audio;
 pub mod island;
 
 use serde::{Serialize, Serializer};
@@ -9,6 +10,8 @@ use serde::{Serialize, Serializer};
 pub enum CommandError {
     #[error("error de ventana: {0}")]
     Window(#[from] tauri::Error),
+    #[error("error de audio: {0}")]
+    Audio(#[from] crate::audio::AudioError),
 }
 
 impl Serialize for CommandError {

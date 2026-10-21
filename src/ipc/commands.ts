@@ -1,6 +1,13 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
 
-import type { IslandAnchor, IslandSettings, NotchInfo, Point, PointerPosition } from '@/types';
+import type {
+  IslandAnchor,
+  IslandSettings,
+  NotchInfo,
+  PermissionStatus,
+  Point,
+  PointerPosition,
+} from '@/types';
 
 /**
  * Única puerta hacia los comandos de Rust (§4.0). Fuera de Tauri (navegador / tests) devuelve
@@ -64,6 +71,20 @@ export const commands = {
   /** Mueve la ventana (arrastre); con `commit` (al soltar) la posición se guarda. */
   setIslandOrigin: (x: number, y: number, commit: boolean): Promise<void> =>
     isTauri() ? invoke<void>('set_island_origin', { x, y, commit }) : Promise.resolve(),
+
+  /** Estado del permiso para capturar el audio del sistema (fuera de Tauri: no requerido). */
+  getAudioPermission: (): Promise<PermissionStatus> =>
+    isTauri() ? invoke<PermissionStatus>('get_audio_permission') : Promise.resolve('notRequired'),
+
+  /** Pide el permiso al sistema (su aviso sale solo la primera vez) y devuelve el estado. */
+  requestAudioPermission: (): Promise<PermissionStatus> =>
+    isTauri()
+      ? invoke<PermissionStatus>('request_audio_permission')
+      : Promise.resolve('notRequired'),
+
+  /** Abre la pantalla de Ajustes del Sistema donde se concede el permiso. */
+  openAudioPermissionSettings: (): Promise<void> =>
+    isTauri() ? invoke<void>('open_audio_permission_settings') : Promise.resolve(),
 
   quitApp: (): Promise<void> => (isTauri() ? invoke<void>('quit_app') : Promise.resolve()),
 };

@@ -49,6 +49,16 @@ export const es = {
   'demo.controls.free': 'Libre',
   'demo.controls.freeHint': 'arrastra la isla y suéltala',
   'demo.controls.languageAria': 'Idioma',
+  'demo.controls.audio': 'Audio del sistema',
+
+  // ── Permiso para capturar el audio del sistema ──────────────────────────
+  'audio.permission.granted': 'Permitido',
+  'audio.permission.denied': 'Denegado',
+  'audio.permission.notDetermined': 'Sin pedir',
+  'audio.permission.notRequired': 'No requerido',
+  'audio.permission.request': 'Pedir permiso',
+  'audio.permission.openSettings': 'Abrir ajustes',
+  'audio.permission.restartHint': 'Tras darlo en Ajustes, reinicia Orbit.',
 
   // ── Ventana de ajustes ──────────────────────────────────────────────────
   'settings.placeholder': 'Ajustes de Orbit — próximamente (Fase 5).',

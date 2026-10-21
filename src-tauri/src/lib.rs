@@ -5,6 +5,7 @@
 //! adaptador aquí; el núcleo no cambia.
 
 mod app_state;
+mod audio;
 mod commands;
 mod events;
 mod settings;
@@ -16,6 +17,7 @@ use tauri::Manager;
 use tracing_subscriber::EnvFilter;
 
 use crate::app_state::AppState;
+use crate::audio::permission::{status_of, AudioPermission};
 use crate::events::{DomainEvent, EventSink, PipelineState, TauriEventSink};
 use crate::settings::Settings;
 
@@ -28,6 +30,9 @@ pub fn run() {
 
     let result = tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
+            commands::audio::get_audio_permission,
+            commands::audio::request_audio_permission,
+            commands::audio::open_audio_permission_settings,
             commands::island::get_notch_info,
             commands::island::set_island_interactive,
             commands::island::get_pointer_position,
@@ -45,9 +50,22 @@ pub fn run() {
             let settings_path = app.path().app_config_dir()?.join("settings.json");
             let settings = Settings::load(&settings_path);
 
-            // Adaptador de salida de eventos → núcleo.
+            // Adaptadores de salida (eventos hacia la interfaz) y del sistema (permiso de audio).
             let events: Arc<dyn EventSink> = Arc::new(TauriEventSink::new(app.handle().clone()));
-            app.manage(AppState::new(events, settings, settings_path));
+            let audio_permission: Arc<dyn AudioPermission> =
+                Arc::new(audio::platform::current::SystemAudioPermission);
+
+            tracing::info!(
+                status = ?status_of(audio_permission.as_ref(), settings.screen_capture_prompted),
+                "permiso para capturar el audio del sistema"
+            );
+
+            app.manage(AppState::new(
+                events,
+                audio_permission,
+                settings,
+                settings_path,
+            ));
 
             window::island_window::create(app.handle(), &settings)?;
             window::island_window::spawn_display_watcher(app.handle().clone());
