@@ -60,6 +60,7 @@ pub fn run() {
             commands::clipboard::clear_clipboard_history,
             commands::media::get_now_playing,
             commands::media::media_command,
+            commands::media::media_seek,
             commands::island::get_notch_info,
             commands::island::set_island_interactive,
             commands::island::get_pointer_position,

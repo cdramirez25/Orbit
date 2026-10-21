@@ -91,7 +91,7 @@ describe('portada y barra de progreso', () => {
     render(<Expanded />);
     expect(screen.getByText('0:50')).toBeInTheDocument();
     expect(screen.getByText('3:20')).toBeInTheDocument();
-    const bar = screen.getByRole('progressbar', { name: 'Progreso de la canción' });
+    const bar = screen.getByRole('slider', { name: 'Progreso de la canción' });
     expect(bar).toHaveAttribute('aria-valuenow', '50');
     expect(bar).toHaveAttribute('aria-valuemax', '200');
   });
@@ -121,14 +121,14 @@ describe('portada y barra de progreso', () => {
   it('en un directo (sin duración) no hay barra', () => {
     useMediaStore.setState({ nowPlaying: nowPlaying({ duration: null }) });
     render(<Expanded />);
-    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+    expect(screen.queryByRole('slider')).not.toBeInTheDocument();
   });
 
   it('la barra se traduce al inglés', () => {
     useLocaleStore.setState({ locale: 'en' });
     useMediaStore.setState({ nowPlaying: withBar() });
     render(<Expanded />);
-    expect(screen.getByRole('progressbar', { name: 'Song progress' })).toBeInTheDocument();
+    expect(screen.getByRole('slider', { name: 'Song progress' })).toBeInTheDocument();
   });
 });
 

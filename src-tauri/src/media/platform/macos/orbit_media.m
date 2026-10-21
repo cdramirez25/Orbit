@@ -69,6 +69,13 @@ static NSArray *all_clients(void) {
   return result;
 }
 
+/* La clave de las opciones de una orden con la posición a la que saltar (en segundos). */
+static NSString *playback_position_key(void) {
+  NSString *const *symbol =
+      (NSString *const *)dlsym(media_remote(), "kMRMediaRemoteOptionPlaybackPosition");
+  return (symbol && *symbol) ? *symbol : @"kMRMediaRemoteOptionPlaybackPosition";
+}
+
 /* El cliente (app) con ese bundle id, o nil. */
 static id client_with_bundle(NSString *bundle) {
   for (id client in all_clients()) {
@@ -310,11 +317,15 @@ void orbit_media_send(void *interpreter, void *cv) {
       exit(2);
     }
 
+    /* Saltar a una posición: los segundos van en las opciones de la orden. */
+    const char *position = getenv("ORBIT_MEDIA_POSITION");
+    id options = position ? @{playback_position_key() : @(atof(position))} : nil;
+
     dispatch_semaphore_t sent = dispatch_semaphore_create(0);
     void (*send_to)(id, SEL, unsigned int, id, id, id, void (^)(id)) = (void *)objc_msgSend;
     send_to(NSClassFromString(@"MRNowPlayingController"),
             NSSelectorFromString(@"sendCommand:toDestination:options:appOptions:withCompletion:"),
-            (unsigned int)atoi(command), destination, nil, nil, ^(id reply) {
+            (unsigned int)atoi(command), destination, options, nil, ^(id reply) {
               dispatch_semaphore_signal(sent);
             });
     if (!wait_for(sent)) {

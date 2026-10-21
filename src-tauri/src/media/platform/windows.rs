@@ -104,6 +104,15 @@ fn run(command: MediaCommand) -> WinResult<bool> {
     }
 }
 
+/// Salta a `position` segundos. Windows cuenta desde el inicio de la línea de tiempo (`StartTime`,
+/// normalmente 0) y en intervalos de 100 ns. `true` si el reproductor aceptó el salto.
+fn run_seek(position: f64) -> WinResult<bool> {
+    let session = current_session()?;
+    let start = session.GetTimelineProperties()?.StartTime()?.Duration;
+    let ticks = start + (position * TICKS_PER_SECOND).round() as i64;
+    session.TryChangePlaybackPositionAsync(ticks)?.join()
+}
+
 /// La portada de la canción actual: se baja una vez por canción, no en cada revisión.
 struct ArtworkCache {
     key: String,
@@ -192,6 +201,23 @@ impl MediaPort for SystemMedia {
             Err(MediaError::Command(
                 "el reproductor no aceptó la orden".into(),
             ))
+        }
+    }
+
+    fn seek(&self, position: f64) -> Result<(), MediaError> {
+        let accepted = thread::spawn(move || {
+            init_winrt();
+            run_seek(position)
+        })
+        .join()
+        .map_err(|_| MediaError::Command("el hilo de la orden falló".into()))?
+        .map_err(|error| MediaError::Command(error.message()))?;
+
+        if accepted {
+            Ok(())
+        } else {
+            // Muchos reproductores (un directo, un anuncio) no dejan saltar.
+            Err(MediaError::NotSeekable)
         }
     }
 }

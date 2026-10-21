@@ -27,3 +27,14 @@ pub async fn media_command(
         .map_err(|error| MediaError::Command(error.to_string()))??;
     Ok(())
 }
+
+/// Salta a `position` segundos en la canción actual (la barra de progreso de la isla). Igual que
+/// `media_command`, corre fuera del hilo principal.
+#[tauri::command]
+pub async fn media_seek(state: State<'_, AppState>, position: f64) -> Result<(), CommandError> {
+    let service = Arc::clone(&state.media);
+    tauri::async_runtime::spawn_blocking(move || service.seek(position))
+        .await
+        .map_err(|error| MediaError::Command(error.to_string()))??;
+    Ok(())
+}

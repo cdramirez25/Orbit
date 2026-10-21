@@ -12,6 +12,8 @@ interface MediaStore {
   send: (command: MediaCommand) => Promise<void>;
   /** Alterna play y pausa (la orden que mejor entienden todos los reproductores). */
   playPause: () => Promise<void>;
+  /** Salta a `position` segundos. La barra se mueve al instante; si el reproductor no deja, vuelve. */
+  seek: (position: number) => Promise<void>;
   /** Se suscribe a los cambios y carga lo que suena. Devuelve cómo desuscribirse. */
   bind: () => Promise<() => void>;
 }
@@ -37,6 +39,18 @@ export const useMediaStore = create<MediaStore>((set, get) => ({
       await commands.sendMediaCommand(command);
     } catch {
       await get().refresh(); // si falló, se vuelve a lo real
+    }
+  },
+
+  seek: async (position) => {
+    const current = get().nowPlaying;
+    if (!current || current.duration === null || !Number.isFinite(position)) return;
+    const target = Math.min(Math.max(position, 0), current.duration);
+    set({ nowPlaying: { ...current, position: target, positionAtMs: Date.now() } });
+    try {
+      await commands.seekMedia(target);
+    } catch {
+      await get().refresh(); // si no se pudo (un directo, un anuncio), se vuelve a lo real
     }
   },
 

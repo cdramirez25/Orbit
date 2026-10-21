@@ -1,5 +1,5 @@
 //! Música: lo que suena ahora en el sistema (título, artista, si está sonando) y los controles
-//! básicos (play, pausa, anterior, siguiente). Sirve para cualquier reproductor que se anuncie al
+//! básicos (play, pausa, anterior, siguiente) y saltar a otro punto de la canción. Sirve para cualquier reproductor que se anuncie al
 //! sistema, navegadores incluidos (YouTube, Udemy…).
 //!
 //! El núcleo solo conoce el puerto `MediaPort`; los adaptadores de cada sistema viven en
@@ -50,6 +50,9 @@ pub enum MediaCommand {
 pub enum MediaError {
     #[error("no se pudo enviar la orden al reproductor: {0}")]
     Command(String),
+    /// Un directo o un reproductor que no dice cuánto dura: no hay a dónde saltar.
+    #[error("no se puede saltar en esta canción")]
+    NotSeekable,
 }
 
 impl MediaError {
@@ -57,6 +60,7 @@ impl MediaError {
     pub fn code(&self) -> &'static str {
         match self {
             Self::Command(_) => "media.command",
+            Self::NotSeekable => "media.notSeekable",
         }
     }
 }
@@ -66,6 +70,8 @@ pub trait MediaPort: Send + Sync {
     /// Lo que suena ahora, o `None` si no hay nada (o no se puede saber).
     fn now_playing(&self) -> Option<NowPlaying>;
     fn send(&self, command: MediaCommand) -> Result<(), MediaError>;
+    /// Salta a `position` (segundos desde el inicio) en la canción actual. Ya viene validada.
+    fn seek(&self, position: f64) -> Result<(), MediaError>;
 }
 
 pub struct MediaService {
@@ -109,6 +115,20 @@ impl MediaService {
     pub fn send(&self, command: MediaCommand) -> Result<(), MediaError> {
         self.port.send(command)
     }
+
+    /// Salta a `position` segundos. Sin duración conocida (un directo) no hay a dónde saltar; y
+    /// nunca se pasa del final ni se va por debajo de cero.
+    pub fn seek(&self, position: f64) -> Result<(), MediaError> {
+        let duration = self
+            .current_guard()
+            .as_ref()
+            .and_then(|now| now.duration)
+            .ok_or(MediaError::NotSeekable)?;
+        if !position.is_finite() {
+            return Err(MediaError::Command("posición no válida".into()));
+        }
+        self.port.seek(position.clamp(0.0, duration))
+    }
 }
 
 /// Hilo que revisa los cambios mientras Orbit esté abierto.
@@ -133,6 +153,7 @@ mod tests {
     struct FakePort {
         playing: Mutex<Option<NowPlaying>>,
         sent: Mutex<Vec<MediaCommand>>,
+        seeks: Mutex<Vec<f64>>,
         fails: Mutex<bool>,
     }
 
@@ -151,6 +172,13 @@ mod tests {
                 return Err(MediaError::Command("falla".into()));
             }
             self.sent.lock().unwrap().push(command);
+            Ok(())
+        }
+        fn seek(&self, position: f64) -> Result<(), MediaError> {
+            if *self.fails.lock().unwrap() {
+                return Err(MediaError::Command("falla".into()));
+            }
+            self.seeks.lock().unwrap().push(position);
             Ok(())
         }
     }
@@ -231,6 +259,59 @@ mod tests {
         *port.fails.lock().unwrap() = true;
         let error = service.send(MediaCommand::Play).unwrap_err();
         assert_eq!(error.code(), "media.command");
+    }
+
+    fn with_duration(duration: Option<f64>) -> NowPlaying {
+        NowPlaying {
+            duration,
+            ..track("Canción", true)
+        }
+    }
+
+    #[test]
+    fn seeking_reaches_the_player_with_the_requested_position() {
+        let (port, _, service) = service();
+        port.set(Some(with_duration(Some(200.0))));
+        service.poll();
+
+        service.seek(75.5).unwrap();
+
+        assert_eq!(*port.seeks.lock().unwrap(), vec![75.5]);
+    }
+
+    #[test]
+    fn seeking_never_leaves_the_song() {
+        let (port, _, service) = service();
+        port.set(Some(with_duration(Some(200.0))));
+        service.poll();
+
+        service.seek(-5.0).unwrap();
+        service.seek(999.0).unwrap();
+
+        assert_eq!(*port.seeks.lock().unwrap(), vec![0.0, 200.0]);
+    }
+
+    #[test]
+    fn a_song_without_duration_or_nothing_playing_cannot_be_sought() {
+        let (port, _, service) = service();
+        assert_eq!(service.seek(10.0).unwrap_err().code(), "media.notSeekable");
+
+        port.set(Some(with_duration(None)));
+        service.poll();
+        assert_eq!(service.seek(10.0).unwrap_err().code(), "media.notSeekable");
+        assert!(port.seeks.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn a_position_that_is_not_a_number_is_rejected() {
+        let (port, _, service) = service();
+        port.set(Some(with_duration(Some(200.0))));
+        service.poll();
+
+        for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            assert_eq!(service.seek(bad).unwrap_err().code(), "media.command");
+        }
+        assert!(port.seeks.lock().unwrap().is_empty());
     }
 
     #[test]

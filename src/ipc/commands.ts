@@ -212,6 +212,14 @@ function browserNowPlaying(): NowPlaying {
   };
 }
 
+/** Solo navegador: salta a otro punto de la canción de muestra. */
+function applyBrowserSeek(position: number): void {
+  const duration = SAMPLE_TRACKS[browserTrack]!.duration;
+  browserPosition = Math.min(Math.max(position, 0), duration);
+  browserPositionAt = Date.now();
+  emitLocal('media:changed', browserNowPlaying());
+}
+
 function applyBrowserMediaCommand(command: MediaCommand): void {
   const count = SAMPLE_TRACKS.length;
   const now = Date.now();
@@ -345,6 +353,13 @@ export const commands = {
   sendMediaCommand: (command: MediaCommand): Promise<void> => {
     if (isTauri()) return invoke<void>('media_command', { command });
     applyBrowserMediaCommand(command);
+    return Promise.resolve();
+  },
+
+  /** Salta a `position` segundos en la canción actual. Rechaza si no se puede (un directo). */
+  seekMedia: (position: number): Promise<void> => {
+    if (isTauri()) return invoke<void>('media_seek', { position });
+    applyBrowserSeek(position);
     return Promise.resolve();
   },
 

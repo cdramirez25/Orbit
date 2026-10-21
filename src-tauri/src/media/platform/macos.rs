@@ -79,6 +79,10 @@ fn now_ms() -> u64 {
         .map_or(0, |elapsed| u64::try_from(elapsed.as_millis()).unwrap_or(0))
 }
 
+/// "Saltar a una posición" en MediaRemote (`SeekToPlaybackPosition`); la posición va aparte, en
+/// segundos, en las opciones de la orden. Número confirmado con `MRMediaRemoteCopyCommandDescription`.
+const SEEK_COMMAND: u8 = 24;
+
 /// Número de la orden en MediaRemote (`MRCommand`).
 fn command_number(command: MediaCommand) -> u8 {
     match command {
@@ -159,15 +163,31 @@ impl MediaPort for SystemMedia {
     }
 
     fn send(&self, command: MediaCommand) -> Result<(), MediaError> {
-        // La orden va a la app que se está mostrando, no al reproductor "activo" del sistema.
+        self.run_command(command_number(command), None)
+    }
+
+    fn seek(&self, position: f64) -> Result<(), MediaError> {
+        self.run_command(SEEK_COMMAND, Some(position))
+    }
+}
+
+impl SystemMedia {
+    /// Manda una orden de MediaRemote a la app que se está mostrando, no al reproductor "activo"
+    /// del sistema. `position` solo se usa en el salto.
+    fn run_command(&self, number: u8, position: Option<f64>) -> Result<(), MediaError> {
         let reading = self
             .reading()
             .ok_or_else(|| MediaError::Command("no hay nada sonando".into()))?;
-        let output = Command::new("/usr/bin/perl")
+        let mut command = Command::new("/usr/bin/perl");
+        command
             .args(["-e", MEDIA_SCRIPT, LIBRARY, "orbit_media_send"])
-            .env("ORBIT_MEDIA_COMMAND", command_number(command).to_string())
+            .env("ORBIT_MEDIA_COMMAND", number.to_string())
             .env("ORBIT_MEDIA_CLIENT", &reading.client)
-            .stdin(Stdio::null())
+            .stdin(Stdio::null());
+        if let Some(position) = position {
+            command.env("ORBIT_MEDIA_POSITION", position.to_string());
+        }
+        let output = command
             .output()
             .map_err(|error| MediaError::Command(error.to_string()))?;
         if output.status.success() {
@@ -270,6 +290,7 @@ mod tests {
         assert_eq!(command_number(MediaCommand::Toggle), 2);
         assert_eq!(command_number(MediaCommand::Next), 4);
         assert_eq!(command_number(MediaCommand::Previous), 5);
+        assert_eq!(SEEK_COMMAND, 24);
     }
 
     #[test]
@@ -278,6 +299,7 @@ mod tests {
             state: Arc::new(Mutex::new(None)),
         };
         assert!(media.send(MediaCommand::Toggle).is_err());
+        assert!(media.seek(30.0).is_err());
     }
 
     /// Arranca el lector real del sistema y comprueba que responde. No muestra lo que suena.
@@ -297,6 +319,56 @@ mod tests {
                 now.position.is_some()
             );
         }
+    }
+
+    /// Prueba manual con la música real: salta 10 s hacia delante, comprueba que el lector lo ve y
+    /// la deja donde habría estado. Solo imprime números (nunca lo que suena). Si no suena nada, o
+    /// no tiene duración, o está a punto de acabar, no hace nada.
+    /// `cargo test live_media_seek -- --ignored --nocapture`
+    #[test]
+    #[ignore = "salta en la canción real que esté sonando y la deja donde estaba"]
+    fn live_media_seek_moves_the_real_player_and_restores_it() {
+        fn position_now(now: &NowPlaying) -> Option<f64> {
+            let (position, at) = (now.position?, now.position_at_ms?);
+            let elapsed = if now.playing {
+                now_ms().saturating_sub(at) as f64 / 1000.0
+            } else {
+                0.0
+            };
+            Some(position + elapsed)
+        }
+
+        let media = SystemMedia::new();
+        std::thread::sleep(Duration::from_secs(4));
+        let Some(before) = media.now_playing() else {
+            eprintln!("nothing is playing: skipped");
+            return;
+        };
+        let (Some(duration), Some(start)) = (before.duration, position_now(&before)) else {
+            eprintln!("no duration or position: skipped");
+            return;
+        };
+        if start + 30.0 > duration {
+            eprintln!("too close to the end: skipped");
+            return;
+        }
+
+        let started = std::time::Instant::now();
+        media.seek(start + 10.0).expect("the seek command failed");
+        std::thread::sleep(Duration::from_secs(3));
+        let after = media.now_playing().expect("still playing");
+        let seen = position_now(&after).expect("position after the seek");
+        let jumped = seen - start;
+        eprintln!("seen jump: {jumped:.1} s (expected about 13: 10 plus 3 of playback)");
+
+        // Se deja donde habría estado sin el salto.
+        let elapsed = if before.playing {
+            started.elapsed().as_secs_f64()
+        } else {
+            0.0
+        };
+        media.seek(start + elapsed).expect("the restore failed");
+        assert!(jumped > 8.0, "the player did not move: {jumped:.1} s");
     }
 
     #[test]

@@ -7,7 +7,7 @@ import type { Point } from '@/types';
 /** Cuánto hay que mover el puntero antes de considerarlo arrastre (y no un clic). */
 const DRAG_THRESHOLD_PX = 4;
 /** Los controles dentro de la isla siguen siendo clicables: no inician un arrastre. */
-const INTERACTIVE = 'button, a, [role="switch"], [role="tab"]';
+const INTERACTIVE = 'button, a, [role="switch"], [role="tab"], [role="slider"]';
 
 interface DragSession {
   startX: number;
