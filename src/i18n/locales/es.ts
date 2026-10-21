@@ -13,9 +13,9 @@ export const es = {
   'island.dismissAlert': 'Cerrar aviso',
   'island.collapse': 'Contraer',
   'island.stretch': 'Alargar',
-  'island.stretchAria': 'Alargar respuesta',
+  'island.stretchAria': 'Alargar tarjeta',
   'island.shrink': 'Reducir',
-  'island.shrinkAria': 'Reducir respuesta',
+  'island.shrinkAria': 'Reducir tarjeta',
 
   // ── Módulo de demo (contenido de ejemplo) ───────────────────────────────
   'demo.detected': 'Pregunta detectada',
@@ -65,6 +65,47 @@ export const es = {
   'audio.stop': 'Parar',
   'audio.error.noDevice': 'Sin dispositivo de salida',
   'audio.error.generic': 'No se pudo escuchar',
+
+  // ── Selector de módulos ─────────────────────────────────────────────────
+  'modules.switcherAria': 'Módulos de la isla',
+  'demo.module': 'Demo',
+
+  // ── Clima ───────────────────────────────────────────────────────────────
+  'weather.module': 'Clima',
+  'weather.condition.clear': 'Despejado',
+  'weather.condition.partlyCloudy': 'Parcialmente nublado',
+  'weather.condition.cloudy': 'Nublado',
+  'weather.condition.fog': 'Niebla',
+  'weather.condition.drizzle': 'Llovizna',
+  'weather.condition.rain': 'Lluvia',
+  'weather.condition.snow': 'Nieve',
+  'weather.condition.thunderstorm': 'Tormenta',
+  'weather.feelsLike': 'Sensación',
+  'weather.humidity': 'Humedad',
+  'weather.wind': 'Viento',
+  'weather.highLow': 'Máx. / Mín.',
+  'weather.rainChance': 'Prob. lluvia',
+  'weather.updatedAt': 'Actualizado a las',
+  'weather.refresh': 'Actualizar clima',
+  'weather.loading': 'Buscando el clima de tu zona…',
+  'weather.error.network': 'Sin conexión para consultar el clima',
+  'weather.error.generic': 'No se pudo obtener el clima',
+  'weather.retry': 'Reintentar',
+
+  // ── Historial del portapapeles ──────────────────────────────────────────
+  'clipboard.module': 'Portapapeles',
+  'clipboard.title': 'Historial',
+  'clipboard.sessionHint': 'Solo de esta sesión: se borra al cerrar Orbit.',
+  'clipboard.empty': 'Aún no has copiado nada en esta sesión.',
+  'clipboard.copy': 'Copiar de nuevo',
+  'clipboard.copied': 'Copiado',
+  'clipboard.delete': 'Borrar este elemento',
+  'clipboard.clear': 'Borrar todo',
+  'clipboard.clearAria': 'Borrar todo el historial',
+  'clipboard.text': 'Texto',
+  'clipboard.image': 'Imagen',
+  'clipboard.imageAlt': 'Imagen copiada',
+  'clipboard.characters': 'caracteres',
 
   // ── Ventana de ajustes ──────────────────────────────────────────────────
   'settings.placeholder': 'Ajustes de Orbit — próximamente (Fase 5).',

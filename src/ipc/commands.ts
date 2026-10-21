@@ -2,12 +2,14 @@ import { invoke, isTauri } from '@tauri-apps/api/core';
 
 import { emitLocal } from '@/ipc/events';
 import type {
+  ClipboardEntry,
   IslandAnchor,
   IslandSettings,
   NotchInfo,
   PermissionStatus,
   Point,
   PointerPosition,
+  WeatherReport,
 } from '@/types';
 
 /**
@@ -67,6 +69,84 @@ function stopSimulation(): void {
   simulation = undefined;
   emitLocal('audio:level', 0);
   emitLocal('pipeline:state', 'idle');
+}
+
+// Solo navegador: datos de muestra para ver el clima y el portapapeles con `pnpm dev`.
+const SAMPLE_WEATHER: Omit<WeatherReport, 'fetchedAtMs'> = {
+  location: {
+    name: 'Sample City',
+    country: 'Sample',
+    countryCode: 'XX',
+    latitude: 0,
+    longitude: 0,
+  },
+  units: 'metric',
+  current: {
+    temperature: 24,
+    apparentTemperature: 25.2,
+    humidity: 81,
+    windSpeed: 19.9,
+    weatherCode: 2,
+    isDay: true,
+  },
+  today: { temperatureMax: 31, temperatureMin: 23.5, precipitationProbability: 20 },
+};
+
+const SAMPLE_IMAGE =
+  'data:image/svg+xml;utf8,' +
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="160" height="90">' +
+      '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">' +
+      '<stop offset="0" stop-color="#17dae2"/><stop offset="1" stop-color="#6366f1"/>' +
+      '</linearGradient></defs><rect width="160" height="90" fill="url(#g)"/></svg>',
+  );
+
+const now = Date.now();
+let browserClipboard: ClipboardEntry[] = [
+  {
+    id: 4,
+    kind: 'text',
+    copiedAtMs: now - 60_000,
+    text: 'https://orbit.example/docs/getting-started',
+    charCount: 42,
+    width: null,
+    height: null,
+    thumbnail: null,
+  },
+  {
+    id: 3,
+    kind: 'image',
+    copiedAtMs: now - 5 * 60_000,
+    text: null,
+    charCount: null,
+    width: 1280,
+    height: 720,
+    thumbnail: SAMPLE_IMAGE,
+  },
+  {
+    id: 2,
+    kind: 'text',
+    copiedAtMs: now - 12 * 60_000,
+    text: 'Meeting tomorrow at 10:00 in room 3. Bring the printed report and the signed contract.',
+    charCount: 87,
+    width: null,
+    height: null,
+    thumbnail: null,
+  },
+  {
+    id: 1,
+    kind: 'text',
+    copiedAtMs: now - 31 * 60_000,
+    text: 'const total = items.reduce((sum, item) => sum + item.price, 0);',
+    charCount: 63,
+    width: null,
+    height: null,
+    thumbnail: null,
+  },
+];
+
+function browserClipboardChanged(): void {
+  emitLocal('clipboard:changed', null);
 }
 
 export const commands = {
@@ -132,6 +212,46 @@ export const commands = {
 
   isListening: (): Promise<boolean> =>
     isTauri() ? invoke<boolean>('is_listening') : Promise.resolve(simulation !== undefined),
+
+  /** Clima de la zona del usuario. Con `force` se salta la caché de Rust (10 minutos). */
+  getWeather: (force = false): Promise<WeatherReport> =>
+    isTauri()
+      ? invoke<WeatherReport>('get_weather', { force })
+      : Promise.resolve({ ...SAMPLE_WEATHER, fetchedAtMs: Date.now() }),
+
+  /** Historial del portapapeles de esta sesión, lo más reciente primero. */
+  getClipboardHistory: (): Promise<ClipboardEntry[]> =>
+    isTauri()
+      ? invoke<ClipboardEntry[]>('get_clipboard_history')
+      : Promise.resolve([...browserClipboard]),
+
+  /** Vuelve a copiar un elemento del historial (sube al primer lugar). */
+  copyClipboardEntry: (id: number): Promise<void> => {
+    if (isTauri()) return invoke<void>('copy_clipboard_entry', { id });
+    const entry = browserClipboard.find((item) => item.id === id);
+    if (entry) {
+      browserClipboard = [
+        { ...entry, copiedAtMs: Date.now() },
+        ...browserClipboard.filter((item) => item.id !== id),
+      ];
+      browserClipboardChanged();
+    }
+    return Promise.resolve();
+  },
+
+  deleteClipboardEntry: (id: number): Promise<void> => {
+    if (isTauri()) return invoke<void>('delete_clipboard_entry', { id });
+    browserClipboard = browserClipboard.filter((item) => item.id !== id);
+    browserClipboardChanged();
+    return Promise.resolve();
+  },
+
+  clearClipboardHistory: (): Promise<void> => {
+    if (isTauri()) return invoke<void>('clear_clipboard_history');
+    browserClipboard = [];
+    browserClipboardChanged();
+    return Promise.resolve();
+  },
 
   quitApp: (): Promise<void> => (isTauri() ? invoke<void>('quit_app') : Promise.resolve()),
 };

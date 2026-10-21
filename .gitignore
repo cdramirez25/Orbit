@@ -19,7 +19,7 @@ src-tauri/gen
 # Volcados de depuración de audio (Fase 2, solo bajo bandera de depuración)
 *.debug.wav
 
-# Sesión local de Claude Code
-.claude/settings.local.json
+# Archivos locales de Claude Code
+.claude/
 /docs/SPEC.md
 CLAUDE.md

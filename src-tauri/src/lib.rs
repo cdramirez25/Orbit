@@ -6,10 +6,12 @@
 
 mod app_state;
 mod audio;
+mod clipboard;
 mod commands;
 mod events;
 mod pipeline;
 mod settings;
+mod weather;
 mod window;
 
 use std::path::PathBuf;
@@ -22,9 +24,14 @@ use tracing_subscriber::EnvFilter;
 use crate::app_state::AppState;
 use crate::audio::permission::{status_of, AudioPermission};
 use crate::audio::AudioSource;
+use crate::clipboard::system::SystemClipboard;
+use crate::clipboard::ClipboardService;
 use crate::events::{DomainEvent, EventSink, PipelineState, TauriEventSink};
 use crate::pipeline::{Pipeline, PipelineConfig};
 use crate::settings::Settings;
+use crate::weather::ip_locator::IpLocator;
+use crate::weather::open_meteo::OpenMeteo;
+use crate::weather::WeatherService;
 
 pub fn run() {
     tracing_subscriber::fmt()
@@ -41,6 +48,11 @@ pub fn run() {
             commands::pipeline::start_listening,
             commands::pipeline::stop_listening,
             commands::pipeline::is_listening,
+            commands::weather::get_weather,
+            commands::clipboard::get_clipboard_history,
+            commands::clipboard::copy_clipboard_entry,
+            commands::clipboard::delete_clipboard_entry,
+            commands::clipboard::clear_clipboard_history,
             commands::island::get_notch_info,
             commands::island::set_island_interactive,
             commands::island::get_pointer_position,
@@ -76,10 +88,26 @@ pub fn run() {
             };
             let pipeline = Pipeline::new(audio_source, Arc::clone(&events), config);
 
+            // Clima: ubicación por IP (ipwho.is) + datos de Open-Meteo, con un solo cliente HTTP.
+            let http = weather::http::agent();
+            let weather = Arc::new(WeatherService::new(
+                Box::new(IpLocator::new(http.clone())),
+                Box::new(OpenMeteo::new(http)),
+            ));
+
+            // Portapapeles: el historial vive solo en memoria y un hilo vigila los cambios.
+            let clipboard = Arc::new(ClipboardService::new(
+                Box::new(SystemClipboard::new()),
+                Arc::clone(&events),
+            ));
+            clipboard::spawn_monitor(Arc::clone(&clipboard));
+
             app.manage(AppState::new(
                 events,
                 audio_permission,
                 pipeline,
+                weather,
+                clipboard,
                 settings,
                 settings_path,
             ));

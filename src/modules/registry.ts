@@ -12,20 +12,29 @@ interface RegistryStore {
   modules: Record<string, OrbitModule>;
   /** Ids de módulos con actividad en curso. */
   activities: string[];
+  /** Módulo que el usuario eligió con el selector; decide entre módulos de igual prioridad. */
+  selectedId: string | null;
   register: (module: OrbitModule) => void;
   startActivity: (id: string) => void;
   endActivity: (id: string) => void;
+  select: (id: string | null) => void;
 }
 
-/** Módulo con actividad y mayor prioridad (a igualdad, el que empezó antes). */
+/**
+ * Módulo con actividad y mayor prioridad. A igualdad gana el elegido por el usuario y, si no hay
+ * ninguno elegido, el que empezó antes.
+ */
 export function pickActive(
   modules: Record<string, OrbitModule>,
   activities: readonly string[],
+  selectedId: string | null = null,
 ): OrbitModule | null {
   let best: OrbitModule | null = null;
   for (const id of activities) {
     const candidate = modules[id];
-    if (candidate && (best === null || candidate.priority > best.priority)) best = candidate;
+    if (!candidate) continue;
+    if (best === null || candidate.priority > best.priority) best = candidate;
+    else if (candidate.priority === best.priority && candidate.id === selectedId) best = candidate;
   }
   return best;
 }
@@ -33,6 +42,7 @@ export function pickActive(
 export const useRegistryStore = create<RegistryStore>((set, get) => ({
   modules: {},
   activities: [],
+  selectedId: null,
 
   register: (module) => set((s) => ({ modules: { ...s.modules, [module.id]: module } })),
 
@@ -49,10 +59,12 @@ export const useRegistryStore = create<RegistryStore>((set, get) => ({
     set({ activities: activities.filter((a) => a !== id) });
     modules[id]?.onDeactivate?.();
   },
+
+  select: (id) => set({ selectedId: id }),
 }));
 
 export function selectActiveModule(state: RegistryStore): OrbitModule | null {
-  return pickActive(state.modules, state.activities);
+  return pickActive(state.modules, state.activities, state.selectedId);
 }
 
 /** Mantiene la isla en sintonía con las actividades: hay actividad → compact; no hay → idle. */

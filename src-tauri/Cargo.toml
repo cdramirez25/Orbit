@@ -21,6 +21,15 @@ tauri = { version = "2.12", features = ["macos-private-api"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
+# Cliente HTTP bloqueante para el clima (solo Rust habla con Internet). Usa el TLS del sistema
+# operativo (Secure Transport / SChannel) con sus certificados. La característica `native-tls` de
+# ureq trae `webpki-root-certs` (CDLA-Permissive-2.0: datos de certificados, licencia permisiva).
+ureq = { version = "3", default-features = false, features = ["native-tls", "json"] } # MIT OR Apache-2.0
+# Historial del portapapeles (solo en memoria): leer/escribir texto e imágenes, y codificar
+# miniaturas. Todas MIT OR Apache-2.0.
+arboard = "3"
+png = "0.18"
+base64 = "0.23"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
@@ -33,9 +42,11 @@ objc2-foundation = "0.3"
 objc2-app-kit = "0.3"
 screencapturekit = "11" # MIT OR Apache-2.0
 
-# Solo Windows: captura del audio de salida (WASAPI loopback) en audio/platform/windows_wasapi.rs.
+# Solo Windows: captura del audio de salida (WASAPI loopback) en audio/platform/windows_wasapi.rs y
+# detector de cambios del portapapeles en clipboard/platform/windows.rs.
 [target.'cfg(target_os = "windows")'.dependencies]
 wasapi = "0.26" # MIT
+windows = { version = "0.62", features = ["Win32_System_DataExchange"] } # MIT OR Apache-2.0
 
 [lints.clippy]
 unwrap_used = "deny"

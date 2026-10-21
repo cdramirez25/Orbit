@@ -6,13 +6,13 @@
 
 **Una isla dinámica modular para macOS y Windows.**
 
-🌐 [English](../README.md) · **Español**
+[English](../README.md) · **Español**
 
 </div>
 
-> **Estado:** en desarrollo temprano (v0.1.0). La isla ya funciona con un módulo de demostración y captura el audio
-> del sistema (las ondas siguen el volumen real); la transcripción y el Prompter todavía no están listos. Consulta la
-> [hoja de ruta](#hoja-de-ruta).
+> **Estado:** en desarrollo temprano (v0.1.0). La isla ya muestra el clima de tu zona y un historial del portapapeles,
+> y captura el audio del sistema (las ondas siguen el volumen real); la transcripción y el Prompter todavía no están
+> listos. Consulta la [hoja de ruta](#hoja-de-ruta).
 
 ---
 
@@ -28,17 +28,19 @@ sale por tus bocinas o audífonos; tu micrófono nunca se captura.
 
 ## Qué hay hoy
 
-| Área               | Estado                                                                                                                                                               |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Ventana de la isla | Transparente, sin bordes, siempre encima y sin robar foco. En macOS es un `NSPanel`.                                                                                 |
-| Máquina de estados | `hidden`, `idle`, `compact`, `expanded` y `alert`, con transiciones probadas (Vitest).                                                                               |
-| Animación          | Morfeo de ancho, alto y radio con springs de `motion/react`; contenido que aparece/desaparece escalonado.                                                            |
-| Notch              | Detección en macOS (estilo `attached`) y modo `floating` para Mac sin notch y Windows.                                                                               |
-| Click-through      | La ventana ignora el mouse salvo cuando el puntero está sobre la isla.                                                                                               |
-| Módulos            | Interfaz `OrbitModule` + registro con arbitraje por prioridad. Incluye un módulo de demostración.                                                                    |
-| UI                 | Primitivos accesibles (`Button`, `IconButton`, `Toggle`, `Tab`, `Card`) con `cursor: pointer` global.                                                                |
-| Idiomas            | Español e inglés (`src/i18n/locales/`).                                                                                                                              |
-| Audio del sistema  | Permiso de captura (macOS), captura real (ScreenCaptureKit en macOS, WASAPI loopback en Windows), conversión a 16 kHz mono y volumen que mueve las ondas de la isla. |
+| Área               | Estado                                                                                                                                                                  |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Ventana de la isla | Transparente, sin bordes, siempre encima y sin robar foco. En macOS es un `NSPanel`.                                                                                    |
+| Máquina de estados | `hidden`, `idle`, `compact`, `expanded` y `alert`, con transiciones probadas (Vitest).                                                                                  |
+| Animación          | Morfeo de ancho, alto y radio con springs de `motion/react`; contenido que aparece/desaparece escalonado.                                                               |
+| Notch              | Detección en macOS (estilo `attached`) y modo `floating` para Mac sin notch y Windows.                                                                                  |
+| Click-through      | La ventana ignora el mouse salvo cuando el puntero está sobre la isla.                                                                                                  |
+| Módulos            | Interfaz `OrbitModule` + registro con arbitraje por prioridad y selector entre los módulos residentes.                                                                  |
+| Clima              | Clima actual y pronóstico de hoy de tu zona, siempre a un clic en la isla (Open-Meteo, sin clave de API).                                                               |
+| Portapapeles       | Historial de los textos e imágenes que copias durante la sesión: volver a copiar, borrar uno o borrar todo. Vive solo en memoria.                                       |
+| UI                 | Primitivos accesibles (`Button`, `IconButton`, `Toggle`, `Tab`, `Card`) con `cursor: pointer` global. Todos los iconos son de [Lucide](https://lucide.dev); sin emojis. |
+| Idiomas            | Español e inglés (`src/i18n/locales/`).                                                                                                                                 |
+| Audio del sistema  | Permiso de captura (macOS), captura real (ScreenCaptureKit en macOS, WASAPI loopback en Windows), conversión a 16 kHz mono y volumen que mueve las ondas de la isla.    |
 
 ## Stack
 
@@ -47,6 +49,7 @@ sale por tus bocinas o audífonos; tu micrófono nunca se captura.
 | Shell de escritorio | [Tauri 2](https://tauri.app) (Rust)                       |
 | Frontend            | React 19 + TypeScript + Vite (sin meta-framework)         |
 | Animación           | [Motion](https://motion.dev) (`motion/react`)             |
+| Iconos              | [Lucide](https://lucide.dev) (`lucide-react`)             |
 | Estado              | Zustand                                                   |
 | Estilos             | Tailwind CSS 4 (utilidades) + variables CSS               |
 | Tests               | Vitest + Testing Library (frontend) · `cargo test` (Rust) |
@@ -107,7 +110,8 @@ del sistema operativo ni la UI.
 
 Reglas clave:
 
-- `pipeline/` y `modules/` dependen **solo de traits** (`AudioSource`, `SttEngine`, `LlmProvider`, `EventSink`).
+- `pipeline/` y `modules/` dependen **solo de traits** (`AudioSource`, `SttEngine`, `LlmProvider`, `EventSink`,
+  `WeatherProvider`, `ClipboardPort`).
 - Las implementaciones concretas se instancian **únicamente** en el _composition root_ (`lib.rs` + `app_state.rs`).
 - Los adaptadores nunca se conocen entre sí. Cambiar de proveedor o de sistema operativo es elegir otro adaptador.
 - Los comandos de Tauri son finos: validan, llaman al núcleo y devuelven. Sin lógica de negocio.
@@ -130,23 +134,23 @@ El detector de preguntas se dispara con un fin de enunciado o un silencio de ~60
 ```
 Orbit/
 ├── docs/
-│   ├── SPEC.md          # Especificación completa (léela antes de tocar la arquitectura)
-│   └── assets/          #   logo e imágenes
-├── CLAUDE.md            # Reglas de trabajo para Claude Code
+│   ├── README.es.md     # README en español
+│   └── assets/          # logo e imágenes
 ├── island.html          # Entrada de la ventana de la isla
 ├── settings.html        # Entrada de la ventana de ajustes
 ├── src/                 # Frontend (React + TSX)
 │   ├── windows/         #   puntos de entrada, uno por ventana (island/ y settings/)
-│   ├── components/      #   ui/ (primitivos) e island/ (Island, NotchShape, IslandContent)
-│   ├── modules/         #   módulos de la isla (plugins): registry.ts y demo/
+│   ├── components/      #   ui/ (primitivos) e island/ (Island, NotchShape, IslandContent, ModuleSwitcher)
+│   ├── modules/         #   módulos de la isla (plugins): registry.ts, demo/, weather/ y clipboard/
 │   ├── features/        #   pantallas de ajustes (settings/)
-│   ├── stores/          #   estado global con Zustand (island, settings, audio)
-│   ├── hooks/           #   useHitTest, useIslandDrag, useReducedMotion…
+│   ├── stores/          #   estado global con Zustand (island, settings, audio, weather, clipboard)
+│   ├── hooks/           #   useHitTest, useIslandDrag, useReducedMotion, useNow…
 │   ├── ipc/             #   única capa que habla con Rust (commands, events, errors)
 │   ├── lib/
 │   │   ├── island/      #     máquina de estados y constantes de animación
 │   │   ├── audio/       #     volumen del audio del sistema como MotionValue
-│   │   └── utils/       #     utilidades puras (cn)
+│   │   ├── weather/     #     códigos del clima a tipos de condición
+│   │   └── utils/       #     utilidades puras (cn, time)
 │   ├── i18n/            #   textos en español e inglés
 │   ├── styles/          #   base.css: tokens y regla global de cursor
 │   ├── test/            #   configuración de Vitest
@@ -158,22 +162,36 @@ Orbit/
         ├── lib.rs       #   composition root: aquí se eligen los adaptadores
         ├── app_state.rs #   estado compartido
         ├── events.rs    #   eventos de dominio y puerto EventSink
-        ├── commands/    #   comandos de Tauri (finos): audio, island y pipeline
+        ├── commands/    #   comandos de Tauri (finos): audio, clipboard, island, pipeline y weather
         ├── window/      #   ventana, posicionamiento, notch y platform/ (macOS y Windows)
         ├── audio/       #   puerto AudioSource, remuestreo, nivel de volumen, permiso y WAV de depuración
         │   └── platform/ #    ScreenCaptureKit (macOS) y WASAPI loopback (Windows)
         ├── pipeline/    #   orquestador: audio del sistema → volumen → eventos
+        ├── weather/     #   puertos de ubicación y pronóstico, caché, localizador por IP y adaptador de Open-Meteo
+        ├── clipboard/   #   puerto del portapapeles, historial en memoria, monitor y adaptador del sistema
         └── settings/    #   configuración persistida
 ```
 
+## Privacidad y uso de red
+
+- **Clima:** tu ubicación aproximada (a nivel de ciudad) se obtiene a partir de tu dirección IP con
+  [ipwho.is](https://ipwho.is) y el pronóstico viene de [Open-Meteo](https://open-meteo.com). Ambos servicios reciben
+  tu dirección IP; no se envía nada más. La ubicación no se guarda. La API gratuita de Open-Meteo es para uso no
+  comercial y sus datos tienen licencia CC BY 4.0.
+- **Historial del portapapeles:** solo vive en memoria y desaparece al cerrar Orbit. Lo que los gestores de contraseñas
+  marcan como oculto nunca se registra, y nada de lo que copias se escribe en logs ni se envía a ningún lado.
+- **Audio del sistema:** solo lo que sale por tus bocinas o audífonos; tu micrófono nunca se captura.
+
 ## Hoja de ruta
 
-| Fase | Contenido                                                                      | Estado       |
-| ---- | ------------------------------------------------------------------------------ | ------------ |
-| 0    | Andamiaje: Tauri 2 + React + Vite + Tailwind, lint, alias `@/`                 | ✅ Hecha¹    |
-| 1    | La isla: ventana, máquina de estados, animaciones, notch, click-through, i18n  | ✅ Hecha     |
-| 2    | Captura del audio del sistema (macOS y Windows), remuestreo y medidor de nivel | 🚧 En curso² |
-| 3    | Transcripción en streaming (Deepgram) y motor local con `whisper-rs`           | ⏳ Pendiente |
-| 4    | Clientes LLM (Anthropic y OpenAI-compatible), detector de preguntas, Prompter  | ⏳ Pendiente |
-| 5    | Ajustes, llavero, atajos globales, tray, onboarding y consentimiento           | ⏳ Pendiente |
-| 6    | Pulido, empaquetado (`.dmg`, `.msi`/`.exe`) y documentación de módulos         | ⏳ Pendiente |
+| Fase | Contenido                                                                      | Estado    |
+| ---- | ------------------------------------------------------------------------------ | --------- |
+| 0    | Andamiaje: Tauri 2 + React + Vite + Tailwind, lint, alias `@/`                 | Hecha     |
+| 1    | La isla: ventana, máquina de estados, animaciones, notch, click-through, i18n  | Hecha     |
+| 2    | Captura del audio del sistema (macOS y Windows), remuestreo y medidor de nivel | En curso  |
+| 3    | Transcripción en streaming (Deepgram) y motor local con `whisper-rs`           | Pendiente |
+| 4    | Clientes LLM (Anthropic y OpenAI-compatible), detector de preguntas, Prompter  | Pendiente |
+| 5    | Ajustes, llavero, atajos globales, tray, onboarding y consentimiento           | Pendiente |
+| 6    | Pulido, empaquetado (`.dmg`, `.msi`/`.exe`) y documentación de módulos         | Pendiente |
+
+Por el camino se añadieron, antes del Prompter, dos módulos residentes: el clima y el historial del portapapeles.

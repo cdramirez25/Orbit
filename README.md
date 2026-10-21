@@ -6,12 +6,13 @@
 
 **A modular dynamic island for macOS and Windows.**
 
-🌐 **English** · [Español](docs/README.es.md)
+**English** · [Español](docs/README.es.md)
 
 </div>
 
-> **Status:** early development (v0.1.0). The island already works with a demo module and captures system audio (the
-> waves follow the real volume); transcription and the Prompter are not ready yet. See the [roadmap](#roadmap).
+> **Status:** early development (v0.1.0). The island already shows the weather of your area and a clipboard history,
+> and captures system audio (the waves follow the real volume); transcription and the Prompter are not ready yet.
+> See the [roadmap](#roadmap).
 
 ---
 
@@ -33,8 +34,10 @@ the audio that comes out of your speakers or headphones; your microphone is neve
 | Animation     | Width, height and radius morphing with `motion/react` springs; content that fades in and out in a staggered way.                                                            |
 | Notch         | Detection on macOS (`attached` style) and a `floating` mode for Macs without a notch and for Windows.                                                                       |
 | Click-through | The window ignores the mouse except when the pointer is over the island.                                                                                                    |
-| Modules       | `OrbitModule` interface + a registry with priority arbitration. Includes a demo module.                                                                                     |
-| UI            | Accessible primitives (`Button`, `IconButton`, `Toggle`, `Tab`, `Card`) with a global `cursor: pointer`.                                                                    |
+| Modules       | `OrbitModule` interface + a registry with priority arbitration and a switcher between resident modules.                                                                     |
+| Weather       | Current weather and today's forecast for your area, always one click away in the island (Open-Meteo, no API key).                                                           |
+| Clipboard     | History of the text and images you copy during the session, with copy again, delete one and clear all. It lives in memory only.                                             |
+| UI            | Accessible primitives (`Button`, `IconButton`, `Toggle`, `Tab`, `Card`) with a global `cursor: pointer`. All icons come from [Lucide](https://lucide.dev); no emojis.       |
 | Languages     | Spanish and English (`src/i18n/locales/`).                                                                                                                                  |
 | System audio  | Capture permission (macOS), real capture (ScreenCaptureKit on macOS, WASAPI loopback on Windows), conversion to 16 kHz mono, and the volume that drives the island's waves. |
 
@@ -45,6 +48,7 @@ the audio that comes out of your speakers or headphones; your microphone is neve
 | Desktop shell   | [Tauri 2](https://tauri.app) (Rust)                       |
 | Frontend        | React 19 + TypeScript + Vite (no meta-framework)          |
 | Animation       | [Motion](https://motion.dev) (`motion/react`)             |
+| Icons           | [Lucide](https://lucide.dev) (`lucide-react`)             |
 | State           | Zustand                                                   |
 | Styling         | Tailwind CSS 4 (utilities) + CSS variables                |
 | Tests           | Vitest + Testing Library (frontend) · `cargo test` (Rust) |
@@ -105,7 +109,8 @@ system APIs or the UI.
 
 Key rules:
 
-- `pipeline/` and `modules/` depend **only on traits** (`AudioSource`, `SttEngine`, `LlmProvider`, `EventSink`).
+- `pipeline/` and `modules/` depend **only on traits** (`AudioSource`, `SttEngine`, `LlmProvider`, `EventSink`,
+  `WeatherProvider`, `ClipboardPort`).
 - Concrete implementations are instantiated **only** in the _composition root_ (`lib.rs` + `app_state.rs`).
 - Adapters never know about each other. Switching provider or operating system means picking another adapter.
 - Tauri commands are thin: they validate, call the core and return. No business logic.
@@ -128,23 +133,22 @@ Spanish/English interrogatives, or a list of options). There will also be a manu
 Orbit/
 ├── docs/
 │   ├── README.es.md     # Spanish README
-│   ├── SPEC.md          # Full specification (read it before touching the architecture)
-│   └── assets/          #   logo and images
-├── CLAUDE.md            # Working rules for Claude Code
+│   └── assets/          # logo and images
 ├── island.html          # Entry point of the island window
 ├── settings.html        # Entry point of the settings window
 ├── src/                 # Frontend (React + TSX)
 │   ├── windows/         #   entry points, one per window (island/ and settings/)
-│   ├── components/      #   ui/ (primitives) and island/ (Island, NotchShape, IslandContent)
-│   ├── modules/         #   island modules (plugins): registry.ts and demo/
+│   ├── components/      #   ui/ (primitives) and island/ (Island, NotchShape, IslandContent, ModuleSwitcher)
+│   ├── modules/         #   island modules (plugins): registry.ts, demo/, weather/ and clipboard/
 │   ├── features/        #   settings screens (settings/)
-│   ├── stores/          #   global state with Zustand (island, settings, audio)
-│   ├── hooks/           #   useHitTest, useIslandDrag, useReducedMotion…
+│   ├── stores/          #   global state with Zustand (island, settings, audio, weather, clipboard)
+│   ├── hooks/           #   useHitTest, useIslandDrag, useReducedMotion, useNow…
 │   ├── ipc/             #   the only layer that talks to Rust (commands, events, errors)
 │   ├── lib/
 │   │   ├── island/      #     state machine and animation constants
 │   │   ├── audio/       #     system audio volume as a MotionValue
-│   │   └── utils/       #     pure utilities (cn)
+│   │   ├── weather/     #     weather codes to condition types
+│   │   └── utils/       #     pure utilities (cn, time)
 │   ├── i18n/            #   Spanish and English texts
 │   ├── styles/          #   base.css: tokens and the global cursor rule
 │   ├── test/            #   Vitest setup
@@ -156,22 +160,36 @@ Orbit/
         ├── lib.rs       #   composition root: adapters are chosen here
         ├── app_state.rs #   shared state
         ├── events.rs    #   domain events and the EventSink port
-        ├── commands/    #   thin Tauri commands: audio, island and pipeline
+        ├── commands/    #   thin Tauri commands: audio, clipboard, island, pipeline and weather
         ├── window/      #   window, positioning, notch and platform/ (macOS and Windows)
         ├── audio/       #   AudioSource port, resampling, volume level, permission and debug WAV
         │   └── platform/ #    ScreenCaptureKit (macOS) and WASAPI loopback (Windows)
         ├── pipeline/    #   orchestrator: system audio → volume → events
+        ├── weather/     #   location and forecast ports, cache, IP locator and Open-Meteo adapter
+        ├── clipboard/   #   clipboard port, in-memory history, monitor and system adapter
         └── settings/    #   persisted configuration
 ```
 
+## Privacy and network use
+
+- **Weather:** your approximate location (city level) is looked up from your IP address with
+  [ipwho.is](https://ipwho.is), and the forecast comes from [Open-Meteo](https://open-meteo.com). Both services receive
+  your IP address; nothing else is sent. The location is not saved. Open-Meteo's free API is for non-commercial use
+  and its data is licensed CC BY 4.0.
+- **Clipboard history:** it only lives in memory and is gone when Orbit quits. Contents that password managers mark as
+  concealed are never recorded, and nothing you copy is logged or sent anywhere.
+- **System audio:** only what comes out of your speakers or headphones; your microphone is never captured.
+
 ## Roadmap
 
-| Phase | Contents                                                                   | Status          |
-| ----- | -------------------------------------------------------------------------- | --------------- |
-| 0     | Scaffolding: Tauri 2 + React + Vite + Tailwind, lint, `@/` alias           | ✅ Done¹        |
-| 1     | The island: window, state machine, animations, notch, click-through, i18n  | ✅ Done         |
-| 2     | System audio capture (macOS and Windows), resampling and level meter       | 🚧 In progress² |
-| 3     | Streaming transcription (Deepgram) and a local engine with `whisper-rs`    | ⏳ Pending      |
-| 4     | LLM clients (Anthropic and OpenAI-compatible), question detector, Prompter | ⏳ Pending      |
-| 5     | Settings, keychain, global shortcuts, tray, onboarding and consent         | ⏳ Pending      |
-| 6     | Polish, packaging (`.dmg`, `.msi`/`.exe`) and module documentation         | ⏳ Pending      |
+| Phase | Contents                                                                   | Status      |
+| ----- | -------------------------------------------------------------------------- | ----------- |
+| 0     | Scaffolding: Tauri 2 + React + Vite + Tailwind, lint, `@/` alias           | Done        |
+| 1     | The island: window, state machine, animations, notch, click-through, i18n  | Done        |
+| 2     | System audio capture (macOS and Windows), resampling and level meter       | In progress |
+| 3     | Streaming transcription (Deepgram) and a local engine with `whisper-rs`    | Pending     |
+| 4     | LLM clients (Anthropic and OpenAI-compatible), question detector, Prompter | Pending     |
+| 5     | Settings, keychain, global shortcuts, tray, onboarding and consent         | Pending     |
+| 6     | Polish, packaging (`.dmg`, `.msi`/`.exe`) and module documentation         | Pending     |
+
+Along the way two resident modules were added ahead of the Prompter: the weather and the clipboard history.

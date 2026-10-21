@@ -32,6 +32,8 @@ export interface PipelineEvents {
   'stt:final': SttFinal;
   'llm:delta': LlmDelta;
   'llm:done': null;
+  /** El historial del portapapeles cambió: hay que volver a pedirlo. */
+  'clipboard:changed': null;
   error: OrbitError;
 }
 

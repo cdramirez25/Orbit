@@ -4,9 +4,11 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex, RwLock};
 
 use crate::audio::permission::AudioPermission;
+use crate::clipboard::ClipboardService;
 use crate::events::EventSink;
 use crate::pipeline::Pipeline;
 use crate::settings::Settings;
+use crate::weather::WeatherService;
 
 pub struct AppState {
     /// Puerto de salida de eventos de dominio; el adaptador concreto lo elige `lib.rs`.
@@ -15,6 +17,10 @@ pub struct AppState {
     pub audio_permission: Arc<dyn AudioPermission>,
     /// Orquestador de la escucha (audio → volumen → eventos). Un solo hilo a la vez lo opera.
     pub pipeline: Mutex<Pipeline>,
+    /// Clima de la zona del usuario (módulo Clima de la isla).
+    pub weather: Arc<WeatherService>,
+    /// Historial del portapapeles de esta sesión (módulo Portapapeles de la isla).
+    pub clipboard: Arc<ClipboardService>,
     settings: RwLock<Settings>,
     settings_path: PathBuf,
 }
@@ -24,6 +30,8 @@ impl AppState {
         events: Arc<dyn EventSink>,
         audio_permission: Arc<dyn AudioPermission>,
         pipeline: Pipeline,
+        weather: Arc<WeatherService>,
+        clipboard: Arc<ClipboardService>,
         settings: Settings,
         settings_path: PathBuf,
     ) -> Self {
@@ -31,6 +39,8 @@ impl AppState {
             events,
             audio_permission,
             pipeline: Mutex::new(pipeline),
+            weather,
+            clipboard,
             settings: RwLock::new(settings),
             settings_path,
         }

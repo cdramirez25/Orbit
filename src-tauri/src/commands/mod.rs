@@ -2,8 +2,10 @@
 //! Sin lógica de negocio.
 
 pub mod audio;
+pub mod clipboard;
 pub mod island;
 pub mod pipeline;
+pub mod weather;
 
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
@@ -14,6 +16,10 @@ pub enum CommandError {
     Window(#[from] tauri::Error),
     #[error("error de audio: {0}")]
     Audio(#[from] crate::audio::AudioError),
+    #[error("error del clima: {0}")]
+    Weather(#[from] crate::weather::WeatherError),
+    #[error("error del portapapeles: {0}")]
+    Clipboard(#[from] crate::clipboard::ClipboardError),
 }
 
 impl CommandError {
@@ -22,6 +28,8 @@ impl CommandError {
         match self {
             Self::Window(_) => "window",
             Self::Audio(error) => error.code(),
+            Self::Weather(error) => error.code(),
+            Self::Clipboard(error) => error.code(),
         }
     }
 }
@@ -42,6 +50,8 @@ mod tests {
 
     use super::*;
     use crate::audio::AudioError;
+    use crate::clipboard::ClipboardError;
+    use crate::weather::WeatherError;
 
     #[test]
     fn audio_errors_keep_their_stable_code() {
@@ -60,5 +70,17 @@ mod tests {
     fn window_errors_have_their_own_code() {
         let error = CommandError::from(tauri::Error::WindowNotFound);
         assert_eq!(error.code(), "window");
+    }
+
+    #[test]
+    fn weather_and_clipboard_errors_keep_their_stable_codes() {
+        assert_eq!(
+            CommandError::from(WeatherError::Network("x".into())).code(),
+            "weather.network"
+        );
+        assert_eq!(
+            CommandError::from(ClipboardError::NotFound).code(),
+            "clipboard.notFound"
+        );
     }
 }

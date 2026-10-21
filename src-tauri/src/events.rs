@@ -45,6 +45,8 @@ pub enum DomainEvent {
         text: String,
     },
     LlmDone,
+    /// El historial del portapapeles cambió (la interfaz vuelve a pedirlo).
+    ClipboardChanged,
     Error(OrbitError),
 }
 
@@ -58,6 +60,7 @@ impl DomainEvent {
             Self::SttFinal { .. } => "stt:final",
             Self::LlmDelta { .. } => "llm:delta",
             Self::LlmDone => "llm:done",
+            Self::ClipboardChanged => "clipboard:changed",
             Self::Error(_) => "error",
         }
     }
@@ -71,7 +74,7 @@ impl DomainEvent {
                 text,
                 end_of_utterance,
             } => json!({ "text": text, "endOfUtterance": end_of_utterance }),
-            Self::LlmDone => Value::Null,
+            Self::LlmDone | Self::ClipboardChanged => Value::Null,
             Self::Error(error) => json!(error),
         }
     }
@@ -176,6 +179,7 @@ mod tests {
                 "llm:delta",
             ),
             (DomainEvent::LlmDone, "llm:done"),
+            (DomainEvent::ClipboardChanged, "clipboard:changed"),
         ];
         for (event, name) in names {
             assert_eq!(event.name(), name);

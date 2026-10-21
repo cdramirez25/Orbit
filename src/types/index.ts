@@ -11,6 +11,7 @@ export type {
   ScreenFrame,
 } from './island';
 export type { PermissionStatus } from './audio';
+export type { ClipboardEntry, ClipboardKind } from './clipboard';
 export type { Locale } from './i18n';
 export type { OrbitModule } from './module';
 export type {
@@ -23,3 +24,10 @@ export type {
   SttPartial,
 } from './pipeline';
 export type { IslandSettings } from './settings';
+export type {
+  Units,
+  WeatherCurrent,
+  WeatherLocation,
+  WeatherReport,
+  WeatherToday,
+} from './weather';

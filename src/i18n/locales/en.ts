@@ -10,9 +10,9 @@ export const en: Record<MessageKey, string> = {
   'island.dismissAlert': 'Dismiss alert',
   'island.collapse': 'Collapse',
   'island.stretch': 'Extend',
-  'island.stretchAria': 'Extend answer',
+  'island.stretchAria': 'Extend card',
   'island.shrink': 'Shrink',
-  'island.shrinkAria': 'Shrink answer',
+  'island.shrinkAria': 'Shrink card',
 
   // ── Demo module (sample content) ────────────────────────────────────────
   'demo.detected': 'Question detected',
@@ -62,6 +62,47 @@ export const en: Record<MessageKey, string> = {
   'audio.stop': 'Stop',
   'audio.error.noDevice': 'No output device',
   'audio.error.generic': 'Could not listen',
+
+  // ── Module switcher ─────────────────────────────────────────────────────
+  'modules.switcherAria': 'Island modules',
+  'demo.module': 'Demo',
+
+  // ── Weather ─────────────────────────────────────────────────────────────
+  'weather.module': 'Weather',
+  'weather.condition.clear': 'Clear',
+  'weather.condition.partlyCloudy': 'Partly cloudy',
+  'weather.condition.cloudy': 'Cloudy',
+  'weather.condition.fog': 'Fog',
+  'weather.condition.drizzle': 'Drizzle',
+  'weather.condition.rain': 'Rain',
+  'weather.condition.snow': 'Snow',
+  'weather.condition.thunderstorm': 'Thunderstorm',
+  'weather.feelsLike': 'Feels like',
+  'weather.humidity': 'Humidity',
+  'weather.wind': 'Wind',
+  'weather.highLow': 'High / Low',
+  'weather.rainChance': 'Precip.',
+  'weather.updatedAt': 'Updated at',
+  'weather.refresh': 'Refresh weather',
+  'weather.loading': 'Looking up the weather in your area…',
+  'weather.error.network': 'No connection to fetch the weather',
+  'weather.error.generic': 'Could not get the weather',
+  'weather.retry': 'Retry',
+
+  // ── Clipboard history ───────────────────────────────────────────────────
+  'clipboard.module': 'Clipboard',
+  'clipboard.title': 'History',
+  'clipboard.sessionHint': 'This session only: cleared when Orbit quits.',
+  'clipboard.empty': 'You have not copied anything in this session yet.',
+  'clipboard.copy': 'Copy again',
+  'clipboard.copied': 'Copied',
+  'clipboard.delete': 'Delete this item',
+  'clipboard.clear': 'Clear all',
+  'clipboard.clearAria': 'Clear the whole history',
+  'clipboard.text': 'Text',
+  'clipboard.image': 'Image',
+  'clipboard.imageAlt': 'Copied image',
+  'clipboard.characters': 'characters',
 
   // ── Settings window ─────────────────────────────────────────────────────
   'settings.placeholder': 'Orbit settings — coming soon (Phase 5).',

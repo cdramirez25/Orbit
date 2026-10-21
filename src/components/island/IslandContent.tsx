@@ -1,6 +1,8 @@
+import { ChevronDown, ChevronUp, X } from 'lucide-react';
 import { AnimatePresence, motion, type Variants } from 'motion/react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
+import { ModuleSwitcher } from '@/components/island/ModuleSwitcher';
 import { Button, IconButton } from '@/components/ui';
 import { useElementHeight } from '@/hooks/useElementHeight';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
@@ -12,6 +14,7 @@ import {
   resolveIslandTarget,
   SIZE,
 } from '@/lib/island/island.motion';
+import { cn } from '@/lib/utils/cn';
 import { selectActiveModule, useRegistryStore } from '@/modules/registry';
 import { useIslandStore } from '@/stores/island.store';
 import type {
@@ -79,22 +82,9 @@ function Layer({ variants, children }: { variants: Variants; children: ReactNode
   );
 }
 
-function Chevron({ up }: { up: boolean }) {
-  return (
-    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden>
-      <path
-        d={up ? 'M2 6.5l3-3 3 3' : 'M2 3.5l3 3 3-3'}
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
 function ExpandedView({
   module,
+  switchable,
   topInset,
   size,
   onMeasure,
@@ -102,6 +92,8 @@ function ExpandedView({
   onToggleSize,
 }: {
   module: OrbitModule;
+  /** Módulos residentes entre los que el usuario puede cambiar (vacío si no aplica). */
+  switchable: readonly OrbitModule[];
   topInset: number;
   size: ExpandedSize;
   onMeasure: (height: number) => void;
@@ -113,23 +105,25 @@ function ExpandedView({
   const scrollRef = useRef<HTMLDivElement>(null);
   // ¿El contenido no cabe y hay que deslizar? Entonces se ofrece "Alargar".
   const [overflowing, setOverflowing] = useState(false);
+  const select = useRegistryStore((s) => s.select);
+  const followEnd = module.followEnd === true;
 
   useElementHeight(boxRef, onMeasure);
 
-  // Texto en streaming: el scroll interno sigue al final, y se detecta si el texto desborda
-  // (al crecer el texto o al cambiar el tamaño de la tarjeta).
+  // Se detecta si el contenido desborda (al crecer o al cambiar el tamaño de la tarjeta) y, si el
+  // módulo crece por abajo (texto en streaming), el scroll interno sigue al final.
   useEffect(() => {
     const scroller = scrollRef.current;
     const inner = scroller?.firstElementChild;
     if (!scroller || !inner) return;
     const observer = new ResizeObserver(() => {
-      scroller.scrollTop = scroller.scrollHeight;
+      if (followEnd) scroller.scrollTop = scroller.scrollHeight;
       setOverflowing(scroller.scrollHeight > scroller.clientHeight + 1);
     });
     observer.observe(inner);
     observer.observe(scroller);
     return () => observer.disconnect();
-  }, []);
+  }, [followEnd]);
 
   const tall = size === 'tall';
 
@@ -143,23 +137,36 @@ function ExpandedView({
         paddingTop: topInset,
       }}
     >
-      <IconButton
-        label={t('island.collapse')}
-        className="absolute top-2 right-3 z-10"
-        onClick={onCollapse}
-      >
-        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden>
-          <path
-            d="M1 1l8 8M9 1L1 9"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
+      {switchable.length > 0 ? (
+        <div className="flex h-9 shrink-0 items-center justify-between pr-3 pl-4">
+          <ModuleSwitcher
+            modules={switchable}
+            activeId={module.id}
+            onSelect={(id) => {
+              select(id);
+              // Cada módulo empieza con la tarjeta de tamaño normal.
+              if (size === 'tall') onToggleSize();
+            }}
           />
-        </svg>
-      </IconButton>
+          <IconButton label={t('island.collapse')} onClick={onCollapse}>
+            <X aria-hidden className="size-3.5" />
+          </IconButton>
+        </div>
+      ) : (
+        <IconButton
+          label={t('island.collapse')}
+          className="absolute top-2 right-3 z-10"
+          onClick={onCollapse}
+        >
+          <X aria-hidden className="size-3.5" />
+        </IconButton>
+      )}
       <div
         ref={scrollRef}
-        className="min-h-0 flex-initial [scrollbar-width:none] overflow-y-auto px-5 pt-3 pb-4 [&::-webkit-scrollbar]:hidden"
+        className={cn(
+          'min-h-0 flex-initial [scrollbar-width:none] overflow-y-auto px-5 pb-4 [&::-webkit-scrollbar]:hidden',
+          switchable.length > 0 ? 'pt-1' : 'pt-3',
+        )}
       >
         <div>
           <module.Expanded />
@@ -176,7 +183,11 @@ function ExpandedView({
             aria-label={t(tall ? 'island.shrinkAria' : 'island.stretchAria')}
             aria-expanded={tall}
           >
-            <Chevron up={tall} />
+            {tall ? (
+              <ChevronUp aria-hidden className="size-3" />
+            ) : (
+              <ChevronDown aria-hidden className="size-3" />
+            )}
             {t(tall ? 'island.shrink' : 'island.stretch')}
           </Button>
         </div>
@@ -211,11 +222,16 @@ function AlertView({
 /** Muestra la vista del módulo activo que corresponde al estado (compact / expanded / alert). */
 export function IslandContent({ state, style, notch, topInset, onMeasure }: IslandContentProps) {
   const activeModule = useRegistryStore(selectActiveModule);
+  const modules = useRegistryStore((s) => s.modules);
   const alert = useIslandStore((s) => s.alert);
   const send = useIslandStore((s) => s.send);
   const expandedSize = useIslandStore((s) => s.expandedSize);
   const toggleExpandedSize = useIslandStore((s) => s.toggleExpandedSize);
   const variants = useLayerVariants();
+
+  // El selector solo aparece si el módulo visible es residente y hay otro entre quien elegir.
+  const ambient = Object.values(modules).filter((module) => module.ambient);
+  const switchable = activeModule?.ambient && ambient.length > 1 ? ambient : [];
 
   const dims = { style, notch, hovered: false, contentHeight: 0 } as const;
   const compactWidth = resolveIslandTarget({ ...dims, state: 'compact' }).width;
@@ -235,6 +251,7 @@ export function IslandContent({ state, style, notch, topInset, onMeasure }: Isla
         <Layer key="expanded" variants={variants}>
           <ExpandedView
             module={activeModule}
+            switchable={switchable}
             topInset={topInset}
             size={expandedSize}
             onMeasure={onMeasure}

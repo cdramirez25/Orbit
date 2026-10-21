@@ -64,11 +64,19 @@ export const useDemoStore = create<DemoStore>((set, get) => ({
 
 /**
  * Mientras se escucha, la isla muestra la pastilla compacta del módulo (punto + ondas); al parar
- * vuelve a reposo. (El Prompter real hará esto mismo con sus propias actividades.)
+ * vuelve a reposo o, si hay módulos residentes (clima, portapapeles), a su pastilla.
+ * (El Prompter real hará esto mismo con sus propias actividades.)
  */
 export function bindListeningToIsland(): () => void {
   return useAudioStore.subscribe((state, previous) => {
     if (state.listening === previous.listening) return;
-    useDemoStore.getState().goTo(state.listening ? 'compact' : 'idle');
+    if (state.listening) {
+      useDemoStore.getState().goTo('compact');
+      return;
+    }
+    // Al parar termina la actividad de escucha; si quedan módulos residentes, vuelve su pastilla.
+    useRegistryStore.getState().endActivity(DEMO_MODULE_ID);
+    const othersActive = useRegistryStore.getState().activities.length > 0;
+    useIslandStore.getState().goTo(othersActive ? 'compact' : 'idle');
   });
 }
