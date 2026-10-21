@@ -83,6 +83,38 @@ export const en: Record<MessageKey, string> = {
   'stt.error.modelLoad': 'Could not load the transcription model',
   'stt.error.generic': 'Transcription failed',
 
+  // ── Settings navigation bar ─────────────────────────────────────────────
+  'settings.nav.aria': 'Settings sections',
+  'settings.nav.island': 'Island',
+  'settings.nav.audio': 'Audio',
+  'settings.nav.ai': 'AI',
+  'settings.nav.general': 'General',
+
+  // ── AI (design only: keys are not stored yet) ───────────────────────────
+  'ai.privacy':
+    'Your keys will be stored only on this computer. Orbit has no server: nothing is sent to us.',
+  'ai.comingSoon': 'Coming soon',
+  'ai.comingSoonHint':
+    'For now this is only the design: no keys are saved and no model is connected yet.',
+  'ai.providersAria': 'AI providers',
+  'ai.kind.cloud': 'Cloud',
+  'ai.kind.local': 'On your computer',
+  'ai.status.unset': 'Not set up',
+  'ai.field.apiKey': 'API key',
+  'ai.field.baseUrl': 'Server address',
+  'ai.field.model': 'Model',
+  'ai.field.modelPlaceholder': 'Model name',
+  'ai.action.test': 'Test connection',
+  'ai.action.save': 'Save',
+  'ai.provider.claude.description':
+    'Anthropic Claude models. Use the key from your own Anthropic account.',
+  'ai.provider.chatgpt.description':
+    'OpenAI models (ChatGPT). Use the key from your own OpenAI account.',
+  'ai.provider.ollama.description':
+    'Models running on your computer with Ollama. No key or Internet needed.',
+  'ai.provider.docker.description':
+    'A model inside a Docker container, through an OpenAI-compatible address. No key needed.',
+
   // ── Module switcher ─────────────────────────────────────────────────────
   'modules.switcherAria': 'Island modules',
   'demo.module': 'Demo',

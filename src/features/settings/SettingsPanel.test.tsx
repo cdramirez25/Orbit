@@ -28,6 +28,9 @@ vi.mock('@/ipc/commands', () => ({
 
 const sent = vi.mocked(remote.sendCommand);
 
+/** Va a una página de la barra lateral de ajustes. */
+const openPage = (name: string) => fireEvent.click(screen.getByRole('button', { name }));
+
 beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
@@ -36,12 +39,36 @@ beforeEach(() => {
 });
 
 describe('ventana de ajustes', () => {
-  it('agrupa los controles por secciones con su título', () => {
+  it('agrupa los controles por secciones con su título, repartidas por páginas', () => {
     render(<SettingsPanel />);
-    for (const title of ['Comportamiento', 'Apariencia', 'Idioma', 'Privacidad', 'Aplicación']) {
+    for (const title of ['Comportamiento', 'Apariencia']) {
       expect(screen.getByRole('heading', { name: title })).toBeInTheDocument();
     }
     expect(screen.getByRole('main', { name: 'Ajustes' })).toBeInTheDocument();
+
+    openPage('General');
+    for (const title of ['Idioma', 'Privacidad', 'Aplicación']) {
+      expect(screen.getByRole('heading', { name: title })).toBeInTheDocument();
+    }
+  });
+
+  it('la barra lateral lleva a cada sección y marca en cuál estás', () => {
+    render(<SettingsPanel />);
+    const nav = screen.getByRole('navigation', { name: 'Secciones de ajustes' });
+    expect(nav).toBeInTheDocument();
+
+    const current = () =>
+      screen
+        .getAllByRole('button')
+        .filter((button) => button.getAttribute('aria-current') === 'page')
+        .map((button) => button.textContent);
+    expect(current()).toEqual(['Isla']);
+
+    for (const page of ['Audio', 'IA', 'General', 'Isla']) {
+      openPage(page);
+      expect(current()).toEqual([page]);
+      expect(screen.getByRole('heading', { level: 2, name: page })).toBeInTheDocument();
+    }
   });
 
   it('marca lo que la isla tiene ahora (estado, posición y estilo)', () => {
@@ -79,22 +106,28 @@ describe('ventana de ajustes', () => {
 
   it('cambiar de idioma lo aplica aquí y se lo manda a la isla', () => {
     render(<SettingsPanel />);
+    openPage('General');
     fireEvent.click(screen.getByRole('tab', { name: 'EN' }));
 
     expect(useLocaleStore.getState().locale).toBe('en');
     expect(sent).toHaveBeenLastCalledWith({ type: 'setLocale', locale: 'en' });
-    expect(screen.getByRole('heading', { name: 'Behavior' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Language' })).toBeInTheDocument();
+    // La barra lateral y las demás páginas también cambian de idioma.
+    expect(screen.getByRole('navigation', { name: 'Settings sections' })).toBeInTheDocument();
+    openPage('Island');
     expect(screen.getByRole('button', { name: 'Simulate answer' })).toBeInTheDocument();
   });
 
   it('explica qué hace "ocultar al compartir pantalla"', () => {
     render(<SettingsPanel />);
+    openPage('General');
     expect(screen.getByRole('switch', { name: /Ocultar la isla/ })).toBeInTheDocument();
     expect(screen.getByText(/no se ve cuando compartes pantalla/)).toBeInTheDocument();
   });
 
   it('Salir cierra Orbit', () => {
     render(<SettingsPanel />);
+    openPage('General');
     fireEvent.click(screen.getByRole('button', { name: 'Salir' }));
     expect(commands.quitApp).toHaveBeenCalledTimes(1);
   });

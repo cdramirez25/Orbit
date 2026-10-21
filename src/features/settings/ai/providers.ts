@@ -1,0 +1,56 @@
+import { Container, MessageSquare, Server, Sparkles, type LucideIcon } from 'lucide-react';
+
+import type { MessageKey } from '@/i18n/messages';
+
+export type AiProviderId = 'claude' | 'chatgpt' | 'ollama' | 'docker';
+export type AiProviderKind = 'cloud' | 'local';
+
+export interface AiProvider {
+  id: AiProviderId;
+  /** Nombre de la marca: no se traduce. */
+  name: string;
+  /** En la nube (pide clave de API) o en el equipo del usuario (pide la dirección del servidor). */
+  kind: AiProviderKind;
+  icon: LucideIcon;
+  description: MessageKey;
+  /** Ejemplo de clave. Valor técnico, no se traduce; solo si el proveedor usa clave. */
+  apiKeyPlaceholder?: string;
+  /** Ejemplo de dirección. Valor técnico, no se traduce; solo si el proveedor usa servidor propio. */
+  baseUrlPlaceholder?: string;
+}
+
+/** Proveedores de IA que el usuario podrá configurar. Cada uno usa SU propia clave o servidor. */
+export const AI_PROVIDERS: readonly AiProvider[] = [
+  {
+    id: 'claude',
+    name: 'Claude',
+    kind: 'cloud',
+    icon: Sparkles,
+    description: 'ai.provider.claude.description',
+    apiKeyPlaceholder: 'sk-ant-…',
+  },
+  {
+    id: 'chatgpt',
+    name: 'ChatGPT',
+    kind: 'cloud',
+    icon: MessageSquare,
+    description: 'ai.provider.chatgpt.description',
+    apiKeyPlaceholder: 'sk-…',
+  },
+  {
+    id: 'ollama',
+    name: 'Ollama',
+    kind: 'local',
+    icon: Server,
+    description: 'ai.provider.ollama.description',
+    baseUrlPlaceholder: 'http://localhost:11434',
+  },
+  {
+    id: 'docker',
+    name: 'Docker',
+    kind: 'local',
+    icon: Container,
+    description: 'ai.provider.docker.description',
+    baseUrlPlaceholder: 'http://localhost:8080/v1',
+  },
+];

@@ -86,6 +86,38 @@ export const es = {
   'stt.error.modelLoad': 'No se pudo cargar el modelo de transcripción',
   'stt.error.generic': 'Falló la transcripción',
 
+  // ── Barra de navegación de ajustes ──────────────────────────────────────
+  'settings.nav.aria': 'Secciones de ajustes',
+  'settings.nav.island': 'Isla',
+  'settings.nav.audio': 'Audio',
+  'settings.nav.ai': 'IA',
+  'settings.nav.general': 'General',
+
+  // ── IA (diseño: todavía no se guardan claves) ───────────────────────────
+  'ai.privacy':
+    'Tus claves se guardarán solo en este equipo. Orbit no tiene servidor: nada se envía a nosotros.',
+  'ai.comingSoon': 'Próximamente',
+  'ai.comingSoonHint':
+    'Por ahora es solo el diseño: todavía no se guardan claves ni se conecta ningún modelo.',
+  'ai.providersAria': 'Proveedores de IA',
+  'ai.kind.cloud': 'En la nube',
+  'ai.kind.local': 'En tu equipo',
+  'ai.status.unset': 'Sin configurar',
+  'ai.field.apiKey': 'Clave de API',
+  'ai.field.baseUrl': 'Dirección del servidor',
+  'ai.field.model': 'Modelo',
+  'ai.field.modelPlaceholder': 'Nombre del modelo',
+  'ai.action.test': 'Probar conexión',
+  'ai.action.save': 'Guardar',
+  'ai.provider.claude.description':
+    'Modelos Claude de Anthropic. Usa la clave de tu propia cuenta de Anthropic.',
+  'ai.provider.chatgpt.description':
+    'Modelos de OpenAI (ChatGPT). Usa la clave de tu propia cuenta de OpenAI.',
+  'ai.provider.ollama.description':
+    'Modelos que corren en tu equipo con Ollama. No necesita clave ni Internet.',
+  'ai.provider.docker.description':
+    'Un modelo dentro de un contenedor Docker, por una dirección compatible con OpenAI. No necesita clave.',
+
   // ── Selector de módulos ─────────────────────────────────────────────────
   'modules.switcherAria': 'Módulos de la isla',
   'demo.module': 'Demo',

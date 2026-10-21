@@ -37,6 +37,7 @@ const mocked = vi.mocked(commands);
 async function renderWith(status: PermissionStatus) {
   mocked.getAudioPermission.mockResolvedValue(status);
   render(<SettingsPanel />);
+  fireEvent.click(screen.getByRole('button', { name: 'Audio' }));
   await act(async () => {}); // deja que termine la primera consulta del permiso
 }
 

@@ -7,12 +7,12 @@ use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 
 pub const LABEL: &str = "settings";
 
-/// Tamaño lógico inicial del contenido: el panel de dos columnas y un poco de aire.
-const WIDTH: f64 = 656.0;
-const HEIGHT: f64 = 360.0;
-/// Por debajo de esto el panel de dos columnas no cabe.
-const MIN_WIDTH: f64 = 520.0;
-const MIN_HEIGHT: f64 = 300.0;
+/// Tamaño lógico inicial del contenido: la barra lateral (160 px) y la página.
+const WIDTH: f64 = 760.0;
+const HEIGHT: f64 = 460.0;
+/// Por debajo de esto la página no cabe junto a la barra lateral.
+const MIN_WIDTH: f64 = 600.0;
+const MIN_HEIGHT: f64 = 360.0;
 /// Fondo mientras carga la página (el mismo gris oscuro del panel), para no parpadear en blanco.
 const BACKGROUND: Color = Color(23, 23, 23, 255);
 
