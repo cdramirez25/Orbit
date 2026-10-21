@@ -1,8 +1,8 @@
-import { Container, MessageSquare, Server, Sparkles, type LucideIcon } from 'lucide-react';
+import { Container, MessageSquare, Server, Sparkles, Zap, type LucideIcon } from 'lucide-react';
 
 import type { MessageKey } from '@/i18n/messages';
+import type { AiProviderId } from '@/types';
 
-export type AiProviderId = 'claude' | 'chatgpt' | 'ollama' | 'docker';
 export type AiProviderKind = 'cloud' | 'local';
 
 export interface AiProvider {
@@ -19,7 +19,7 @@ export interface AiProvider {
   baseUrlPlaceholder?: string;
 }
 
-/** Proveedores de IA que el usuario podrá configurar. Cada uno usa SU propia clave o servidor. */
+/** Proveedores de IA que el usuario puede configurar. Cada uno usa SU propia clave o servidor. */
 export const AI_PROVIDERS: readonly AiProvider[] = [
   {
     id: 'claude',
@@ -38,6 +38,14 @@ export const AI_PROVIDERS: readonly AiProvider[] = [
     apiKeyPlaceholder: 'sk-…',
   },
   {
+    id: 'groq',
+    name: 'Groq',
+    kind: 'cloud',
+    icon: Zap,
+    description: 'ai.provider.groq.description',
+    apiKeyPlaceholder: 'gsk_…',
+  },
+  {
     id: 'ollama',
     name: 'Ollama',
     kind: 'local',
@@ -51,6 +59,6 @@ export const AI_PROVIDERS: readonly AiProvider[] = [
     kind: 'local',
     icon: Container,
     description: 'ai.provider.docker.description',
-    baseUrlPlaceholder: 'http://localhost:8080/v1',
+    baseUrlPlaceholder: 'http://localhost:12434/engines/v1',
   },
 ];

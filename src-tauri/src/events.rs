@@ -43,6 +43,10 @@ pub enum DomainEvent {
         text: String,
         end_of_utterance: bool,
     },
+    /// Empieza la respuesta a una pregunta (la interfaz muestra la pregunta y espera el texto).
+    LlmStart {
+        question: String,
+    },
     LlmDelta {
         text: String,
     },
@@ -62,6 +66,7 @@ impl DomainEvent {
             Self::AudioLevel(_) => "audio:level",
             Self::SttPartial { .. } => "stt:partial",
             Self::SttFinal { .. } => "stt:final",
+            Self::LlmStart { .. } => "llm:start",
             Self::LlmDelta { .. } => "llm:delta",
             Self::LlmDone => "llm:done",
             Self::ClipboardChanged => "clipboard:changed",
@@ -75,6 +80,7 @@ impl DomainEvent {
             Self::PipelineState(state) => json!(state),
             Self::AudioLevel(level) => json!(level),
             Self::SttPartial { text } | Self::LlmDelta { text } => json!({ "text": text }),
+            Self::LlmStart { question } => json!({ "question": question }),
             Self::SttFinal {
                 text,
                 end_of_utterance,
@@ -179,6 +185,12 @@ mod tests {
                 "stt:final",
             ),
             (
+                DomainEvent::LlmStart {
+                    question: String::new(),
+                },
+                "llm:start",
+            ),
+            (
                 DomainEvent::LlmDelta {
                     text: String::new(),
                 },
@@ -207,6 +219,13 @@ mod tests {
             json!({ "text": "hola", "endOfUtterance": true })
         );
         assert_eq!(DomainEvent::LlmDone.payload(), Value::Null);
+        assert_eq!(
+            DomainEvent::LlmStart {
+                question: "¿Qué?".into()
+            }
+            .payload(),
+            json!({ "question": "¿Qué?" })
+        );
         assert_eq!(
             DomainEvent::Error(OrbitError {
                 code: "net".into(),

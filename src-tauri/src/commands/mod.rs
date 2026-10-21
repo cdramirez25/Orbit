@@ -1,6 +1,7 @@
 //! Comandos de Tauri (adaptadores de entrada): finos, validan, llaman al núcleo y devuelven.
 //! Sin lógica de negocio.
 
+pub mod ai;
 pub mod audio;
 pub mod clipboard;
 pub mod island;
@@ -24,6 +25,8 @@ pub enum CommandError {
     Clipboard(#[from] crate::clipboard::ClipboardError),
     #[error("error de la música: {0}")]
     Media(#[from] crate::media::MediaError),
+    #[error("error de la IA: {0}")]
+    Ai(#[from] crate::ai::AiError),
 }
 
 impl CommandError {
@@ -35,6 +38,7 @@ impl CommandError {
             Self::Weather(error) => error.code(),
             Self::Clipboard(error) => error.code(),
             Self::Media(error) => error.code(),
+            Self::Ai(error) => error.code(),
         }
     }
 }
@@ -75,6 +79,12 @@ mod tests {
     fn window_errors_have_their_own_code() {
         let error = CommandError::from(tauri::Error::WindowNotFound);
         assert_eq!(error.code(), "window");
+    }
+
+    #[test]
+    fn ai_errors_keep_their_stable_code() {
+        let error = CommandError::from(crate::ai::AiError::Unauthorized);
+        assert_eq!(error.code(), "ai.unauthorized");
     }
 
     #[test]

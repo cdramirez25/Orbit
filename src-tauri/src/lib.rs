@@ -4,6 +4,7 @@
 //! inyectan en el núcleo (arquitectura hexagonal, §4.0). Elegir SO o proveedor = elegir otro
 //! adaptador aquí; el núcleo no cambia.
 
+mod ai;
 mod app_state;
 mod audio;
 mod clipboard;
@@ -23,6 +24,9 @@ use std::time::Duration;
 use tauri::Manager;
 use tracing_subscriber::EnvFilter;
 
+use crate::ai::client::HttpLlm;
+use crate::ai::prompter::{AnsweringSink, Prompter};
+use crate::ai::AiService;
 use crate::app_state::{AppState, Services};
 use crate::audio::permission::{status_of, AudioPermission};
 use crate::audio::AudioSource;
@@ -47,6 +51,11 @@ pub fn run() {
 
     let result = tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
+            commands::ai::ai_get_status,
+            commands::ai::ai_save_provider,
+            commands::ai::ai_set_active,
+            commands::ai::ai_test_provider,
+            commands::ai::ai_list_models,
             commands::audio::get_audio_permission,
             commands::audio::request_audio_permission,
             commands::audio::open_audio_permission_settings,
@@ -109,7 +118,18 @@ pub fn run() {
             let primer = Arc::clone(&whisper);
             std::thread::spawn(move || primer.prime_disk_cache());
             let stt: Arc<dyn SttEngine> = whisper;
-            let pipeline = Pipeline::new(audio_source, Arc::clone(&events), config).with_stt(stt);
+
+            // IA: las claves van al llavero del sistema y el resto a `ai.json`. El Prompter contesta
+            // las preguntas que salgan de la transcripción, con el proveedor que el usuario eligió.
+            let ai = Arc::new(AiService::new(
+                Box::new(ai::platform::current::KeychainSecretStore),
+                Box::new(HttpLlm::new()),
+                app.path().app_config_dir()?.join("ai.json"),
+            ));
+            let prompter = Prompter::new(Arc::clone(&ai), Arc::clone(&events));
+            let pipeline_events: Arc<dyn EventSink> =
+                Arc::new(AnsweringSink::new(Arc::clone(&events), prompter));
+            let pipeline = Pipeline::new(audio_source, pipeline_events, config).with_stt(stt);
 
             // Clima: ubicación por IP (ipwho.is) + datos de Open-Meteo, con un solo cliente HTTP.
             let http = weather::http::agent();
@@ -140,6 +160,7 @@ pub fn run() {
                     weather,
                     clipboard,
                     media,
+                    ai,
                 },
                 settings,
                 settings_path,

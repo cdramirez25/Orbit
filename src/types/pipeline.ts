@@ -16,6 +16,11 @@ export interface SttFinal {
   endOfUtterance: boolean;
 }
 
+/** Empieza la respuesta a una pregunta detectada en lo que se dijo. */
+export interface LlmStart {
+  question: string;
+}
+
 export interface LlmDelta {
   text: string;
 }
@@ -32,6 +37,7 @@ export interface PipelineEvents {
   'audio:level': number;
   'stt:partial': SttPartial;
   'stt:final': SttFinal;
+  'llm:start': LlmStart;
   'llm:delta': LlmDelta;
   'llm:done': null;
   /** El historial del portapapeles cambió: hay que volver a pedirlo. */

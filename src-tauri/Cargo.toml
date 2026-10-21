@@ -35,12 +35,16 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # Transcripción local (Fase 3b): whisper.cpp enlazado dentro de la app. La crate es Unlicense
 # (dominio público); whisper.cpp y los modelos de OpenAI son MIT. Compilarla necesita cmake.
 whisper-rs = "0.16"
+# Llavero del sistema para las claves de API de la IA (Keychain en macOS, Administrador de
+# credenciales en Windows). MIT OR Apache-2.0; el respaldo nativo de cada sistema se activa abajo.
+keyring = { version = "3", default-features = false }
 
 # Solo macOS: ventana convertida en NSPanel + detección del notch (window/platform/macos.rs) y
 # captura del audio del sistema con ScreenCaptureKit (audio/platform/macos_sck.rs). Whisper usa
 # la GPU con Metal.
 [target.'cfg(target_os = "macos")'.dependencies]
 whisper-rs = { version = "0.16", features = ["metal"] }
+keyring = { version = "3", default-features = false, features = ["apple-native"] }
 tauri-nspanel = "2.1"
 objc2 = "0.6"
 objc2-foundation = "0.3"
@@ -52,6 +56,7 @@ screencapturekit = "11" # MIT OR Apache-2.0
 # media/platform/windows.rs.
 [target.'cfg(target_os = "windows")'.dependencies]
 wasapi = "0.26" # MIT
+keyring = { version = "3", default-features = false, features = ["windows-native"] }
 windows = { version = "0.62", features = ["Win32_System_DataExchange", "Win32_System_WinRT", "Media_Control", "Storage_Streams"] } # MIT OR Apache-2.0
 
 [lints.clippy]

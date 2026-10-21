@@ -4,6 +4,9 @@ import { translate } from '@/i18n/locale.store';
 import { emitLocal } from '@/ipc/events';
 import { simulatedLevel } from '@/lib/audio/simulated-level';
 import type {
+  AiProviderId,
+  AiSaveInput,
+  AiStatus,
   ClipboardEntry,
   IslandAnchor,
   MediaCommand,
@@ -50,9 +53,27 @@ const SIMULATION_TICK_MS = 33;
 let simulation: ReturnType<typeof setInterval> | undefined;
 
 // Frases de ejemplo (en el idioma activo) que llegan palabra a palabra, como las del motor real.
-const SAMPLE_PHRASES = ['transcript.sample1', 'transcript.sample2'] as const;
+const SAMPLE_PHRASES = ['transcript.sample1', 'transcript.sample3', 'transcript.sample2'] as const;
 const WORD_MS = 280;
 let transcriptSimulation: ReturnType<typeof setInterval> | undefined;
+let answerSimulation: ReturnType<typeof setInterval> | undefined;
+
+/** Como la IA: la pregunta empieza, la respuesta llega palabra a palabra y termina. */
+function simulateAnswer(question: string): void {
+  clearInterval(answerSimulation);
+  emitLocal('llm:start', { question });
+  const words = translate('answer.sample').split(' ');
+  let sent = 0;
+  answerSimulation = setInterval(() => {
+    if (sent >= words.length) {
+      clearInterval(answerSimulation);
+      emitLocal('llm:done', null);
+      return;
+    }
+    emitLocal('llm:delta', { text: `${sent === 0 ? '' : ' '}${words[sent]}` });
+    sent += 1;
+  }, WORD_MS / 2);
+}
 
 function simulateTranscript(): void {
   let phrase = 0;
@@ -63,6 +84,7 @@ function simulateTranscript(): void {
     shown += 1;
     if (shown >= words.length) {
       emitLocal('stt:final', { text, endOfUtterance: true });
+      if (text.includes('?')) simulateAnswer(text);
       phrase += 1;
       shown = 0;
     } else {
@@ -85,6 +107,7 @@ function startSimulation(): void {
 function stopSimulation(): void {
   clearInterval(simulation);
   clearInterval(transcriptSimulation);
+  clearInterval(answerSimulation);
   simulation = undefined;
   transcriptSimulation = undefined;
   emitLocal('audio:level', 0);
@@ -241,6 +264,60 @@ function applyBrowserMediaCommand(command: MediaCommand): void {
   emitLocal('media:changed', browserNowPlaying());
 }
 
+// Solo navegador: la IA en memoria (sin llavero ni red) para ver y probar la pantalla con `pnpm dev`.
+const SAMPLE_PROVIDER_IDS: readonly AiProviderId[] = [
+  'claude',
+  'chatgpt',
+  'groq',
+  'ollama',
+  'docker',
+];
+const SAMPLE_DEFAULT_MODELS: Partial<Record<AiProviderId, string>> = {
+  claude: 'claude-haiku-5-5',
+  groq: 'openai/gpt-oss-20b',
+};
+let browserAi: AiStatus = {
+  active: null,
+  providers: SAMPLE_PROVIDER_IDS.map((id) => ({
+    id,
+    baseUrl: null,
+    model: null,
+    defaultModel: SAMPLE_DEFAULT_MODELS[id] ?? null,
+    hasKey: false,
+  })),
+};
+
+function browserAiProvider(id: AiProviderId): AiStatus['providers'][number] {
+  const provider = browserAi.providers.find((p) => p.id === id);
+  if (!provider) throw { code: 'ai.notConfigured', message: 'sin proveedor' };
+  return provider;
+}
+
+function browserAiSave(id: AiProviderId, input: AiSaveInput): AiStatus {
+  const local = id === 'ollama' || id === 'docker';
+  browserAi = {
+    ...browserAi,
+    providers: browserAi.providers.map((p) => {
+      if (p.id !== id) return p;
+      const hasKey = local || input.apiKey === undefined ? p.hasKey : input.apiKey.trim() !== '';
+      const model = input.model === undefined ? p.model : input.model.trim() || null;
+      const baseUrl =
+        !local || input.baseUrl === undefined ? p.baseUrl : input.baseUrl.trim() || null;
+      return { ...p, hasKey, model, baseUrl };
+    }),
+  };
+  return browserAi;
+}
+
+/** Como en Rust: hace falta clave (si el proveedor la pide) y un modelo (elegido o por defecto). */
+function browserAiCheck(id: AiProviderId): void {
+  const provider = browserAiProvider(id);
+  const local = id === 'ollama' || id === 'docker';
+  if (!provider.model && !provider.defaultModel)
+    throw { code: 'ai.missingModel', message: 'sin modelo' };
+  if (!local && !provider.hasKey) throw { code: 'ai.missingKey', message: 'sin clave' };
+}
+
 export const commands = {
   getNotchInfo: (): Promise<NotchInfo> =>
     isTauri() ? invoke<NotchInfo>('get_notch_info') : Promise.resolve(NO_NOTCH),
@@ -361,6 +438,45 @@ export const commands = {
     if (isTauri()) return invoke<void>('media_seek', { position });
     applyBrowserSeek(position);
     return Promise.resolve();
+  },
+
+  /** Qué proveedor de IA está activo y qué tiene guardado cada uno (nunca las claves). */
+  aiGetStatus: (): Promise<AiStatus> =>
+    isTauri() ? invoke<AiStatus>('ai_get_status') : Promise.resolve(browserAi),
+
+  /** Guarda la clave (en el llavero del sistema), el modelo y la dirección de un proveedor. */
+  aiSaveProvider: (id: AiProviderId, input: AiSaveInput): Promise<AiStatus> =>
+    isTauri()
+      ? invoke<AiStatus>('ai_save_provider', { id, input })
+      : Promise.resolve(browserAiSave(id, input)),
+
+  /** Elige con qué proveedor responde Orbit (`null`: ninguno). */
+  aiSetActive: (id: AiProviderId | null): Promise<AiStatus> => {
+    if (isTauri()) return invoke<AiStatus>('ai_set_active', { id });
+    browserAi = { ...browserAi, active: id };
+    return Promise.resolve(browserAi);
+  },
+
+  /** Prueba de verdad un proveedor con una petición mínima y devuelve lo que contestó. */
+  aiTestProvider: (id: AiProviderId): Promise<string> => {
+    if (isTauri()) return invoke<string>('ai_test_provider', { id });
+    try {
+      browserAiCheck(id);
+    } catch (error) {
+      return Promise.reject(error);
+    }
+    return Promise.resolve('ok');
+  },
+
+  /** Los modelos que ofrece un proveedor con la clave guardada. */
+  aiListModels: (id: AiProviderId): Promise<string[]> => {
+    if (isTauri()) return invoke<string[]>('ai_list_models', { id });
+    try {
+      browserAiCheck(id);
+    } catch (error) {
+      return Promise.reject(error);
+    }
+    return Promise.resolve([`${id}-modelo-1`, `${id}-modelo-2`]);
   },
 
   /** Abre la ventana de ajustes (solo en desarrollo) o la trae al frente. */

@@ -82,6 +82,7 @@ export const es = {
   'transcript.waiting': 'Esperando voz…',
   'transcript.sample1': 'La capital de Australia es Canberra, no Sídney como mucha gente cree.',
   'transcript.sample2': 'El río más largo del mundo es el Nilo según la mayoría de las fuentes.',
+  'transcript.sample3': '¿Cuál es la capital de Australia?',
   'stt.error.modelMissing': 'Falta el modelo de transcripción',
   'stt.error.modelLoad': 'No se pudo cargar el modelo de transcripción',
   'stt.error.generic': 'Falló la transcripción',
@@ -93,30 +94,49 @@ export const es = {
   'settings.nav.ai': 'IA',
   'settings.nav.general': 'General',
 
-  // ── IA (diseño: todavía no se guardan claves) ───────────────────────────
+  // ── IA ──────────────────────────────────────────────────────────────────
   'ai.privacy':
-    'Tus claves se guardarán solo en este equipo. Orbit no tiene servidor: nada se envía a nosotros.',
-  'ai.comingSoon': 'Próximamente',
-  'ai.comingSoonHint':
-    'Por ahora es solo el diseño: todavía no se guardan claves ni se conecta ningún modelo.',
+    'Tus claves se guardan solo en este equipo, en el llavero del sistema. Orbit no tiene servidor: nada se envía a nosotros.',
   'ai.providersAria': 'Proveedores de IA',
   'ai.kind.cloud': 'En la nube',
   'ai.kind.local': 'En tu equipo',
   'ai.status.unset': 'Sin configurar',
+  'ai.status.ready': 'Configurado',
+  'ai.status.active': 'En uso',
   'ai.field.apiKey': 'Clave de API',
+  'ai.field.apiKeySaved': 'Guardada: escribe otra para reemplazarla',
   'ai.field.baseUrl': 'Dirección del servidor',
   'ai.field.model': 'Modelo',
   'ai.field.modelPlaceholder': 'Nombre del modelo',
-  'ai.action.test': 'Probar conexión',
+  'ai.action.test': 'Probar',
+  'ai.action.testing': 'Probando…',
   'ai.action.save': 'Guardar',
+  'ai.action.use': 'Usar este',
+  'ai.action.inUse': 'En uso',
+  'ai.action.removeKey': 'Quitar clave',
+  'ai.result.ok': 'Funciona',
+  'ai.error.notConfigured': 'Elige un proveedor de IA en Ajustes',
+  'ai.error.missingKey': 'Falta la clave de API',
+  'ai.error.missingModel': 'Falta el nombre del modelo',
+  'ai.error.unauthorized': 'La clave no es válida o no tiene permiso',
+  'ai.error.network': 'No se pudo conectar. Revisa internet o la dirección',
+  'ai.error.rateLimited': 'Demasiadas peticiones: espera un momento',
+  'ai.error.provider': 'El proveedor devolvió un error (revisa el modelo)',
+  'ai.error.badResponse': 'El proveedor respondió algo inesperado',
+  'ai.error.keychain': 'No se pudo usar el llavero del sistema',
+  'ai.error.generic': 'Algo falló con la IA',
   'ai.provider.claude.description':
     'Modelos Claude de Anthropic. Usa la clave de tu propia cuenta de Anthropic.',
   'ai.provider.chatgpt.description':
     'Modelos de OpenAI (ChatGPT). Usa la clave de tu propia cuenta de OpenAI.',
+  'ai.provider.groq.description':
+    'Modelos abiertos muy rápidos en la nube de Groq. Tiene un plan gratis con límites.',
   'ai.provider.ollama.description':
     'Modelos que corren en tu equipo con Ollama. No necesita clave ni Internet.',
   'ai.provider.docker.description':
-    'Un modelo dentro de un contenedor Docker, por una dirección compatible con OpenAI. No necesita clave.',
+    'Un modelo en Docker (Model Runner) por una dirección compatible con OpenAI. No necesita clave.',
+  'answer.sample':
+    'Canberra. Es la capital de Australia desde 1913, elegida como punto medio entre Sídney y Melbourne.',
 
   // ── Selector de módulos ─────────────────────────────────────────────────
   'modules.switcherAria': 'Módulos de la isla',

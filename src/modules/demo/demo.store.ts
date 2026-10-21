@@ -2,6 +2,7 @@ import { create } from 'zustand';
 
 import { translate } from '@/i18n/locale.store';
 import { useRegistryStore } from '@/modules/registry';
+import { useAnswerStore } from '@/stores/answer.store';
 import { useAudioStore } from '@/stores/audio.store';
 import { useIslandStore } from '@/stores/island.store';
 import { useTranscriptStore } from '@/stores/transcript.store';
@@ -98,6 +99,7 @@ export function bindListeningToIsland(): () => void {
     if (state.listening) {
       // Cada escucha empieza con la transcripción limpia y sin la respuesta simulada.
       useTranscriptStore.getState().clear();
+      useAnswerStore.getState().clear();
       useDemoStore.getState().resetAnswer();
       useDemoStore.getState().goTo('compact');
       return;
@@ -119,6 +121,20 @@ export function bindTranscriptToIsland(): () => void {
     const hasText = (s: typeof state) => s.lines.length > 0 || s.partial !== '';
     if (!hasText(state) || hasText(previous)) return;
     if (!useAudioStore.getState().listening) return;
+    if (useIslandStore.getState().snapshot.state === 'compact') {
+      useDemoStore.getState().goTo('expanded');
+    }
+  });
+}
+
+/**
+ * Cuando la IA empieza a contestar una pregunta nueva, la tarjeta se abre sola para que se vea la
+ * respuesta. No pisa una tarjeta ya abierta ni un aviso; si el usuario la cerró, la siguiente
+ * pregunta la vuelve a abrir (es justo lo que viene a buscar).
+ */
+export function bindAnswerToIsland(): () => void {
+  return useAnswerStore.subscribe((state, previous) => {
+    if (state.question === null || state.question === previous.question) return;
     if (useIslandStore.getState().snapshot.state === 'compact') {
       useDemoStore.getState().goTo('expanded');
     }

@@ -6,6 +6,7 @@ import { createRoot } from 'react-dom/client';
 import { clipboardModule } from '@/modules/clipboard';
 import { demoModule } from '@/modules/demo';
 import {
+  bindAnswerToIsland,
   bindDemoToIsland,
   bindListeningToIsland,
   bindTranscriptToIsland,
@@ -13,6 +14,7 @@ import {
 import { musicModule } from '@/modules/music';
 import { bindRegistryToIsland, useRegistryStore } from '@/modules/registry';
 import { weatherModule } from '@/modules/weather';
+import { useAnswerStore } from '@/stores/answer.store';
 import { useAudioStore } from '@/stores/audio.store';
 import { useClipboardStore } from '@/stores/clipboard.store';
 import { useIslandStore } from '@/stores/island.store';
@@ -44,9 +46,12 @@ registry.startActivity(musicModule.id);
 void useAudioStore.getState().bind();
 // Lo que se dice (Whisper, en Rust) llega como parciales y finales.
 void useTranscriptStore.getState().bind();
+// Si lo que se dijo es una pregunta, la IA la contesta y la respuesta llega por trozos.
+void useAnswerStore.getState().bind();
 bindListeningToIsland();
 bindDemoToIsland();
 bindTranscriptToIsland();
+bindAnswerToIsland();
 
 // La ventana de ajustes (otra ventana) controla la isla con mensajes.
 bindRemoteControl();

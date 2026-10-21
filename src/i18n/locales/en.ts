@@ -79,6 +79,7 @@ export const en: Record<MessageKey, string> = {
   'transcript.waiting': 'Waiting for speech…',
   'transcript.sample1': 'The capital of Australia is Canberra, not Sydney as many people think.',
   'transcript.sample2': 'The longest river in the world is the Nile according to most sources.',
+  'transcript.sample3': 'What is the capital of Australia?',
   'stt.error.modelMissing': 'Transcription model not found',
   'stt.error.modelLoad': 'Could not load the transcription model',
   'stt.error.generic': 'Transcription failed',
@@ -90,30 +91,49 @@ export const en: Record<MessageKey, string> = {
   'settings.nav.ai': 'AI',
   'settings.nav.general': 'General',
 
-  // ── AI (design only: keys are not stored yet) ───────────────────────────
+  // ── AI ──────────────────────────────────────────────────────────────────
   'ai.privacy':
-    'Your keys will be stored only on this computer. Orbit has no server: nothing is sent to us.',
-  'ai.comingSoon': 'Coming soon',
-  'ai.comingSoonHint':
-    'For now this is only the design: no keys are saved and no model is connected yet.',
+    'Your keys are stored only on this computer, in the system keychain. Orbit has no server: nothing is sent to us.',
   'ai.providersAria': 'AI providers',
   'ai.kind.cloud': 'Cloud',
   'ai.kind.local': 'On your computer',
   'ai.status.unset': 'Not set up',
+  'ai.status.ready': 'Ready',
+  'ai.status.active': 'In use',
   'ai.field.apiKey': 'API key',
+  'ai.field.apiKeySaved': 'Saved: type another to replace it',
   'ai.field.baseUrl': 'Server address',
   'ai.field.model': 'Model',
   'ai.field.modelPlaceholder': 'Model name',
-  'ai.action.test': 'Test connection',
+  'ai.action.test': 'Test',
+  'ai.action.testing': 'Testing…',
   'ai.action.save': 'Save',
+  'ai.action.use': 'Use this',
+  'ai.action.inUse': 'In use',
+  'ai.action.removeKey': 'Remove key',
+  'ai.result.ok': 'Works',
+  'ai.error.notConfigured': 'Choose an AI provider in Settings',
+  'ai.error.missingKey': 'The API key is missing',
+  'ai.error.missingModel': 'The model name is missing',
+  'ai.error.unauthorized': 'The key is not valid or has no permission',
+  'ai.error.network': 'Could not connect. Check the internet or the address',
+  'ai.error.rateLimited': 'Too many requests: wait a moment',
+  'ai.error.provider': 'The provider returned an error (check the model)',
+  'ai.error.badResponse': 'The provider answered something unexpected',
+  'ai.error.keychain': 'Could not use the system keychain',
+  'ai.error.generic': 'Something went wrong with the AI',
   'ai.provider.claude.description':
     'Anthropic Claude models. Use the key from your own Anthropic account.',
   'ai.provider.chatgpt.description':
     'OpenAI models (ChatGPT). Use the key from your own OpenAI account.',
+  'ai.provider.groq.description':
+    'Very fast open models in the Groq cloud. It has a free plan with limits.',
   'ai.provider.ollama.description':
     'Models running on your computer with Ollama. No key or Internet needed.',
   'ai.provider.docker.description':
-    'A model inside a Docker container, through an OpenAI-compatible address. No key needed.',
+    'A model in Docker (Model Runner) through an OpenAI-compatible address. No key needed.',
+  'answer.sample':
+    'Canberra. It has been the capital of Australia since 1913, chosen as a midpoint between Sydney and Melbourne.',
 
   // ── Module switcher ─────────────────────────────────────────────────────
   'modules.switcherAria': 'Island modules',
