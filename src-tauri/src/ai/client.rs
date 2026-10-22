@@ -1,5 +1,5 @@
 //! Adaptador HTTP de `LlmClient`: habla con Claude (formato de Anthropic) y con ChatGPT, Groq,
-//! Ollama y Docker (formato de OpenAI), siempre en streaming. Usa el TLS del sistema operativo.
+//! Gemini, Ollama y Docker (formato de OpenAI), siempre en streaming. Usa el TLS del sistema operativo.
 //! Nunca se registra la clave, lo que se pregunta ni lo que se responde.
 
 use std::io::{BufRead, BufReader};
@@ -19,6 +19,9 @@ const USER_AGENT: &str = concat!("Orbit/", env!("CARGO_PKG_VERSION"));
 const ANTHROPIC_VERSION: &str = "2023-06-01";
 /// Cuánto del mensaje de error del proveedor se conserva.
 const MAX_ERROR_CHARS: usize = 160;
+/// Los modelos Gemini "piensan" antes de contestar y esos tokens cuentan dentro del límite de la
+/// respuesta: se les da este margen extra para que lo pensado no se coma la respuesta visible.
+const GEMINI_THINKING_HEADROOM: u32 = 1024;
 
 pub struct HttpLlm {
     agent: Agent,
@@ -63,6 +66,16 @@ fn truncate(text: &str) -> String {
     text.chars().take(MAX_ERROR_CHARS).collect()
 }
 
+/// El mensaje de un error del proveedor. Casi todos lo dan como `{"error":{"message":…}}`, pero
+/// Gemini envuelve el objeto en una lista (`[{"error":{…}}]`) en sus respuestas de error.
+fn error_message(value: &Value) -> Option<&str> {
+    let object = match value {
+        Value::Array(items) => items.first()?,
+        other => other,
+    };
+    object["error"]["message"].as_str()
+}
+
 fn parse_line(wire: Wire, line: &str) -> Line {
     let Some(data) = line.strip_prefix("data:") else {
         return Line::Skip;
@@ -77,7 +90,7 @@ fn parse_line(wire: Wire, line: &str) -> Line {
     let Ok(value) = serde_json::from_str::<Value>(data) else {
         return Line::Skip;
     };
-    if let Some(message) = value["error"]["message"].as_str() {
+    if let Some(message) = error_message(&value) {
         return Line::Error(truncate(message));
     }
     match wire {
@@ -113,11 +126,17 @@ fn openai_body(target: &Target, request: &Request<'_>) -> Value {
         "stream": true,
         "messages": messages,
     });
-    body[target.id.spec().max_tokens_field] = json!(request.max_tokens);
+    let mut max_tokens = request.max_tokens;
     // Los modelos gpt-oss de Groq razonan antes de contestar: con esfuerzo bajo tardan menos.
     if target.id == ProviderId::Groq && target.model.contains("gpt-oss") {
         body["reasoning_effort"] = json!("low");
     }
+    // Los Gemini también razonan (los Gemma no): esfuerzo bajo y margen para lo que piensen.
+    if is_gemini_reasoner(target) {
+        body["reasoning_effort"] = json!("low");
+        max_tokens = max_tokens.saturating_add(GEMINI_THINKING_HEADROOM);
+    }
+    body[target.id.spec().max_tokens_field] = json!(max_tokens);
     body
 }
 
@@ -131,21 +150,55 @@ fn anthropic_body(target: &Target, request: &Request<'_>) -> Value {
     })
 }
 
+/// ¿Es un modelo `gemini-*` (los únicos de Google que aceptan `reasoning_effort`)?
+fn is_gemini_reasoner(target: &Target) -> bool {
+    target.id == ProviderId::Gemini
+        && target
+            .model
+            .trim_start_matches("models/")
+            .starts_with("gemini-")
+}
+
+/// Gemini contesta una clave mala con un 400 (no un 401) y un mensaje del tipo "Invalid Auth key"
+/// o "API key not valid".
+fn is_bad_key_message(message: &str) -> bool {
+    let message = message.to_lowercase();
+    (message.contains("api key") || message.contains("auth key"))
+        && (message.contains("invalid") || message.contains("not valid"))
+}
+
 /// El error de una respuesta 4xx/5xx, con el motivo que da el proveedor (sin la petición).
 fn http_error(status: u16, body: &str) -> AiError {
+    let message = serde_json::from_str::<Value>(body)
+        .ok()
+        .and_then(|value| error_message(&value).map(truncate));
     match status {
         401 | 403 => AiError::Unauthorized,
+        402 => AiError::NoCredits,
         429 => AiError::RateLimited,
-        _ => {
-            let message = serde_json::from_str::<Value>(body)
-                .ok()
-                .and_then(|value| value["error"]["message"].as_str().map(truncate));
-            AiError::Provider(match message {
-                Some(message) => format!("HTTP {status}: {message}"),
-                None => format!("HTTP {status}"),
-            })
-        }
+        400 if message.as_deref().is_some_and(is_bad_key_message) => AiError::Unauthorized,
+        _ => AiError::Provider(match message {
+            Some(message) => format!("HTTP {status}: {message}"),
+            None => format!("HTTP {status}"),
+        }),
     }
+}
+
+/// De la lista de Gemini (63 modelos, con voz, imágenes, video, música, embeddings, tiempo real…)
+/// deja solo los de texto: `gemini-*` y `gemma-*` que no son de esos otros usos.
+fn is_gemini_chat_model(id: &str) -> bool {
+    const OTHER_USES: [&str; 8] = [
+        "live",
+        "audio",
+        "nano-banana",
+        "customtools",
+        "computer-use",
+        "robotics",
+        "omni",
+        "embed",
+    ];
+    (id.starts_with("gemini-") || id.starts_with("gemma-"))
+        && !OTHER_USES.iter().any(|word| id.contains(word))
 }
 
 /// Quita de la lista lo que no es un modelo de texto para conversar (voz, seguridad, imágenes…).
@@ -261,7 +314,10 @@ impl LlmClient for HttpLlm {
             })?
             .iter()
             .filter_map(|model| model["id"].as_str())
+            // Gemini da los nombres como `models/gemini-…`; para pedir una respuesta basta el resto.
+            .map(|id| id.strip_prefix("models/").unwrap_or(id))
             .filter(|id| is_chat_model(id))
+            .filter(|id| target.id != ProviderId::Gemini || is_gemini_chat_model(id))
             .map(str::to_string)
             .collect();
         Ok(models)
@@ -645,6 +701,161 @@ mod tests {
         assert!(error.to_string().contains("does not exist"), "{error}");
         let error = ask(&client, &t).0.unwrap_err();
         assert!(error.to_string().contains("HTTP 500"), "{error}");
+    }
+
+    const GEMINI_LIST: &str = r#"{"object":"list","data":[
+        {"id":"models/gemini-2.5-flash"},{"id":"models/gemini-2.5-pro"},
+        {"id":"models/gemini-2.5-flash-preview-tts"},{"id":"models/gemma-4-26b-a4b-it"},
+        {"id":"models/gemini-flash-latest"},{"id":"models/gemini-2.5-flash-image"},
+        {"id":"models/gemini-3.5-flash-lite"},{"id":"models/gemini-3.8-live"},
+        {"id":"models/gemini-omni-flash-preview"},{"id":"models/gemini-robotics-er-2-preview"},
+        {"id":"models/gemini-3.5-transcribe"},{"id":"models/gemini-nano-banana-2.1"},
+        {"id":"models/gemini-embedding-001"},{"id":"models/nano-banana-pro-preview"},
+        {"id":"models/lyria-3.5"},{"id":"models/veo-3.1-generate-preview"},
+        {"id":"models/gemini-3.1-pro-preview-customtools"},{"id":"models/aqa"},
+        {"id":"models/gemini-2.5-computer-use-preview-10-2025"},
+        {"id":"models/gemini-2.5-flash-native-audio-latest"}
+    ]}"#;
+
+    #[test]
+    fn gemini_models_are_listed_without_the_prefix_and_only_the_text_ones() {
+        let (base, recorded) = serve(vec![(200, "application/json", GEMINI_LIST.into())]);
+
+        let models = HttpLlm::new()
+            .models(&target(
+                ProviderId::Gemini,
+                &format!("{base}/v1beta/openai"),
+                Some("AQ.clave"),
+            ))
+            .unwrap();
+
+        assert_eq!(
+            models,
+            vec![
+                "gemini-2.5-flash",
+                "gemini-2.5-pro",
+                "gemma-4-26b-a4b-it",
+                "gemini-flash-latest",
+                "gemini-3.5-flash-lite",
+            ]
+        );
+        let request = recorded.lock().unwrap()[0].clone();
+        assert_eq!(request.path, "/v1beta/openai/models");
+        assert_eq!(request.header("authorization"), Some("Bearer AQ.clave"));
+    }
+
+    #[test]
+    fn gemini_thinking_models_get_low_effort_and_room_to_think() {
+        let (base, recorded) = serve(vec![
+            (200, "text/event-stream", OPENAI_STREAM.into()),
+            (200, "text/event-stream", OPENAI_STREAM.into()),
+            (200, "text/event-stream", OPENAI_STREAM.into()),
+        ]);
+        let client = HttpLlm::new();
+        let base = format!("{base}/v1beta/openai");
+        for model in [
+            "gemini-2.5-flash",
+            "models/gemini-3.5-flash-lite",
+            "gemma-4-31b-it",
+        ] {
+            let mut t = target(ProviderId::Gemini, &base, Some("AQ.clave"));
+            t.model = model.into();
+            ask(&client, &t).0.unwrap();
+        }
+
+        let requests = recorded.lock().unwrap().clone();
+        assert_eq!(requests[0].path, "/v1beta/openai/chat/completions");
+        assert_eq!(requests[0].header("authorization"), Some("Bearer AQ.clave"));
+        let bodies: Vec<Value> = requests
+            .iter()
+            .map(|r| serde_json::from_str(&r.body).unwrap())
+            .collect();
+        for body in &bodies[..2] {
+            assert_eq!(body["reasoning_effort"], "low");
+            assert_eq!(body["max_tokens"], 50 + 1024);
+        }
+        // Gemma no razona: se le manda tal cual, sin esfuerzo ni margen.
+        assert!(bodies[2].get("reasoning_effort").is_none());
+        assert_eq!(bodies[2]["max_tokens"], 50);
+        assert!(bodies[2].get("max_completion_tokens").is_none());
+    }
+
+    #[test]
+    fn gemini_errors_come_in_a_list_and_a_bad_key_is_a_400() {
+        let (base, _) = serve(vec![
+            (
+                402,
+                "application/json",
+                r#"[{"error":{"code":402,"message":"Your prepayment credits are depleted.","status":"RESOURCE_EXHAUSTED"}}]"#.into(),
+            ),
+            (
+                400,
+                "application/json",
+                r#"[{"error":{"code":400,"message":"Invalid Auth key.","status":"INVALID_ARGUMENT"}}]"#.into(),
+            ),
+            (
+                400,
+                "application/json",
+                r#"[{"error":{"code":400,"message":"API key not valid. Please pass a valid API key."}}]"#.into(),
+            ),
+            (
+                404,
+                "application/json",
+                r#"[{"error":{"code":404,"message":"models/x is not found for API version v1main"}}]"#.into(),
+            ),
+            (
+                400,
+                "application/json",
+                r#"[{"error":{"code":400,"message":"Invalid value at 'max_tokens'"}}]"#.into(),
+            ),
+        ]);
+        let client = HttpLlm::new();
+        let t = target(ProviderId::Gemini, &base, Some("AQ.x"));
+
+        assert_eq!(ask(&client, &t).0.unwrap_err().code(), "ai.noCredits");
+        assert_eq!(ask(&client, &t).0.unwrap_err().code(), "ai.unauthorized");
+        assert_eq!(ask(&client, &t).0.unwrap_err().code(), "ai.unauthorized");
+        let error = ask(&client, &t).0.unwrap_err();
+        assert_eq!(error.code(), "ai.provider");
+        assert!(error.to_string().contains("is not found"), "{error}");
+        // Un 400 que no habla de la clave sigue siendo un error del proveedor, con su motivo.
+        let error = ask(&client, &t).0.unwrap_err();
+        assert_eq!(error.code(), "ai.provider");
+        assert!(error.to_string().contains("max_tokens"), "{error}");
+    }
+
+    #[test]
+    fn a_bad_gemini_key_is_also_detected_when_listing_models() {
+        let (base, _) = serve(vec![(
+            400,
+            "application/json",
+            r#"{"error":{"code":400,"message":"Invalid Auth key."}}"#.into(),
+        )]);
+        let error = HttpLlm::new()
+            .models(&target(ProviderId::Gemini, &base, Some("AQ.mala")))
+            .unwrap_err();
+        assert_eq!(error.code(), "ai.unauthorized");
+    }
+
+    #[test]
+    fn an_error_inside_a_list_in_the_stream_is_reported() {
+        let stream = "data: [{\"error\":{\"message\":\"cuota agotada\"}}]\n\n";
+        let (base, _) = serve(vec![(200, "text/event-stream", stream.into())]);
+        let (result, _) = ask(
+            &HttpLlm::new(),
+            &target(ProviderId::Gemini, &base, Some("k")),
+        );
+        assert!(result.unwrap_err().to_string().contains("cuota agotada"));
+    }
+
+    #[test]
+    fn a_402_from_any_provider_means_no_credits() {
+        let (base, _) = serve(vec![(402, "application/json", "{}".into())]);
+        let (result, _) = ask(
+            &HttpLlm::new(),
+            &target(ProviderId::ChatGpt, &base, Some("k")),
+        );
+        assert_eq!(result.unwrap_err().code(), "ai.noCredits");
     }
 
     #[test]

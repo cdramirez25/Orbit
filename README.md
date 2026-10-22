@@ -12,7 +12,7 @@
 
 > **Status:** early development (v0.1.0). The island already shows the weather, a clipboard history and the music
 > that is playing; it transcribes the system audio on your computer (local Whisper) and answers questions with the AI
-> you choose (Claude, ChatGPT, Groq, Ollama or Docker), with a context and history per session. Global shortcuts and a
+> you choose (Claude, ChatGPT, Groq, Gemini, Ollama or Docker), with a context and history per session. Global shortcuts and a
 > tray icon are in. Packaging is not ready yet. See the [roadmap](#roadmap).
 
 ---
@@ -46,7 +46,7 @@ is never captured.
 | Languages     | Spanish and English (`src/i18n/locales/`).                                                                                                                                                                                                                                                                                                         |
 | System audio  | Capture permission (macOS), real capture (ScreenCaptureKit on macOS, WASAPI loopback on Windows), conversion to 16 kHz mono, and the volume that drives the island's waves.                                                                                                                                                                        |
 | Transcription | Local [Whisper](https://github.com/ggml-org/whisper.cpp) (`small` multilingual model, GPU with Metal on macOS) with live text in the island. Language: automatic, Spanish or English. The model (≈ 488 MB) is downloaded from Settings → Audio, with progress, cancel, automatic resume and an integrity check, and can be deleted from there too. |
-| AI providers  | Claude, ChatGPT, Groq, Ollama (local) and Docker Model Runner (local). Save and test each one, list its models and pick the one in use. Answers stream in and render bold, italic, code and lists.                                                                                                                                                 |
+| AI providers  | Claude, ChatGPT, Groq, Gemini, Ollama (local) and Docker Model Runner (local). Save and test each one, pick its model from the list the provider itself offers, and choose the one in use. Answers stream in and render bold, italic, code and lists.                                                                                              |
 | Sessions      | Each session has its own prompt (how the AI should act), the whole history of questions and answers as context, an optional AI of its own, and an "answer by itself" switch. Ask by recording audio or by typing in the island.                                                                                                                    |
 | Shortcuts     | Global, they work with any app in front: `Cmd/Ctrl+Shift+Space` records the audio and sends the question, and `Cmd/Ctrl+Shift+H` shows or hides the island.                                                                                                                                                                                        |
 | Tray          | An icon in the menu bar (macOS) or the notification area (Windows) to show or hide the island, open Settings or quit.                                                                                                                                                                                                                              |
@@ -121,7 +121,7 @@ system APIs or the UI.
 
 ```
  Input adapters                    Core                      Output adapters
- (Tauri commands, shortcuts, ──►  pipeline/ · modules/  ──►  (local Whisper, Claude, ChatGPT, Groq,
+ (Tauri commands, shortcuts, ──►  pipeline/ · modules/  ──►  (local Whisper, Claude, ChatGPT, Groq, Gemini,
   tray, events to the frontend)   only know traits           Ollama, Docker, ScreenCaptureKit, WASAPI,
                                                              SQLite, JSON settings)
 ```
@@ -214,22 +214,22 @@ Orbit/
   network use is downloading the model from [Hugging Face](https://huggingface.co/ggerganov/whisper.cpp), which
   receives your IP address.
 - **AI:** the text of the question, the session prompt and the session history are sent to the provider you picked
-  (Claude, ChatGPT or Groq). With Ollama or Docker everything stays on your computer. Nothing else is sent.
+  (Claude, ChatGPT, Groq or Gemini). With Ollama or Docker everything stays on your computer. Nothing else is sent.
 - **Keys and sessions:** they are stored in a local SQLite database (`orbit.db`, in the app's config folder), readable
   only by your user; nothing is written to the repository or to logs.
 - **Shortcuts:** Orbit only registers the two combinations above; it does not read anything else you type.
 
 ## Roadmap
 
-| Phase | Contents                                                                   | Status      |
-| ----- | -------------------------------------------------------------------------- | ----------- |
-| 0     | Scaffolding: Tauri 2 + React + Vite + Tailwind, lint, `@/` alias           | Done        |
-| 1     | The island: window, state machine, animations, notch, click-through, i18n  | Done        |
-| 2     | System audio capture (macOS and Windows), resampling and level meter       | Done        |
-| 3     | Transcription: local engine with `whisper-rs` (cloud streaming is pending) | Done        |
-| 4     | LLM clients (Claude, ChatGPT, Groq, Ollama, Docker), sessions, Prompter    | Done        |
-| 5     | Settings, global shortcuts and tray done; onboarding and consent pending   | In progress |
-| 6     | Polish, packaging (`.dmg`, `.msi`/`.exe`) and module documentation         | Pending     |
+| Phase | Contents                                                                        | Status      |
+| ----- | ------------------------------------------------------------------------------- | ----------- |
+| 0     | Scaffolding: Tauri 2 + React + Vite + Tailwind, lint, `@/` alias                | Done        |
+| 1     | The island: window, state machine, animations, notch, click-through, i18n       | Done        |
+| 2     | System audio capture (macOS and Windows), resampling and level meter            | Done        |
+| 3     | Transcription: local engine with `whisper-rs` (cloud streaming is pending)      | Done        |
+| 4     | LLM clients (Claude, ChatGPT, Groq, Gemini, Ollama, Docker), sessions, Prompter | Done        |
+| 5     | Settings, global shortcuts and tray done; onboarding and consent pending        | In progress |
+| 6     | Polish, packaging (`.dmg`, `.msi`/`.exe`) and module documentation              | Pending     |
 
 Along the way three resident modules were added: the weather, the clipboard history and the music. API keys are
 stored in SQLite instead of the system keychain, so they never trigger keychain prompts. Windows-specific code

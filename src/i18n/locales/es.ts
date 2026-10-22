@@ -143,6 +143,10 @@ export const es = {
   'ai.field.baseUrl': 'Dirección del servidor',
   'ai.field.model': 'Modelo',
   'ai.field.modelPlaceholder': 'Nombre del modelo',
+  'ai.field.modelDefault': 'Predeterminado',
+  'ai.models.saveFirst': 'Guarda la clave para elegir entre los modelos disponibles.',
+  'ai.models.unavailable': 'No se pudo obtener la lista: escribe el nombre del modelo.',
+  'ai.models.refresh': 'Actualizar lista',
   'ai.action.test': 'Probar',
   'ai.action.testing': 'Probando…',
   'ai.action.save': 'Guardar',
@@ -161,6 +165,7 @@ export const es = {
   'ai.error.unauthorized': 'La clave no es válida o no tiene permiso',
   'ai.error.network': 'No se pudo conectar. Revisa internet o la dirección',
   'ai.error.rateLimited': 'Demasiadas peticiones: espera un momento',
+  'ai.error.noCredits': 'Al proveedor no le quedan créditos: revisa tu saldo o facturación',
   'ai.error.provider': 'El proveedor devolvió un error (revisa el modelo)',
   'ai.error.badResponse': 'El proveedor respondió algo inesperado',
   'ai.error.storage': 'No se pudo guardar la clave en este equipo',
@@ -171,6 +176,8 @@ export const es = {
     'Modelos de OpenAI (ChatGPT). Usa la clave de tu propia cuenta de OpenAI.',
   'ai.provider.groq.description':
     'Modelos abiertos muy rápidos en la nube de Groq. Tiene un plan gratis con límites.',
+  'ai.provider.gemini.description':
+    'Modelos Gemini de Google (AI Studio). Tiene un plan gratis con límites; la clave se crea en aistudio.google.com.',
   'ai.provider.ollama.description':
     'Modelos que corren en tu equipo con Ollama. No necesita clave ni Internet.',
   'ai.provider.docker.description':

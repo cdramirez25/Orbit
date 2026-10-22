@@ -8,6 +8,7 @@ describe('errores de la IA', () => {
     expect(aiErrorKey('ai.missingKey')).toBe('ai.error.missingKey');
     expect(aiErrorKey('ai.notConfigured')).toBe('ai.error.notConfigured');
     expect(aiErrorKey('ai.rateLimited')).toBe('ai.error.rateLimited');
+    expect(aiErrorKey('ai.noCredits')).toBe('ai.error.noCredits');
     expect(aiErrorKey('ai.algoNuevo')).toBe('ai.error.generic');
     expect(aiErrorKey('unknown')).toBe('ai.error.generic');
   });

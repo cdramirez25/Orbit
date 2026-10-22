@@ -12,7 +12,7 @@
 
 > **Estado:** en desarrollo temprano (v0.1.0). La isla ya muestra el clima, un historial del portapapeles y la música
 > que suena; transcribe el audio del sistema en tu computadora (Whisper local) y responde preguntas con la IA que
-> elijas (Claude, ChatGPT, Groq, Ollama o Docker), con contexto e historial por sesión. Ya hay atajos globales y un
+> elijas (Claude, ChatGPT, Groq, Gemini, Ollama o Docker), con contexto e historial por sesión. Ya hay atajos globales y un
 > icono en la bandeja. El empaquetado todavía no está listo. Consulta la [hoja de ruta](#hoja-de-ruta).
 
 ---
@@ -46,7 +46,7 @@ las preguntas que oiga. Solo oye el audio que sale por tus bocinas o audífonos;
 | Idiomas            | Español e inglés (`src/i18n/locales/`).                                                                                                                                                                                                                                                                                                                        |
 | Audio del sistema  | Permiso de captura (macOS), captura real (ScreenCaptureKit en macOS, WASAPI loopback en Windows), conversión a 16 kHz mono y volumen que mueve las ondas de la isla.                                                                                                                                                                                           |
 | Transcripción      | [Whisper](https://github.com/ggml-org/whisper.cpp) local (modelo `small` multilingüe, GPU con Metal en macOS) con el texto en vivo en la isla. Idioma: automático, español o inglés. El modelo (≈ 488 MB) se descarga desde Ajustes → Audio, con progreso, cancelar, reanudación automática y verificación de integridad, y también se puede borrar desde ahí. |
-| Proveedores de IA  | Claude, ChatGPT, Groq, Ollama (local) y Docker Model Runner (local). Guarda y prueba cada uno, lista sus modelos y elige el que se usa. Las respuestas llegan en streaming y se ven con negritas, cursivas, código y listas.                                                                                                                                   |
+| Proveedores de IA  | Claude, ChatGPT, Groq, Gemini, Ollama (local) y Docker Model Runner (local). Guarda y prueba cada uno, elige su modelo de la lista que ofrece el propio proveedor y escoge el que se usa. Las respuestas llegan en streaming y se ven con negritas, cursivas, código y listas.                                                                                 |
 | Sesiones           | Cada sesión tiene su propio prompt (cómo debe actuar la IA), todo el historial de preguntas y respuestas como contexto, una IA propia opcional y un interruptor "contestar sola". Se pregunta grabando audio o escribiendo en la isla.                                                                                                                         |
 | Atajos             | Globales, funcionan con cualquier app al frente: `Cmd/Ctrl+Shift+Espacio` graba el audio y envía la pregunta, y `Cmd/Ctrl+Shift+H` muestra u oculta la isla.                                                                                                                                                                                                   |
 | Bandeja            | Un icono en la barra de menú (macOS) o en el área de notificaciones (Windows) para mostrar u ocultar la isla, abrir Ajustes o salir.                                                                                                                                                                                                                           |
@@ -121,7 +121,7 @@ del sistema operativo ni la UI.
 
 ```
  Adaptadores de entrada            Núcleo                    Adaptadores de salida
- (comandos Tauri, atajos,   ──►  pipeline/ · modules/  ──►  (Whisper local, Claude, ChatGPT, Groq,
+ (comandos Tauri, atajos,   ──►  pipeline/ · modules/  ──►  (Whisper local, Claude, ChatGPT, Groq, Gemini,
   tray, eventos al frontend)     solo conocen traits         Ollama, Docker, ScreenCaptureKit, WASAPI,
                                                              SQLite, JSON de ajustes)
 ```
@@ -214,7 +214,7 @@ Orbit/
   de red es la descarga del modelo desde [Hugging Face](https://huggingface.co/ggerganov/whisper.cpp), que recibe tu
   dirección IP.
 - **IA:** el texto de la pregunta, el prompt de la sesión y el historial de la sesión se envían al proveedor que
-  elegiste (Claude, ChatGPT o Groq). Con Ollama o Docker todo se queda en tu computadora. No se envía nada más.
+  elegiste (Claude, ChatGPT, Groq o Gemini). Con Ollama o Docker todo se queda en tu computadora. No se envía nada más.
 - **Claves y sesiones:** se guardan en una base de datos SQLite local (`orbit.db`, en la carpeta de configuración de la
   app), legible solo por tu usuario; nada se escribe en el repositorio ni en logs.
 - **Atajos:** Orbit solo registra las dos combinaciones de arriba; no lee nada más de lo que escribes.
@@ -227,7 +227,7 @@ Orbit/
 | 1    | La isla: ventana, máquina de estados, animaciones, notch, click-through, i18n         | Hecha     |
 | 2    | Captura del audio del sistema (macOS y Windows), remuestreo y medidor de nivel        | Hecha     |
 | 3    | Transcripción: motor local con `whisper-rs` (el streaming en la nube queda pendiente) | Hecha     |
-| 4    | Clientes LLM (Claude, ChatGPT, Groq, Ollama, Docker), sesiones, Prompter              | Hecha     |
+| 4    | Clientes LLM (Claude, ChatGPT, Groq, Gemini, Ollama, Docker), sesiones, Prompter      | Hecha     |
 | 5    | Ajustes, atajos globales y bandeja hechos; onboarding y consentimiento pendientes     | En curso  |
 | 6    | Pulido, empaquetado (`.dmg`, `.msi`/`.exe`) y documentación de módulos                | Pendiente |
 

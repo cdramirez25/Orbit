@@ -1,4 +1,12 @@
-import { Container, MessageSquare, Server, Sparkles, Zap, type LucideIcon } from 'lucide-react';
+import {
+  Container,
+  Gem,
+  MessageSquare,
+  Server,
+  Sparkles,
+  Zap,
+  type LucideIcon,
+} from 'lucide-react';
 
 import type { MessageKey } from '@/i18n/messages';
 import type { AiProviderId, AiProviderStatus } from '@/types';
@@ -44,6 +52,14 @@ export const AI_PROVIDERS: readonly AiProvider[] = [
     icon: Zap,
     description: 'ai.provider.groq.description',
     apiKeyPlaceholder: 'gsk_…',
+  },
+  {
+    id: 'gemini',
+    name: 'Gemini',
+    kind: 'cloud',
+    icon: Gem,
+    description: 'ai.provider.gemini.description',
+    apiKeyPlaceholder: 'AIza…',
   },
   {
     id: 'ollama',

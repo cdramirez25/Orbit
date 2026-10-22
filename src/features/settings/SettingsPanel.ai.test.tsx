@@ -32,10 +32,11 @@ vi.mock('@/ipc/commands', () => ({
 
 const mocked = vi.mocked(commands);
 
-const IDS: AiProviderId[] = ['claude', 'chatgpt', 'groq', 'ollama', 'docker'];
+const IDS: AiProviderId[] = ['claude', 'chatgpt', 'groq', 'gemini', 'ollama', 'docker'];
 const DEFAULTS: Partial<Record<AiProviderId, string>> = {
   claude: 'claude-haiku-5-5',
   groq: 'openai/gpt-oss-20b',
+  gemini: 'gemini-3.5-flash-lite',
 };
 
 let status: AiStatus;
@@ -122,17 +123,17 @@ describe('página de IA de los ajustes', () => {
     expect(mocked.aiGetStatus).toHaveBeenCalledTimes(1);
   });
 
-  it('ofrece los cinco proveedores, Groq incluido', async () => {
+  it('ofrece los seis proveedores, Groq y Gemini incluidos', async () => {
     await openAi();
     const tabs = screen.getByRole('tablist', { name: 'Proveedores de IA' });
-    for (const name of ['Claude', 'ChatGPT', 'Groq', 'Ollama', 'Docker']) {
+    for (const name of ['Claude', 'ChatGPT', 'Groq', 'Gemini', 'Ollama', 'Docker']) {
       expect(within(tabs).getByRole('tab', { name })).toBeInTheDocument();
     }
   });
 
   it('cada proveedor muestra solo los datos que necesita', async () => {
     await openAi();
-    for (const name of ['Claude', 'ChatGPT', 'Groq']) {
+    for (const name of ['Claude', 'ChatGPT', 'Groq', 'Gemini']) {
       await choose(name);
       expect(screen.getByLabelText('Clave de API')).toHaveAttribute('type', 'password');
       expect(screen.getByLabelText('Modelo')).toBeInTheDocument();
@@ -160,6 +161,23 @@ describe('página de IA de los ajustes', () => {
       'placeholder',
       'http://localhost:12434/engines/v1',
     );
+  });
+
+  it('Gemini pide su clave, muestra su modelo por defecto y guarda lo que se escribe', async () => {
+    await openAi();
+    await choose('Gemini');
+    expect(screen.getByLabelText('Modelo')).toHaveAttribute('placeholder', 'gemini-3.5-flash-lite');
+    expect(screen.getByLabelText('Clave de API')).toHaveAttribute('placeholder', 'AIza…');
+
+    type('Clave de API', 'AQ.prueba');
+    type('Modelo', 'gemini-2.5-flash');
+    await click('Guardar');
+
+    expect(mocked.aiSaveProvider).toHaveBeenCalledWith('gemini', {
+      apiKey: 'AQ.prueba',
+      model: 'gemini-2.5-flash',
+    });
+    expect(document.body.innerHTML).not.toContain('AQ.prueba');
   });
 
   it('Guardar solo se activa al escribir y manda la clave y el modelo a Rust', async () => {
@@ -256,18 +274,71 @@ describe('página de IA de los ajustes', () => {
     );
   });
 
-  it('ofrece como sugerencias los modelos que da el proveedor, una vez guardada la clave', async () => {
+  it('con la clave guardada, el modelo se elige de la lista que da el proveedor', async () => {
     mocked.aiListModels.mockResolvedValue(['openai/gpt-oss-120b', 'openai/gpt-oss-20b']);
     status.providers = status.providers.map((p) => (p.id === 'groq' ? { ...p, hasKey: true } : p));
     await openAi();
     await choose('Groq');
 
-    const options = document.querySelectorAll('datalist#ai-models-groq option');
-    expect([...options].map((o) => o.getAttribute('value'))).toEqual([
+    const select = screen.getByLabelText('Modelo');
+    expect(select.tagName).toBe('SELECT');
+    expect([...select.querySelectorAll('option')].map((o) => o.textContent)).toEqual([
+      'Predeterminado (openai/gpt-oss-20b)',
       'openai/gpt-oss-120b',
       'openai/gpt-oss-20b',
     ]);
     expect(mocked.aiListModels).toHaveBeenCalledWith('groq');
+
+    fireEvent.change(select, { target: { value: 'openai/gpt-oss-120b' } });
+    await click('Guardar');
+    expect(mocked.aiSaveProvider).toHaveBeenCalledWith('groq', { model: 'openai/gpt-oss-120b' });
+  });
+
+  it('un modelo guardado que el proveedor ya no ofrece sigue en la lista', async () => {
+    mocked.aiListModels.mockResolvedValue(['gemini-2.5-pro']);
+    status.providers = status.providers.map((p) =>
+      p.id === 'gemini' ? { ...p, hasKey: true, model: 'gemini-viejo' } : p,
+    );
+    await openAi();
+    await choose('Gemini');
+
+    const select = screen.getByLabelText('Modelo') as HTMLSelectElement;
+    expect(select.value).toBe('gemini-viejo');
+    expect([...select.options].map((o) => o.value)).toEqual(['', 'gemini-viejo', 'gemini-2.5-pro']);
+  });
+
+  it('Actualizar lista vuelve a pedir los modelos', async () => {
+    mocked.aiListModels.mockResolvedValue(['a']);
+    status.providers = status.providers.map((p) =>
+      p.id === 'gemini' ? { ...p, hasKey: true } : p,
+    );
+    await openAi();
+    await choose('Gemini');
+    expect(mocked.aiListModels).toHaveBeenCalledTimes(1);
+
+    mocked.aiListModels.mockResolvedValue(['a', 'b']);
+    await click('Actualizar lista');
+
+    expect(mocked.aiListModels).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole('option', { name: 'b' })).toBeInTheDocument();
+  });
+
+  it('si no se puede obtener la lista, el modelo se escribe a mano', async () => {
+    mocked.aiListModels.mockRejectedValue(new Error('sin red'));
+    status.providers = status.providers.map((p) => (p.id === 'groq' ? { ...p, hasKey: true } : p));
+    await openAi();
+    await choose('Groq');
+
+    expect(screen.getByLabelText('Modelo').tagName).toBe('INPUT');
+    expect(screen.getByText(/No se pudo obtener la lista/)).toBeInTheDocument();
+  });
+
+  it('sin clave guardada avisa que hay que guardarla para ver los modelos', async () => {
+    await openAi();
+    await choose('Gemini');
+    expect(screen.getByText(/Guarda la clave para elegir/)).toBeInTheDocument();
+    expect(screen.getByLabelText('Modelo').tagName).toBe('INPUT');
+    expect(screen.queryByRole('button', { name: 'Actualizar lista' })).not.toBeInTheDocument();
   });
 
   it('sin clave no pide los modelos', async () => {

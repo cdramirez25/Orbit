@@ -257,14 +257,14 @@ mod tests {
             .db
             .lock()
             .execute(
-                "INSERT INTO ai_providers (provider, model) VALUES ('gemini', 'x')",
+                "INSERT INTO ai_providers (provider, model) VALUES ('mistral', 'x')",
                 [],
             )
             .unwrap();
         store
             .db
             .lock()
-            .execute("UPDATE ai_state SET active = 'gemini' WHERE id = 1", [])
+            .execute("UPDATE ai_state SET active = 'mistral' WHERE id = 1", [])
             .unwrap();
 
         assert_eq!(store.load().unwrap(), AiConfig::default());

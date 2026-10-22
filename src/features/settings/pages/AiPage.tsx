@@ -1,7 +1,7 @@
-import { Lock } from 'lucide-react';
+import { Lock, RefreshCw } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
-import { Button, Card, Input, Tab } from '@/components/ui';
+import { Button, Card, Input, Select, Tab } from '@/components/ui';
 import {
   AI_PROVIDERS,
   isProviderConfigured,
@@ -66,7 +66,7 @@ function ProviderCard({ provider }: { provider: AiProvider }) {
   const configured = isProviderConfigured(provider, status);
   const canListModels = provider.kind === 'local' || Boolean(status?.hasKey);
 
-  // Con la clave (o la dirección) ya guardada se piden los modelos que ofrece, como sugerencias.
+  // Con la clave (o la dirección) ya guardada se piden los modelos que ofrece para elegirlos.
   useEffect(() => {
     if (canListModels && models === undefined) void loadModels(provider.id);
   }, [canListModels, models, loadModels, provider.id]);
@@ -79,6 +79,10 @@ function ProviderCard({ provider }: { provider: AiProvider }) {
   const change = (patch: Partial<Draft>) =>
     setDraft({ ...(draft ?? EMPTY_DRAFT), ...value, ...patch });
   const dirty = draft !== null;
+  const listed = models ?? [];
+  // Lo que ya está guardado (o escrito) sigue en la lista aunque el proveedor ya no lo ofrezca.
+  const options =
+    value.model !== '' && !listed.includes(value.model) ? [value.model, ...listed] : listed;
   const mine = busy?.id === provider.id;
   const result = testResult?.id === provider.id ? testResult : null;
 
@@ -137,20 +141,50 @@ function ProviderCard({ provider }: { provider: AiProvider }) {
           </FormField>
         )}
         <FormField label={t('ai.field.model')}>
-          <Input
-            autoComplete="off"
-            spellCheck={false}
-            list={`ai-models-${provider.id}`}
-            value={value.model}
-            placeholder={status?.defaultModel ?? t('ai.field.modelPlaceholder')}
-            onChange={(event) => change({ model: event.target.value })}
-          />
-          <datalist id={`ai-models-${provider.id}`}>
-            {(models ?? []).map((model) => (
-              <option key={model} value={model} />
-            ))}
-          </datalist>
+          {listed.length > 0 ? (
+            <Select value={value.model} onChange={(event) => change({ model: event.target.value })}>
+              <option value="">
+                {status?.defaultModel
+                  ? `${t('ai.field.modelDefault')} (${status.defaultModel})`
+                  : t('ai.field.modelDefault')}
+              </option>
+              {options.map((model) => (
+                <option key={model} value={model}>
+                  {model}
+                </option>
+              ))}
+            </Select>
+          ) : (
+            <Input
+              autoComplete="off"
+              spellCheck={false}
+              value={value.model}
+              placeholder={status?.defaultModel ?? t('ai.field.modelPlaceholder')}
+              onChange={(event) => change({ model: event.target.value })}
+            />
+          )}
         </FormField>
+      </div>
+
+      <div className="-mt-1 flex items-center gap-2">
+        {!canListModels && (
+          <p className="text-[11px] leading-snug text-ink-faint">{t('ai.models.saveFirst')}</p>
+        )}
+        {canListModels && models !== undefined && listed.length === 0 && (
+          <p className="text-[11px] leading-snug text-ink-faint">{t('ai.models.unavailable')}</p>
+        )}
+        {canListModels && models !== undefined && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="ml-auto"
+            disabled={busy !== null}
+            onClick={() => void loadModels(provider.id)}
+          >
+            <RefreshCw aria-hidden className="size-3" />
+            {t('ai.models.refresh')}
+          </Button>
+        )}
       </div>
 
       {saveError || result ? (

@@ -316,12 +316,14 @@ const SAMPLE_PROVIDER_IDS: readonly AiProviderId[] = [
   'claude',
   'chatgpt',
   'groq',
+  'gemini',
   'ollama',
   'docker',
 ];
 const SAMPLE_DEFAULT_MODELS: Partial<Record<AiProviderId, string>> = {
   claude: 'claude-haiku-5-5',
   groq: 'openai/gpt-oss-20b',
+  gemini: 'gemini-3.5-flash-lite',
 };
 let browserAi: AiStatus = {
   active: null,

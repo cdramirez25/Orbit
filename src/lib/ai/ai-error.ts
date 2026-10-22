@@ -15,6 +15,8 @@ export function aiErrorKey(code: string): MessageKey {
       return 'ai.error.network';
     case 'ai.rateLimited':
       return 'ai.error.rateLimited';
+    case 'ai.noCredits':
+      return 'ai.error.noCredits';
     case 'ai.provider':
       return 'ai.error.provider';
     case 'ai.badResponse':

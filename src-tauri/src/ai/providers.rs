@@ -12,16 +12,19 @@ pub enum ProviderId {
     ChatGpt,
     #[serde(rename = "groq")]
     Groq,
+    #[serde(rename = "gemini")]
+    Gemini,
     #[serde(rename = "ollama")]
     Ollama,
     #[serde(rename = "docker")]
     Docker,
 }
 
-pub const ALL: [ProviderId; 5] = [
+pub const ALL: [ProviderId; 6] = [
     ProviderId::Claude,
     ProviderId::ChatGpt,
     ProviderId::Groq,
+    ProviderId::Gemini,
     ProviderId::Ollama,
     ProviderId::Docker,
 ];
@@ -29,7 +32,7 @@ pub const ALL: [ProviderId; 5] = [
 /// El idioma HTTP del proveedor.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Wire {
-    /// `POST {base}/chat/completions`, el formato de OpenAI (también Groq, Ollama y Docker).
+    /// `POST {base}/chat/completions`, el formato de OpenAI (también Groq, Gemini, Ollama y Docker).
     OpenAi,
     /// `POST {base}/v1/messages`, el formato de Anthropic.
     Anthropic,
@@ -56,6 +59,7 @@ impl ProviderId {
             Self::Claude => "claude",
             Self::ChatGpt => "chatgpt",
             Self::Groq => "groq",
+            Self::Gemini => "gemini",
             Self::Ollama => "ollama",
             Self::Docker => "docker",
         }
@@ -90,6 +94,15 @@ impl ProviderId {
                 editable_address: false,
                 max_tokens_field: "max_completion_tokens",
                 default_model: Some("openai/gpt-oss-20b"),
+            },
+            Self::Gemini => ProviderSpec {
+                wire: Wire::OpenAi,
+                // La capa compatible con OpenAI de la API de Gemini (Google AI Studio).
+                default_base_url: "https://generativelanguage.googleapis.com/v1beta/openai",
+                needs_key: true,
+                editable_address: false,
+                max_tokens_field: "max_tokens",
+                default_model: Some("gemini-3.5-flash-lite"),
             },
             Self::Ollama => ProviderSpec {
                 wire: Wire::OpenAi,
@@ -143,7 +156,9 @@ mod tests {
         );
         let id: ProviderId = serde_json::from_str("\"groq\"").unwrap();
         assert_eq!(id, ProviderId::Groq);
-        assert!(serde_json::from_str::<ProviderId>("\"gemini\"").is_err());
+        let gemini: ProviderId = serde_json::from_str("\"gemini\"").unwrap();
+        assert_eq!(gemini, ProviderId::Gemini);
+        assert!(serde_json::from_str::<ProviderId>("\"desconocido\"").is_err());
     }
 
     #[test]
@@ -155,13 +170,18 @@ mod tests {
             );
             assert_eq!(ProviderId::parse(id.as_str()), Some(id));
         }
-        assert_eq!(ProviderId::parse("gemini"), None);
+        assert_eq!(ProviderId::parse("mistral"), None);
         assert_eq!(ProviderId::parse(""), None);
     }
 
     #[test]
     fn cloud_providers_need_a_key_and_have_a_fixed_address() {
-        for id in [ProviderId::Claude, ProviderId::ChatGpt, ProviderId::Groq] {
+        for id in [
+            ProviderId::Claude,
+            ProviderId::ChatGpt,
+            ProviderId::Groq,
+            ProviderId::Gemini,
+        ] {
             let spec = id.spec();
             assert!(spec.needs_key && !spec.editable_address, "{id:?}");
             assert_eq!(
@@ -169,6 +189,18 @@ mod tests {
                 spec.default_base_url
             );
         }
+    }
+
+    #[test]
+    fn gemini_uses_the_openai_compatible_endpoint_of_google() {
+        let spec = ProviderId::Gemini.spec();
+        assert_eq!(spec.wire, Wire::OpenAi);
+        assert_eq!(
+            spec.default_base_url,
+            "https://generativelanguage.googleapis.com/v1beta/openai"
+        );
+        assert_eq!(spec.max_tokens_field, "max_tokens");
+        assert_eq!(spec.default_model, Some("gemini-3.5-flash-lite"));
     }
 
     #[test]

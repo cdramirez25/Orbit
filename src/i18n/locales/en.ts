@@ -138,6 +138,10 @@ export const en: Record<MessageKey, string> = {
   'ai.field.apiKeySaved': 'Saved: type another to replace it',
   'ai.field.baseUrl': 'Server address',
   'ai.field.model': 'Model',
+  'ai.field.modelDefault': 'Default',
+  'ai.models.saveFirst': 'Save the key to choose among the available models.',
+  'ai.models.unavailable': 'Could not get the list: type the model name.',
+  'ai.models.refresh': 'Refresh list',
   'ai.field.modelPlaceholder': 'Model name',
   'ai.action.test': 'Test',
   'ai.action.testing': 'Testing…',
@@ -156,6 +160,7 @@ export const en: Record<MessageKey, string> = {
   'ai.error.missingModel': 'The model name is missing',
   'ai.error.unauthorized': 'The key is not valid or has no permission',
   'ai.error.network': 'Could not connect. Check the internet or the address',
+  'ai.error.noCredits': 'The provider has no credits left: check your balance or billing',
   'ai.error.rateLimited': 'Too many requests: wait a moment',
   'ai.error.provider': 'The provider returned an error (check the model)',
   'ai.error.badResponse': 'The provider answered something unexpected',
@@ -167,6 +172,8 @@ export const en: Record<MessageKey, string> = {
     'OpenAI models (ChatGPT). Use the key from your own OpenAI account.',
   'ai.provider.groq.description':
     'Very fast open models in the Groq cloud. It has a free plan with limits.',
+  'ai.provider.gemini.description':
+    "Google's Gemini models (AI Studio). It has a free plan with limits; the key is created at aistudio.google.com.",
   'ai.provider.ollama.description':
     'Models running on your computer with Ollama. No key or Internet needed.',
   'ai.provider.docker.description':

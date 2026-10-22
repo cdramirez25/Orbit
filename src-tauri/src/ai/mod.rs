@@ -1,4 +1,4 @@
-//! IA: el proveedor con el que Orbit responde (Claude, ChatGPT, Groq, Ollama o Docker). El usuario
+//! IA: el proveedor con el que Orbit responde (Claude, ChatGPT, Groq, Gemini, Ollama o Docker). El usuario
 //! trae SU clave o SU servidor local; Orbit no tiene servidor y nada pasa por nosotros.
 //!
 //! Núcleo (§4.0): solo conoce los puertos `SecretStore` (dónde se guardan las claves), `AiConfigStore`
@@ -37,6 +37,8 @@ pub enum AiError {
     Unauthorized,
     #[error("el proveedor limitó las peticiones")]
     RateLimited,
+    #[error("al proveedor no le quedan créditos")]
+    NoCredits,
     #[error("el proveedor devolvió un error: {0}")]
     Provider(String),
     #[error("respuesta inesperada del proveedor: {0}")]
@@ -56,6 +58,7 @@ impl AiError {
             Self::Network(_) => "ai.network",
             Self::Unauthorized => "ai.unauthorized",
             Self::RateLimited => "ai.rateLimited",
+            Self::NoCredits => "ai.noCredits",
             Self::Provider(_) => "ai.provider",
             Self::BadResponse(_) => "ai.badResponse",
             Self::NoQuestion => "ai.noQuestion",
@@ -529,7 +532,7 @@ mod tests {
         let h = harness("empty");
         let status = h.service.status();
         assert_eq!(status.active, None);
-        assert_eq!(status.providers.len(), 5);
+        assert_eq!(status.providers.len(), 6);
         assert!(status
             .providers
             .iter()

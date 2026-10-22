@@ -1,6 +1,6 @@
 /** Espejo de `src-tauri/src/ai/mod.rs`: lo que la interfaz sabe de los proveedores de IA. */
 
-export type AiProviderId = 'claude' | 'chatgpt' | 'groq' | 'ollama' | 'docker';
+export type AiProviderId = 'claude' | 'chatgpt' | 'groq' | 'gemini' | 'ollama' | 'docker';
 
 export interface AiProviderStatus {
   id: AiProviderId;

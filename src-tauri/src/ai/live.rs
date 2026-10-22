@@ -238,3 +238,66 @@ fn live_groq_saves_the_key_in_the_real_database() {
     assert!(groq.has_key, "la clave no quedó guardada");
     assert_eq!(groq.model.as_deref(), Some(model));
 }
+
+// ───────────────────────────── Gemini ─────────────────────────────
+
+fn gemini_service(key: &str, model: Option<&str>) -> AiService {
+    let ai = AiService::new(
+        Box::new(Arc::new(FakeSecrets::default())),
+        Box::new(HttpLlm::new()),
+        Box::new(Arc::new(FakeConfig::default())),
+    );
+    ai.save(
+        ProviderId::Gemini,
+        SaveInput {
+            api_key: Some(key.into()),
+            model: model.map(str::to_string),
+            ..SaveInput::default()
+        },
+    )
+    .expect("no se pudo guardar");
+    ai
+}
+
+/// Con la clave real: la lista de modelos llega limpia y la respuesta es una de las dos esperadas:
+/// texto de Gemini (clave con créditos) o `ai.noCredits` (clave sin créditos). Una clave mala debe
+/// dar `ai.unauthorized`.
+///
+/// `ORBIT_TEST_GEMINI_KEY=... [ORBIT_TEST_GEMINI_MODEL=gemini-2.5-flash] cargo test live_gemini -- --ignored --nocapture`
+#[test]
+#[ignore = "usa la red y una clave real en ORBIT_TEST_GEMINI_KEY"]
+fn live_gemini_lists_models_and_answers_or_reports_missing_credits() {
+    let key = std::env::var("ORBIT_TEST_GEMINI_KEY").expect("falta ORBIT_TEST_GEMINI_KEY");
+    let model = std::env::var("ORBIT_TEST_GEMINI_MODEL").ok();
+    let ai = gemini_service(&key, model.as_deref());
+
+    let models = ai.models(ProviderId::Gemini).expect("no listó los modelos");
+    eprintln!("{} modelos de texto: {models:?}", models.len());
+    assert!(!models.is_empty());
+    assert!(models
+        .iter()
+        .all(|id| !id.starts_with("models/") && !id.contains("tts") && !id.contains("image")));
+    let default = ProviderId::Gemini.spec().default_model.unwrap_or_default();
+    assert!(
+        models.iter().any(|id| id == default),
+        "el modelo por defecto {default} ya no está en la lista de Gemini"
+    );
+
+    match ai.test(ProviderId::Gemini) {
+        Ok(reply) => eprintln!("Gemini respondió ({} caracteres)", reply.chars().count()),
+        Err(error) => {
+            eprintln!("Gemini devolvió {} ({error})", error.code());
+            assert_eq!(error.code(), "ai.noCredits");
+        }
+    }
+
+    let wrong = gemini_service("AQ.clave-que-no-existe", model.as_deref());
+    assert_eq!(
+        wrong.test(ProviderId::Gemini).unwrap_err().code(),
+        "ai.unauthorized"
+    );
+    assert_eq!(
+        wrong.models(ProviderId::Gemini).unwrap_err().code(),
+        "ai.unauthorized"
+    );
+}

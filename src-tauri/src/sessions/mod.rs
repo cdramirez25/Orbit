@@ -457,7 +457,7 @@ mod tests {
             .update(
                 id,
                 SessionUpdate {
-                    provider: Some("gemini".into()),
+                    provider: Some("mistral".into()),
                     ..SessionUpdate::default()
                 },
             )
