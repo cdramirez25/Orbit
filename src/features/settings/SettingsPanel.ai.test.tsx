@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SettingsPanel } from '@/features/settings/SettingsPanel';
 import { useLocaleStore } from '@/i18n/locale.store';
@@ -37,6 +37,15 @@ const DEFAULTS: Partial<Record<AiProviderId, string>> = {
   claude: 'claude-haiku-5-5',
   groq: 'openai/gpt-oss-20b',
   gemini: 'gemini-3.5-flash-lite',
+};
+
+/** Lo que "ofrece" cada proveedor en estos tests. */
+const MODEL_LISTS: Partial<Record<AiProviderId, string[]>> = {
+  claude: ['claude-haiku-5-5', 'claude-opus-5-5'],
+  chatgpt: ['gpt-ejemplo'],
+  groq: ['openai/gpt-oss-120b', 'openai/gpt-oss-20b'],
+  gemini: ['gemini-2.5-flash', 'gemini-3.5-flash-lite'],
+  ollama: ['llama3.2', 'qwen3'],
 };
 
 let status: AiStatus;
@@ -78,7 +87,9 @@ function fakeBackend() {
     return Promise.resolve(status);
   });
   mocked.aiTestProvider.mockResolvedValue('ok');
-  mocked.aiListModels.mockResolvedValue([]);
+  mocked.aiListModels.mockImplementation((id: AiProviderId) =>
+    Promise.resolve(MODEL_LISTS[id] ?? []),
+  );
   mocked.aiAsk.mockResolvedValue();
 }
 
@@ -95,6 +106,13 @@ const choose = async (name: string) => {
 };
 const type = (label: string, value: string) =>
   fireEvent.change(screen.getByLabelText(label), { target: { value } });
+/** Escribe la clave y espera la pausa tras la que se piden los modelos con ella (reloj falso). */
+const typeKey = async (value: string) => {
+  type('Clave de API', value);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(700);
+  });
+};
 const click = async (name: string) => {
   fireEvent.click(screen.getByRole('button', { name }));
   await act(async () => {});
@@ -102,11 +120,13 @@ const click = async (name: string) => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.useFakeTimers();
   localStorage.clear();
   useLocaleStore.setState({ locale: 'es' });
   useAiStore.setState({
     status: null,
     models: {},
+    typedModels: {},
     busy: null,
     testResult: null,
     saveError: null,
@@ -114,6 +134,10 @@ beforeEach(() => {
   status = emptyStatus();
   fakeBackend();
   mocked.getAudioPermission.mockResolvedValue('notRequired');
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe('página de IA de los ajustes', () => {
@@ -147,11 +171,30 @@ describe('página de IA de los ajustes', () => {
     }
   });
 
-  it('el modelo por defecto se ve como ejemplo y las direcciones locales también', async () => {
+  it('en la nube el modelo es un selector, desactivado hasta que haya clave, con el modelo por defecto', async () => {
     await openAi();
     await choose('Groq');
-    expect(screen.getByLabelText('Modelo')).toHaveAttribute('placeholder', 'openai/gpt-oss-20b');
+    const select = screen.getByLabelText('Modelo');
+    expect(select.tagName).toBe('SELECT');
+    expect(select).toBeDisabled();
+    expect(select).toHaveDisplayValue('Predeterminado (openai/gpt-oss-20b)');
+    expect(screen.getByText(/Escribe la clave para elegir/)).toBeInTheDocument();
+    expect(mocked.aiListModels).not.toHaveBeenCalled();
+  });
+
+  it('ChatGPT no tiene modelo por defecto: pide elegir uno', async () => {
+    await openAi();
+    await choose('ChatGPT');
+    expect(screen.getByLabelText('Modelo')).toHaveDisplayValue('Elige un modelo');
+  });
+
+  it('las direcciones locales se ven como ejemplo y su modelo se escribe, con sugerencias', async () => {
+    await openAi();
     await choose('Ollama');
+    const input = screen.getByLabelText('Modelo');
+    expect(input.tagName).toBe('INPUT');
+    const suggestions = document.querySelectorAll('datalist#ai-models-ollama option');
+    expect([...suggestions].map((o) => o.getAttribute('value'))).toEqual(['llama3.2', 'qwen3']);
     expect(screen.getByLabelText('Dirección del servidor')).toHaveAttribute(
       'placeholder',
       'http://localhost:11434',
@@ -163,14 +206,24 @@ describe('página de IA de los ajustes', () => {
     );
   });
 
-  it('Gemini pide su clave, muestra su modelo por defecto y guarda lo que se escribe', async () => {
+  it('Gemini: al escribir la clave aparecen sus modelos para elegir uno, antes de guardar', async () => {
     await openAi();
     await choose('Gemini');
-    expect(screen.getByLabelText('Modelo')).toHaveAttribute('placeholder', 'gemini-3.5-flash-lite');
     expect(screen.getByLabelText('Clave de API')).toHaveAttribute('placeholder', 'AIza…');
 
-    type('Clave de API', 'AQ.prueba');
-    type('Modelo', 'gemini-2.5-flash');
+    await typeKey('AQ.prueba');
+    // Se pidieron con la clave escrita y todavía no se guardó nada.
+    expect(mocked.aiListModels).toHaveBeenCalledWith('gemini', 'AQ.prueba');
+    expect(mocked.aiSaveProvider).not.toHaveBeenCalled();
+    const select = screen.getByLabelText('Modelo');
+    expect(select).toBeEnabled();
+    expect([...select.querySelectorAll('option')].map((o) => o.textContent)).toEqual([
+      'Predeterminado (gemini-3.5-flash-lite)',
+      'gemini-2.5-flash',
+      'gemini-3.5-flash-lite',
+    ]);
+
+    fireEvent.change(select, { target: { value: 'gemini-2.5-flash' } });
     await click('Guardar');
 
     expect(mocked.aiSaveProvider).toHaveBeenCalledWith('gemini', {
@@ -180,13 +233,76 @@ describe('página de IA de los ajustes', () => {
     expect(document.body.innerHTML).not.toContain('AQ.prueba');
   });
 
+  it('mientras se escribe la clave espera una pausa antes de pedir los modelos', async () => {
+    await openAi();
+    await choose('Gemini');
+
+    type('Clave de API', 'A');
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300);
+    });
+    type('Clave de API', 'AQ.prue');
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300);
+    });
+    expect(mocked.aiListModels).not.toHaveBeenCalled();
+    expect(screen.getByText(/Buscando los modelos/)).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400);
+    });
+    expect(mocked.aiListModels).toHaveBeenCalledTimes(1);
+    expect(mocked.aiListModels).toHaveBeenCalledWith('gemini', 'AQ.prue');
+  });
+
+  it('si la clave escrita no sirve, lo dice y deja solo el modelo por defecto', async () => {
+    mocked.aiListModels.mockRejectedValue({ code: 'ai.unauthorized', message: 'x' });
+    await openAi();
+    await choose('Gemini');
+    await typeKey('AQ.mala');
+
+    expect(screen.getByLabelText('Modelo').tagName).toBe('SELECT');
+    expect(screen.getByText(/revisa la clave/)).toBeInTheDocument();
+    expect(screen.getAllByRole('option')).toHaveLength(1);
+  });
+
+  it('al borrar la clave escrita vuelve a pedir una clave y se desactiva el selector', async () => {
+    await openAi();
+    await choose('Groq');
+    await typeKey('gsk_x');
+    expect(screen.getByLabelText('Modelo')).toBeEnabled();
+
+    await typeKey('');
+    expect(screen.getByLabelText('Modelo')).toBeDisabled();
+    expect(screen.getByText(/Escribe la clave para elegir/)).toBeInTheDocument();
+  });
+
+  it('las listas de claves viejas no pisan a la de la última clave escrita', async () => {
+    let resolveSlow: (models: string[]) => void = () => {};
+    mocked.aiListModels
+      .mockImplementationOnce(() => new Promise((resolve) => (resolveSlow = resolve)))
+      .mockImplementationOnce(() => Promise.resolve(['modelo-nuevo']));
+    await openAi();
+    await choose('Groq');
+    await typeKey('gsk_vieja');
+    await typeKey('gsk_nueva');
+    resolveSlow(['modelo-viejo']);
+    await act(async () => {});
+
+    const options = [...screen.getByLabelText('Modelo').querySelectorAll('option')];
+    expect(options.map((o) => o.textContent)).toContain('modelo-nuevo');
+    expect(options.map((o) => o.textContent)).not.toContain('modelo-viejo');
+  });
+
   it('Guardar solo se activa al escribir y manda la clave y el modelo a Rust', async () => {
     await openAi();
     await choose('Groq');
     expect(screen.getByRole('button', { name: 'Guardar' })).toBeDisabled();
 
-    type('Clave de API', 'gsk_prueba');
-    type('Modelo', 'openai/gpt-oss-120b');
+    await typeKey('gsk_prueba');
+    fireEvent.change(screen.getByLabelText('Modelo'), {
+      target: { value: 'openai/gpt-oss-120b' },
+    });
     await click('Guardar');
 
     expect(mocked.aiSaveProvider).toHaveBeenCalledWith('groq', {
@@ -323,21 +439,27 @@ describe('página de IA de los ajustes', () => {
     expect(screen.getByRole('option', { name: 'b' })).toBeInTheDocument();
   });
 
-  it('si no se puede obtener la lista, el modelo se escribe a mano', async () => {
+  it('si la lista de una clave guardada no llega, el selector sigue y se puede reintentar', async () => {
     mocked.aiListModels.mockRejectedValue(new Error('sin red'));
     status.providers = status.providers.map((p) => (p.id === 'groq' ? { ...p, hasKey: true } : p));
     await openAi();
     await choose('Groq');
 
-    expect(screen.getByLabelText('Modelo').tagName).toBe('INPUT');
+    expect(screen.getByLabelText('Modelo').tagName).toBe('SELECT');
     expect(screen.getByText(/No se pudo obtener la lista/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Actualizar lista' })).toBeInTheDocument();
   });
 
-  it('sin clave guardada avisa que hay que guardarla para ver los modelos', async () => {
+  it('un proveedor local sin lista deja escribir el modelo a mano', async () => {
+    await openAi();
+    await choose('Docker');
+    expect(screen.getByLabelText('Modelo').tagName).toBe('INPUT');
+    expect(screen.getByText(/escribe el nombre del modelo/)).toBeInTheDocument();
+  });
+
+  it('sin clave no hay botón de actualizar la lista', async () => {
     await openAi();
     await choose('Gemini');
-    expect(screen.getByText(/Guarda la clave para elegir/)).toBeInTheDocument();
-    expect(screen.getByLabelText('Modelo').tagName).toBe('INPUT');
     expect(screen.queryByRole('button', { name: 'Actualizar lista' })).not.toBeInTheDocument();
   });
 

@@ -535,13 +535,16 @@ export const commands = {
     return Promise.resolve('ok');
   },
 
-  /** Los modelos que ofrece un proveedor con la clave guardada. */
-  aiListModels: (id: AiProviderId): Promise<string[]> => {
-    if (isTauri()) return invoke<string[]>('ai_list_models', { id });
-    try {
-      browserAiCheck(id);
-    } catch (error) {
-      return Promise.reject(error);
+  /**
+   * Los modelos que ofrece un proveedor. Con `apiKey` se usa la clave que el usuario está escribiendo
+   * (todavía sin guardar); sin ella, la guardada.
+   */
+  aiListModels: (id: AiProviderId, apiKey?: string): Promise<string[]> => {
+    if (isTauri()) return invoke<string[]>('ai_list_models', { id, apiKey: apiKey ?? null });
+    const typed = (apiKey ?? '').trim() !== '';
+    const local = id === 'ollama' || id === 'docker';
+    if (!typed && !local && !browserAiProvider(id).hasKey) {
+      return Promise.reject({ code: 'ai.missingKey', message: 'sin clave' });
     }
     return Promise.resolve([`${id}-modelo-1`, `${id}-modelo-2`]);
   },

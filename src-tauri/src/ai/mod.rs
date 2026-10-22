@@ -286,6 +286,17 @@ impl AiService {
 
     /// A quién se le habla. `need_model`: para listar modelos no hace falta uno elegido.
     fn target(&self, id: ProviderId, need_model: bool) -> Result<Target, AiError> {
+        self.target_with_key(id, need_model, None)
+    }
+
+    /// Igual que `target`, pero con la clave que el usuario acaba de escribir (todavía sin guardar),
+    /// si se da una, en lugar de la guardada.
+    fn target_with_key(
+        &self,
+        id: ProviderId,
+        need_model: bool,
+        typed_key: Option<&str>,
+    ) -> Result<Target, AiError> {
         let spec = id.spec();
         let saved: ProviderConfig = self.config_guard().provider(id);
         let model = match saved
@@ -297,10 +308,11 @@ impl AiService {
             None if need_model => return Err(AiError::MissingModel),
             None => String::new(),
         };
-        let api_key = if spec.needs_key {
-            Some(self.secrets.get(id)?.ok_or(AiError::MissingKey)?)
-        } else {
-            None
+        let typed_key = typed_key.map(str::trim).filter(|key| !key.is_empty());
+        let api_key = match (spec.needs_key, typed_key) {
+            (false, _) => None,
+            (true, Some(key)) => Some(key.to_string()),
+            (true, None) => Some(self.secrets.get(id)?.ok_or(AiError::MissingKey)?),
         };
         Ok(Target {
             id,
@@ -329,9 +341,14 @@ impl AiService {
         Ok(reply.trim().chars().take(80).collect())
     }
 
-    /// Los modelos que ofrece un proveedor con la clave guardada (para elegir uno en la interfaz).
-    pub fn models(&self, id: ProviderId) -> Result<Vec<String>, AiError> {
-        let target = self.target(id, false)?;
+    /// Los modelos que ofrece un proveedor, con la clave que el usuario está escribiendo (sin
+    /// guardarla) si la hay, o con la guardada. Así la lista se ve antes de pulsar Guardar.
+    pub fn models_with_key(
+        &self,
+        id: ProviderId,
+        typed_key: Option<&str>,
+    ) -> Result<Vec<String>, AiError> {
+        let target = self.target_with_key(id, false, typed_key)?;
         let mut models = self.client.models(&target)?;
         models.sort_unstable();
         models.dedup();
@@ -772,15 +789,65 @@ mod tests {
             vec!["b-model".into(), "a-model".into(), "b-model".into()];
 
         assert_eq!(
-            h.service.models(ProviderId::ChatGpt).unwrap(),
+            h.service
+                .models_with_key(ProviderId::ChatGpt, None)
+                .unwrap(),
             vec!["a-model", "b-model"]
         );
         assert_eq!(h.client.calls.lock().unwrap()[0].0.model, "");
         // Sin clave no se puede preguntar.
         assert_eq!(
-            h.service.models(ProviderId::Claude).unwrap_err().code(),
+            h.service
+                .models_with_key(ProviderId::Claude, None)
+                .unwrap_err()
+                .code(),
             "ai.missingKey"
         );
+    }
+
+    #[test]
+    fn the_models_can_be_listed_with_a_key_that_was_typed_but_not_saved() {
+        let h = harness("typed-key");
+        *h.client.models.lock().unwrap() = vec!["m".into()];
+
+        // Sin clave guardada, la escrita basta (con espacios de más) y no se guarda.
+        assert_eq!(
+            h.service
+                .models_with_key(ProviderId::Gemini, Some("  AQ.escrita  "))
+                .unwrap(),
+            vec!["m"]
+        );
+        let call = h.client.calls.lock().unwrap()[0].0.clone();
+        assert_eq!(call.api_key.as_deref(), Some("AQ.escrita"));
+        assert!(!provider(&h.service.status(), ProviderId::Gemini).has_key);
+
+        // Una clave vacía cuenta como no escrita: vuelve a pedirse la guardada.
+        assert_eq!(
+            h.service
+                .models_with_key(ProviderId::Gemini, Some("   "))
+                .unwrap_err()
+                .code(),
+            "ai.missingKey"
+        );
+
+        // Con una guardada y otra escrita, gana la escrita (quizá se está cambiando de clave).
+        h.service
+            .save(ProviderId::Gemini, groq("AQ.guardada", "m"))
+            .unwrap();
+        h.service
+            .models_with_key(ProviderId::Gemini, Some("AQ.nueva"))
+            .unwrap();
+        let call = h.client.calls.lock().unwrap().last().unwrap().0.clone();
+        assert_eq!(call.api_key.as_deref(), Some("AQ.nueva"));
+    }
+
+    #[test]
+    fn a_local_provider_ignores_any_typed_key() {
+        let h = harness("typed-key-local");
+        h.service
+            .models_with_key(ProviderId::Ollama, Some("no-hace-falta"))
+            .unwrap();
+        assert_eq!(h.client.calls.lock().unwrap()[0].0.api_key, None);
     }
 
     #[test]

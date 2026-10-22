@@ -20,13 +20,21 @@
 ## What is Orbit?
 
 Orbit is a dynamic island for your desktop: a black pill at the top of the screen that grows and shrinks to show you,
-right when you need it, what matters. It is built around modules, so what it shows depends on the active module.
+right when you need it, what matters. It is a platform built around modules: each module is a small plugin that takes
+over the island when it has something to show, and the island decides which one goes first.
 
-The first one is **Prompter**, designed for video calls (Meet, Zoom, Teams…). Orbit listens to what the other people
-say, transcribes it live, and when you press **Record audio** (or a shortcut) and then **Finish and answer**, it shows
-you the answer in the island, like a teleprompter. You can also type the question, or let a session answer the
-questions it hears by itself. It only hears the audio that comes out of your speakers or headphones; your microphone
-is never captured.
+Today it comes with four modules:
+
+- **Prompter (AI):** designed for video calls (Meet, Zoom, Teams…). Orbit listens to what the other people say,
+  transcribes it live, and when you press **Record audio** (or a shortcut) and then **Finish and answer**, it shows you
+  the answer in the island, like a teleprompter. You can also type the question, or let a session answer the questions
+  it hears by itself. It only hears the audio that comes out of your speakers or headphones; your microphone is never
+  captured.
+- **Music:** what is playing, with its cover and controls, and a progress bar you can click or drag to seek.
+- **Weather:** the current weather and today's forecast for your area.
+- **Clipboard:** the history of what you copy during the session.
+
+Around them there is a settings window, a tray icon and global keyboard shortcuts.
 
 ## What exists today
 
@@ -93,7 +101,8 @@ pnpm tauri dev
 ### First use
 
 1. **Settings → Audio:** download the voice model (once) and, if you always speak the same language, pick it.
-2. **Settings → AI:** choose a provider, enter its key (or the address of a local one), press Test and Use.
+2. **Settings → AI:** choose a provider and type its key (or the address of a local one); the models it offers
+   appear right away so you can pick one from the list. Then press Save, Test and Use.
 3. **Settings → Sessions:** create a session and, if you want, give it a prompt and an AI of its own.
 4. In the island, open the AI card and press **Record audio** (or `Cmd/Ctrl+Shift+Space`) while the question plays,
    then **Finish and answer**. You can also type the question in the field below.
@@ -221,16 +230,21 @@ Orbit/
 
 ## Roadmap
 
-| Phase | Contents                                                                        | Status      |
-| ----- | ------------------------------------------------------------------------------- | ----------- |
-| 0     | Scaffolding: Tauri 2 + React + Vite + Tailwind, lint, `@/` alias                | Done        |
-| 1     | The island: window, state machine, animations, notch, click-through, i18n       | Done        |
-| 2     | System audio capture (macOS and Windows), resampling and level meter            | Done        |
-| 3     | Transcription: local engine with `whisper-rs` (cloud streaming is pending)      | Done        |
-| 4     | LLM clients (Claude, ChatGPT, Groq, Gemini, Ollama, Docker), sessions, Prompter | Done        |
-| 5     | Settings, global shortcuts and tray done; onboarding and consent pending        | In progress |
-| 6     | Polish, packaging (`.dmg`, `.msi`/`.exe`) and module documentation              | Pending     |
+Orbit started as a single-purpose Prompter (listen, detect a question, answer) and is now a modular island, so the
+roadmap is organised by goals instead of by the original phases (the technical plan of those phases is still in
+[`docs/SPEC.md`](docs/SPEC.md)).
 
-Along the way three resident modules were added: the weather, the clipboard history and the music. API keys are
-stored in SQLite instead of the system keychain, so they never trigger keychain prompts. Windows-specific code
+| Goal                        | What it covers                                                                                                                                                                                                                        | Status      |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| The island platform         | Window that never steals focus, state machine, animations, notch, click-through, module registry with priorities, Spanish and English, accessible UI primitives, hide from screen share                                               | Done        |
+| Resident modules            | Weather, clipboard history and music (with seek)                                                                                                                                                                                      | Done        |
+| Listen and transcribe       | System audio capture (macOS and Windows), local Whisper with live text, download and delete the voice model from Settings, transcription language. Planned: more voice models (faster and more accurate) and more languages           | Done        |
+| AI and Prompter             | Claude, ChatGPT, Groq, Gemini, Ollama and Docker; the model is chosen from the list each provider offers; sessions with their own prompt, history and AI; recorded or typed questions; markdown answers; keys in a local SQLite file  | Done        |
+| Everyday desktop experience | Done: settings window, tray icon, global shortcuts. Pending: guided first run (permissions, voice model, AI), launch at login, configurable shortcuts                                                                                 | In progress |
+| Trust and quality           | Done: tests in every layer, Rust without warnings (`clippy`). Pending: runs with real Claude, ChatGPT, Ollama and Docker (so far only Groq answers and Gemini's list and error path were checked live), and on a real Windows machine | In progress |
+| Distribution                | `.dmg` and Windows installer published in GitHub Releases, `brew` (own tap) and `winget`/Scoop, all free and without an Apple Developer account                                                                                       | Planned     |
+| More modules and ecosystem  | A guide to write your own module (`docs/ARCHITECTURE.md`) and new modules on top of the registry                                                                                                                                      | Planned     |
+
+Good to know: API keys are stored in SQLite instead of the system keychain, so they never trigger keychain prompts; the
+music module uses a private system API on macOS and may stop working after an update; and the Windows-specific code
 (shortcuts, tray, music, system audio) is compile-checked but has not been run on a real Windows machine yet.

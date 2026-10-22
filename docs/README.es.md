@@ -20,13 +20,21 @@
 ## ¿Qué es Orbit?
 
 Orbit es una isla dinámica para tu escritorio: una pastilla negra en la parte de arriba de la pantalla que crece y
-se encoge para mostrarte, en el momento, lo que necesitas ver. Funciona con módulos, así que lo que muestra depende
-del módulo que esté activo.
+se encoge para mostrarte, en el momento, lo que necesitas ver. Es una plataforma hecha de módulos: cada módulo es un
+pequeño plugin que toma la isla cuando tiene algo que mostrar, y la isla decide cuál va primero.
 
-El primero es **Prompter**, pensado para videollamadas (Meet, Zoom, Teams…). Orbit escucha lo que dicen los demás, lo
-transcribe en vivo y, cuando pulsas **Grabar audio** (o un atajo) y luego **Terminar y responder**, te muestra la
-respuesta en la isla, como un teleprompter. También puedes escribir la pregunta, o dejar que una sesión conteste sola
-las preguntas que oiga. Solo oye el audio que sale por tus bocinas o audífonos; tu micrófono nunca se captura.
+Hoy trae cuatro módulos:
+
+- **Prompter (IA):** pensado para videollamadas (Meet, Zoom, Teams…). Orbit escucha lo que dicen los demás, lo
+  transcribe en vivo y, cuando pulsas **Grabar audio** (o un atajo) y luego **Terminar y responder**, te muestra la
+  respuesta en la isla, como un teleprompter. También puedes escribir la pregunta, o dejar que una sesión conteste sola
+  las preguntas que oiga. Solo oye el audio que sale por tus bocinas o audífonos; tu micrófono nunca se captura.
+- **Música:** lo que suena, con su portada y controles, y una barra de progreso donde puedes hacer clic o arrastrar
+  para adelantar o atrasar.
+- **Clima:** el clima actual y el pronóstico de hoy de tu zona.
+- **Portapapeles:** el historial de lo que copias durante la sesión.
+
+Alrededor de ellos hay una ventana de ajustes, un icono en la bandeja y atajos globales del teclado.
 
 ## Qué hay hoy
 
@@ -93,7 +101,8 @@ pnpm tauri dev
 ### Primer uso
 
 1. **Ajustes → Audio:** descarga el modelo de voz (una sola vez) y, si siempre hablan el mismo idioma, elígelo.
-2. **Ajustes → IA:** elige un proveedor, escribe su clave (o la dirección de uno local), pulsa Probar y Usar.
+2. **Ajustes → IA:** elige un proveedor y escribe su clave (o la dirección de uno local); los modelos que ofrece
+   aparecen enseguida para que elijas uno de la lista. Luego pulsa Guardar, Probar y Usar.
 3. **Ajustes → Sesiones:** crea una sesión y, si quieres, dale un prompt y una IA propia.
 4. En la isla, abre la tarjeta de IA y pulsa **Grabar audio** (o `Cmd/Ctrl+Shift+Espacio`) mientras suena la pregunta,
    y luego **Terminar y responder**. También puedes escribir la pregunta en el campo de abajo.
@@ -221,17 +230,22 @@ Orbit/
 
 ## Hoja de ruta
 
-| Fase | Contenido                                                                             | Estado    |
-| ---- | ------------------------------------------------------------------------------------- | --------- |
-| 0    | Andamiaje: Tauri 2 + React + Vite + Tailwind, lint, alias `@/`                        | Hecha     |
-| 1    | La isla: ventana, máquina de estados, animaciones, notch, click-through, i18n         | Hecha     |
-| 2    | Captura del audio del sistema (macOS y Windows), remuestreo y medidor de nivel        | Hecha     |
-| 3    | Transcripción: motor local con `whisper-rs` (el streaming en la nube queda pendiente) | Hecha     |
-| 4    | Clientes LLM (Claude, ChatGPT, Groq, Gemini, Ollama, Docker), sesiones, Prompter      | Hecha     |
-| 5    | Ajustes, atajos globales y bandeja hechos; onboarding y consentimiento pendientes     | En curso  |
-| 6    | Pulido, empaquetado (`.dmg`, `.msi`/`.exe`) y documentación de módulos                | Pendiente |
+Orbit empezó como un Prompter de un solo propósito (escuchar, detectar una pregunta y responder) y ahora es una isla
+modular, así que la hoja de ruta se organiza por metas y no por las fases originales (el plan técnico de esas fases
+sigue en [`docs/SPEC.md`](SPEC.md)).
 
-Por el camino se añadieron tres módulos residentes: el clima, el historial del portapapeles y la música. Las claves de
-API se guardan en SQLite y no en el llavero del sistema, así que nunca piden permiso del llavero. El código específico
-de Windows (atajos, bandeja, música, audio del sistema) está comprobado solo al compilar: todavía no se ha ejecutado en
-una máquina Windows real.
+| Meta                      | Qué cubre                                                                                                                                                                                                                                          | Estado   |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| La plataforma de la isla  | Ventana que nunca roba el foco, máquina de estados, animaciones, notch, click-through, registro de módulos con prioridades, español e inglés, primitivos de UI accesibles, ocultar de la pantalla compartida                                       | Hecha    |
+| Módulos residentes        | Clima, historial del portapapeles y música (con avance y retroceso)                                                                                                                                                                                | Hecha    |
+| Escuchar y transcribir    | Captura del audio del sistema (macOS y Windows), Whisper local con texto en vivo, descargar y borrar el modelo de voz desde Ajustes, idioma de la transcripción. Planeado: más modelos de voz (más rápidos y más precisos) y más idiomas           | Hecha    |
+| IA y Prompter             | Claude, ChatGPT, Groq, Gemini, Ollama y Docker; el modelo se elige de la lista que ofrece cada proveedor; sesiones con su propio prompt, historial e IA; preguntas grabadas o escritas; respuestas con markdown; claves en un archivo SQLite local | Hecha    |
+| Experiencia de escritorio | Hecho: ventana de ajustes, icono en la bandeja, atajos globales. Pendiente: primer arranque guiado (permisos, modelo de voz, IA), iniciar con la sesión, atajos configurables                                                                      | En curso |
+| Confianza y calidad       | Hecho: tests en todas las capas, Rust sin avisos (`clippy`). Pendiente: pruebas con Claude, ChatGPT, Ollama y Docker reales (hasta ahora solo se probaron en vivo las respuestas de Groq y la lista y los errores de Gemini) y en un Windows real  | En curso |
+| Distribución              | `.dmg` e instalador de Windows publicados en GitHub Releases, `brew` (tap propio) y `winget`/Scoop, todo gratis y sin cuenta de Apple Developer                                                                                                    | Planeada |
+| Más módulos y ecosistema  | Una guía para escribir tu propio módulo (`docs/ARCHITECTURE.md`) y módulos nuevos sobre el registro                                                                                                                                                | Planeada |
+
+Conviene saber: las claves de API se guardan en SQLite y no en el llavero del sistema, así que nunca piden permiso del
+llavero; el módulo de música usa una API privada del sistema en macOS y puede dejar de funcionar tras una
+actualización; y el código específico de Windows (atajos, bandeja, música, audio del sistema) está comprobado solo al
+compilar: todavía no se ha ejecutado en una máquina Windows real.

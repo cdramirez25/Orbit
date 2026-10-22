@@ -57,16 +57,19 @@ pub async fn ai_test_provider(
     Ok(reply)
 }
 
-/// Los modelos que ofrece un proveedor con la clave guardada (para elegir uno en la lista).
+/// Los modelos que ofrece un proveedor (para elegir uno en la lista). Con `api_key` se usa la clave
+/// que el usuario está escribiendo, aunque todavía no la haya guardado; sin ella, la guardada.
 #[tauri::command]
 pub async fn ai_list_models(
     state: State<'_, AppState>,
     id: ProviderId,
+    api_key: Option<String>,
 ) -> Result<Vec<String>, CommandError> {
     let ai = Arc::clone(&state.ai);
-    let models = tauri::async_runtime::spawn_blocking(move || ai.models(id))
-        .await
-        .map_err(|error| AiError::Network(error.to_string()))??;
+    let models =
+        tauri::async_runtime::spawn_blocking(move || ai.models_with_key(id, api_key.as_deref()))
+            .await
+            .map_err(|error| AiError::Network(error.to_string()))??;
     Ok(models)
 }
 

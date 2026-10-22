@@ -45,6 +45,9 @@ interface Draft {
 
 const EMPTY_DRAFT: Draft = { apiKey: '', baseUrl: '', model: '' };
 
+/** Pausa tras dejar de escribir la clave antes de pedir los modelos con ella. */
+const TYPED_KEY_DELAY_MS = 600;
+
 /**
  * Formulario de un proveedor: la nube pide clave de API y modelo; lo local, la dirección del
  * servidor y modelo. La clave solo viaja hacia Rust, que la guarda en este equipo: aquí no se vuelve a mostrar.
@@ -61,10 +64,14 @@ function ProviderCard({ provider }: { provider: AiProvider }) {
   const test = useAiStore((s) => s.test);
   const setActive = useAiStore((s) => s.setActive);
   const loadModels = useAiStore((s) => s.loadModels);
+  const typedModels = useAiStore((s) => s.typedModels[provider.id]);
+  const previewModels = useAiStore((s) => s.previewModels);
+  const clearPreview = useAiStore((s) => s.clearPreview);
   const [draft, setDraft] = useState<Draft | null>(null);
 
+  const cloud = provider.kind === 'cloud';
   const configured = isProviderConfigured(provider, status);
-  const canListModels = provider.kind === 'local' || Boolean(status?.hasKey);
+  const canListModels = !cloud || Boolean(status?.hasKey);
 
   // Con la clave (o la dirección) ya guardada se piden los modelos que ofrece para elegirlos.
   useEffect(() => {
@@ -76,10 +83,41 @@ function ProviderCard({ provider }: { provider: AiProvider }) {
     baseUrl: draft?.baseUrl ?? status?.baseUrl ?? '',
     model: draft?.model ?? status?.model ?? '',
   };
+
+  // Con una clave escrita (todavía sin guardar) se piden los modelos con ella, tras una pausa
+  // breve, para poder elegir uno antes de pulsar Guardar.
+  const typedKey = value.apiKey.trim();
+  useEffect(() => {
+    if (!cloud) return;
+    if (typedKey === '') {
+      clearPreview(provider.id);
+      return;
+    }
+    const timer = setTimeout(() => void previewModels(provider.id, typedKey), TYPED_KEY_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [cloud, typedKey, previewModels, clearPreview, provider.id]);
+
+  const usingTypedKey = cloud && typedKey !== '';
+  const hasKey = !cloud || Boolean(status?.hasKey) || usingTypedKey;
+  const listed = usingTypedKey ? (typedModels?.models ?? models ?? []) : (models ?? []);
+  const loadingList = usingTypedKey
+    ? typedModels === undefined || typedModels.state === 'loading'
+    : canListModels && models === undefined;
+  const listUnavailable = hasKey && !loadingList && listed.length === 0;
+  const modelHint = !hasKey
+    ? 'ai.models.needKey'
+    : loadingList
+      ? 'ai.models.loading'
+      : listUnavailable
+        ? cloud
+          ? 'ai.models.unavailable'
+          : 'ai.models.unavailableLocal'
+        : null;
+  const refresh = () =>
+    void (usingTypedKey ? previewModels(provider.id, typedKey) : loadModels(provider.id));
   const change = (patch: Partial<Draft>) =>
     setDraft({ ...(draft ?? EMPTY_DRAFT), ...value, ...patch });
   const dirty = draft !== null;
-  const listed = models ?? [];
   // Lo que ya está guardado (o escrito) sigue en la lista aunque el proveedor ya no lo ofrezca.
   const options =
     value.model !== '' && !listed.includes(value.model) ? [value.model, ...listed] : listed;
@@ -141,12 +179,17 @@ function ProviderCard({ provider }: { provider: AiProvider }) {
           </FormField>
         )}
         <FormField label={t('ai.field.model')}>
-          {listed.length > 0 ? (
-            <Select value={value.model} onChange={(event) => change({ model: event.target.value })}>
+          {cloud ? (
+            // La nube siempre se elige de una lista: la que da el propio proveedor con la clave.
+            <Select
+              value={value.model}
+              disabled={!hasKey}
+              onChange={(event) => change({ model: event.target.value })}
+            >
               <option value="">
                 {status?.defaultModel
                   ? `${t('ai.field.modelDefault')} (${status.defaultModel})`
-                  : t('ai.field.modelDefault')}
+                  : t('ai.field.modelChoose')}
               </option>
               {options.map((model) => (
                 <option key={model} value={model}>
@@ -155,31 +198,35 @@ function ProviderCard({ provider }: { provider: AiProvider }) {
               ))}
             </Select>
           ) : (
-            <Input
-              autoComplete="off"
-              spellCheck={false}
-              value={value.model}
-              placeholder={status?.defaultModel ?? t('ai.field.modelPlaceholder')}
-              onChange={(event) => change({ model: event.target.value })}
-            />
+            // Lo local (Ollama, Docker) se escribe, con sugerencias de lo que tiene instalado.
+            <>
+              <Input
+                autoComplete="off"
+                spellCheck={false}
+                list={`ai-models-${provider.id}`}
+                value={value.model}
+                placeholder={status?.defaultModel ?? t('ai.field.modelPlaceholder')}
+                onChange={(event) => change({ model: event.target.value })}
+              />
+              <datalist id={`ai-models-${provider.id}`}>
+                {listed.map((model) => (
+                  <option key={model} value={model} />
+                ))}
+              </datalist>
+            </>
           )}
         </FormField>
       </div>
 
       <div className="-mt-1 flex items-center gap-2">
-        {!canListModels && (
-          <p className="text-[11px] leading-snug text-ink-faint">{t('ai.models.saveFirst')}</p>
-        )}
-        {canListModels && models !== undefined && listed.length === 0 && (
-          <p className="text-[11px] leading-snug text-ink-faint">{t('ai.models.unavailable')}</p>
-        )}
-        {canListModels && models !== undefined && (
+        {modelHint && <p className="text-[11px] leading-snug text-ink-faint">{t(modelHint)}</p>}
+        {hasKey && !loadingList && (
           <Button
             size="sm"
             variant="ghost"
             className="ml-auto"
             disabled={busy !== null}
-            onClick={() => void loadModels(provider.id)}
+            onClick={refresh}
           >
             <RefreshCw aria-hidden className="size-3" />
             {t('ai.models.refresh')}

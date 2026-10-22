@@ -271,7 +271,9 @@ fn live_gemini_lists_models_and_answers_or_reports_missing_credits() {
     let model = std::env::var("ORBIT_TEST_GEMINI_MODEL").ok();
     let ai = gemini_service(&key, model.as_deref());
 
-    let models = ai.models(ProviderId::Gemini).expect("no listó los modelos");
+    let models = ai
+        .models_with_key(ProviderId::Gemini, None)
+        .expect("no listó los modelos");
     eprintln!("{} modelos de texto: {models:?}", models.len());
     assert!(!models.is_empty());
     assert!(models
@@ -297,7 +299,10 @@ fn live_gemini_lists_models_and_answers_or_reports_missing_credits() {
         "ai.unauthorized"
     );
     assert_eq!(
-        wrong.models(ProviderId::Gemini).unwrap_err().code(),
+        wrong
+            .models_with_key(ProviderId::Gemini, None)
+            .unwrap_err()
+            .code(),
         "ai.unauthorized"
     );
 }

@@ -27,6 +27,7 @@ beforeEach(() => {
   useAiStore.setState({
     status: null,
     models: {},
+    typedModels: {},
     busy: null,
     testResult: null,
     saveError: null,
@@ -122,5 +123,60 @@ describe('store de IA', () => {
 
     mocked.aiAsk.mockRejectedValue(new Error('x'));
     await expect(useAiStore.getState().ask('otra')).resolves.toBeUndefined();
+  });
+
+  it('previewModels pide la lista con la clave escrita y no conserva la clave', async () => {
+    mocked.aiListModels.mockResolvedValue(['a', 'b']);
+
+    const pending = useAiStore.getState().previewModels('groq', 'gsk_escrita');
+    expect(useAiStore.getState().typedModels.groq?.state).toBe('loading');
+    await pending;
+
+    expect(mocked.aiListModels).toHaveBeenCalledWith('groq', 'gsk_escrita');
+    expect(useAiStore.getState().typedModels.groq).toEqual({
+      state: 'ready',
+      models: ['a', 'b'],
+      code: null,
+    });
+    expect(JSON.stringify(useAiStore.getState())).not.toContain('gsk_escrita');
+  });
+
+  it('previewModels guarda el código del error y deja la lista vacía', async () => {
+    mocked.aiListModels.mockRejectedValue({ code: 'ai.unauthorized', message: 'x' });
+    await useAiStore.getState().previewModels('groq', 'mala');
+    expect(useAiStore.getState().typedModels.groq).toEqual({
+      state: 'error',
+      models: [],
+      code: 'ai.unauthorized',
+    });
+  });
+
+  it('una respuesta vieja no pisa a la más nueva ni a un clearPreview', async () => {
+    let resolveOld: (models: string[]) => void = () => {};
+    mocked.aiListModels
+      .mockImplementationOnce(() => new Promise((resolve) => (resolveOld = resolve)))
+      .mockResolvedValueOnce(['nueva']);
+
+    const old = useAiStore.getState().previewModels('groq', 'vieja');
+    await useAiStore.getState().previewModels('groq', 'nueva');
+    resolveOld(['vieja']);
+    await old;
+    expect(useAiStore.getState().typedModels.groq?.models).toEqual(['nueva']);
+
+    mocked.aiListModels.mockImplementationOnce(
+      () => new Promise((resolve) => (resolveOld = resolve)),
+    );
+    const late = useAiStore.getState().previewModels('groq', 'tarde');
+    useAiStore.getState().clearPreview('groq');
+    resolveOld(['tarde']);
+    await late;
+    expect(useAiStore.getState().typedModels.groq).toBeUndefined();
+  });
+
+  it('guardar olvida también la lista pedida con la clave escrita', async () => {
+    useAiStore.setState({ typedModels: { groq: { state: 'ready', models: ['a'], code: null } } });
+    mocked.aiSaveProvider.mockResolvedValue(status(null, true));
+    await useAiStore.getState().save('groq', { apiKey: 'gsk_x' });
+    expect(useAiStore.getState().typedModels.groq).toBeUndefined();
   });
 });
