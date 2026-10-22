@@ -88,3 +88,47 @@ describe('simulación de la escucha en el navegador', () => {
     expect(levels.length).toBeLessThan(40); // ~30, no ~60
   });
 });
+
+describe('modelo de transcripción en el navegador (simulado)', () => {
+  it('descargar avanza por pasos hasta quedar descargado, y borrar lo deja sin descargar', async () => {
+    vi.useFakeTimers();
+    const states: string[] = [];
+    const off = await onEvent('stt:model', (status) => states.push(status.state));
+
+    expect((await commands.sttModelStatus()).state).toBe('missing');
+    await commands.sttModelDownload();
+    expect((await commands.sttModelStatus()).state).toBe('downloading');
+
+    await vi.advanceTimersByTimeAsync(10_000);
+    const done = await commands.sttModelStatus();
+    expect(done.state).toBe('ready');
+    expect(done.downloaded).toBe(done.total);
+    expect(states[0]).toBe('downloading');
+    expect(states.at(-1)).toBe('ready');
+
+    await commands.sttModelRemove();
+    expect((await commands.sttModelStatus()).state).toBe('missing');
+    off();
+  });
+
+  it('cancelar a mitad deja el modelo sin descargar', async () => {
+    vi.useFakeTimers();
+    await commands.sttModelDownload();
+    await vi.advanceTimersByTimeAsync(500);
+    await commands.sttModelCancel();
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    const status = await commands.sttModelStatus();
+    expect(status.state).toBe('missing');
+    expect(status.downloaded).toBe(0);
+  });
+
+  it('el idioma elegido vuelve en los ajustes y los atajos se listan', async () => {
+    expect((await commands.setSttLanguage('en')).sttLanguage).toBe('en');
+    const shortcuts = await commands.getShortcuts();
+    expect(shortcuts.map((shortcut) => shortcut.action)).toEqual([
+      'toggleQuestion',
+      'toggleIsland',
+    ]);
+  });
+});

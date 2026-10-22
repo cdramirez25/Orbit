@@ -22,7 +22,7 @@ beforeEach(() => {
 describe('tarjeta de IA: lo que se oye', () => {
   it('sin nada que mostrar explica cómo se usa', () => {
     render(<Expanded />);
-    expect(screen.getByText(/Pulsa Grabar pregunta/)).toBeInTheDocument();
+    expect(screen.getByText(/Pulsa Grabar audio/)).toBeInTheDocument();
     expect(screen.queryByText('Transcripción en vivo')).not.toBeInTheDocument();
   });
 
@@ -59,7 +59,9 @@ describe('tarjeta de IA: lo que se oye', () => {
     useAudioStore.setState({ listening: true, errorCode: 'stt.modelMissing' });
     render(<Expanded />);
 
-    expect(screen.getByText('Falta el modelo de transcripción')).toBeInTheDocument();
+    expect(
+      screen.getByText('Falta el modelo de transcripción. Descárgalo en Ajustes, Audio.'),
+    ).toBeInTheDocument();
     expect(screen.queryByText('Esperando voz…')).not.toBeInTheDocument();
   });
 

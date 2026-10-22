@@ -8,12 +8,38 @@
 //! completo. El "en vivo" se consigue repitiendo la llamada sobre la frase en curso (parciales) y
 //! cerrándola cuando hay una pausa (final).
 
+pub mod model;
+pub mod model_source;
 pub mod segmenter;
 pub mod transcriber;
 pub mod whisper_local;
 
 use std::path::PathBuf;
 use std::sync::mpsc::Sender;
+
+use serde::{Deserialize, Serialize};
+
+/// Idioma en el que se transcribe: que el motor lo detecte solo o uno fijo (si se sabe cuál es,
+/// acierta más y tarda menos, y no confunde un acento con otro idioma).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SttLanguage {
+    #[default]
+    Auto,
+    Es,
+    En,
+}
+
+impl SttLanguage {
+    /// Código que entiende Whisper (`auto` = detectarlo en cada frase).
+    pub fn code(self) -> &'static str {
+        match self {
+            Self::Auto => "auto",
+            Self::Es => "es",
+            Self::En => "en",
+        }
+    }
+}
 
 /// Lo que le llega al hilo de transcripción.
 pub enum SttMessage {
@@ -54,6 +80,9 @@ pub trait SttEngine: Send + Sync {
 
     /// Libera la memoria del motor (al dejar de escuchar). La siguiente llamada vuelve a cargarlo.
     fn release(&self) {}
+
+    /// Cambia el idioma de las próximas transcripciones.
+    fn set_language(&self, _language: SttLanguage) {}
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -94,6 +123,19 @@ mod tests {
         );
         assert_eq!(SttError::ModelLoad("x".into()).code(), "stt.modelLoad");
         assert_eq!(SttError::Inference("x".into()).code(), "stt.inference");
+    }
+
+    #[test]
+    fn languages_map_to_whisper_codes_and_the_wire_format() {
+        assert_eq!(SttLanguage::default(), SttLanguage::Auto);
+        assert_eq!(SttLanguage::Auto.code(), "auto");
+        assert_eq!(SttLanguage::Es.code(), "es");
+        assert_eq!(SttLanguage::En.code(), "en");
+        assert_eq!(serde_json::to_value(SttLanguage::Es).unwrap(), "es");
+        assert_eq!(
+            serde_json::from_str::<SttLanguage>("\"auto\"").unwrap(),
+            SttLanguage::Auto
+        );
     }
 
     #[test]

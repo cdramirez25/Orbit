@@ -7,3 +7,12 @@ export function sttErrorKey(code: string): MessageKey | null {
   if (code.startsWith('stt.')) return 'stt.error.generic';
   return null;
 }
+
+/** Mensaje para un fallo al descargar o borrar el modelo (`stt.model.*`). */
+export function modelErrorKey(code: string): MessageKey {
+  if (code === 'stt.model.network') return 'stt.model.error.network';
+  if (code === 'stt.model.disk') return 'stt.model.error.disk';
+  if (code === 'stt.model.corrupt') return 'stt.model.error.corrupt';
+  if (code === 'stt.model.busy') return 'stt.model.error.busy';
+  return 'stt.model.error.generic';
+}

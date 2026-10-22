@@ -9,7 +9,7 @@ use whisper_rs::{
     FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters, WhisperState,
 };
 
-use super::{Pass, SttEngine, SttError, Transcription};
+use super::{Pass, SttEngine, SttError, SttLanguage, Transcription};
 
 /// Modelo por defecto: `small` multilingüe (≈ 465 MB), buen equilibrio entre precisión y velocidad.
 pub const MODEL_FILE: &str = "ggml-small.bin";
@@ -31,6 +31,7 @@ static LOGGING: Once = Once::new();
 pub struct WhisperEngine {
     model_path: PathBuf,
     state: Mutex<Option<WhisperState>>,
+    language: Mutex<SttLanguage>,
 }
 
 impl WhisperEngine {
@@ -38,7 +39,12 @@ impl WhisperEngine {
         Self {
             model_path,
             state: Mutex::new(None),
+            language: Mutex::new(SttLanguage::default()),
         }
+    }
+
+    fn language(&self) -> SttLanguage {
+        *self.language.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
     /// Lee el modelo una vez para que el sistema lo deje en su caché de disco: tras encender el
@@ -87,8 +93,8 @@ impl SttEngine for WhisperEngine {
 
         let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
         params.set_n_threads(threads());
-        // Idioma automático: la misma frase puede estar en español o en inglés.
-        params.set_language(Some("auto"));
+        // Con `auto` el idioma se detecta en cada frase: la misma conversación puede mezclarlos.
+        params.set_language(Some(self.language().code()));
         params.set_translate(false);
         // Cada llamada es independiente: nada del texto anterior condiciona a la siguiente.
         params.set_no_context(true);
@@ -138,6 +144,10 @@ impl SttEngine for WhisperEngine {
     fn release(&self) {
         *self.lock() = None;
     }
+
+    fn set_language(&self, language: SttLanguage) {
+        *self.language.lock().unwrap_or_else(PoisonError::into_inner) = language;
+    }
 }
 
 fn audio_ctx(samples: usize) -> i32 {
@@ -170,6 +180,14 @@ mod tests {
     #[test]
     fn releasing_an_engine_that_never_loaded_is_harmless() {
         WhisperEngine::new(PathBuf::from("x.bin")).release();
+    }
+
+    #[test]
+    fn the_language_can_be_changed_and_starts_automatic() {
+        let engine = WhisperEngine::new(PathBuf::from("x.bin"));
+        assert_eq!(engine.language(), SttLanguage::Auto);
+        engine.set_language(SttLanguage::Es);
+        assert_eq!(engine.language().code(), "es");
     }
 
     #[test]

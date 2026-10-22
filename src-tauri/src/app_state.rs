@@ -13,6 +13,8 @@ use crate::media::MediaService;
 use crate::pipeline::Pipeline;
 use crate::sessions::SessionService;
 use crate::settings::Settings;
+use crate::stt::model::ModelService;
+use crate::stt::SttEngine;
 use crate::weather::WeatherService;
 
 pub struct AppState {
@@ -36,6 +38,10 @@ pub struct AppState {
     pub sessions: Arc<SessionService>,
     /// Junta las frases de la pregunta que se está grabando con el botón.
     pub recorder: Arc<QuestionRecorder>,
+    /// Motor de transcripción (para cambiarle el idioma sin pararlo).
+    pub stt: Arc<dyn SttEngine>,
+    /// El modelo de transcripción en disco: estado, descarga y borrado.
+    pub models: Arc<ModelService>,
     settings: RwLock<Settings>,
     settings_path: PathBuf,
 }
@@ -51,6 +57,8 @@ pub struct Services {
     pub prompter: Arc<Prompter>,
     pub sessions: Arc<SessionService>,
     pub recorder: Arc<QuestionRecorder>,
+    pub stt: Arc<dyn SttEngine>,
+    pub models: Arc<ModelService>,
 }
 
 impl AppState {
@@ -71,6 +79,8 @@ impl AppState {
             prompter: services.prompter,
             sessions: services.sessions,
             recorder: services.recorder,
+            stt: services.stt,
+            models: services.models,
             settings: RwLock::new(settings),
             settings_path,
         }

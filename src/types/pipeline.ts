@@ -1,4 +1,6 @@
 import type { NowPlaying } from './media';
+import type { UiAction } from './shortcuts';
+import type { ModelStatus } from './stt';
 
 /**
  * Espejo exacto de `src-tauri/src/events.rs` (eventos de dominio → eventos de Tauri).
@@ -46,6 +48,10 @@ export interface PipelineEvents {
   'sessions:changed': null;
   /** Cambió lo que suena (`null`: ya no suena nada). */
   'media:changed': NowPlaying | null;
+  /** Cambió el modelo de transcripción: descargando (con progreso), descargado, borrado o con un fallo. */
+  'stt:model': ModelStatus;
+  /** Un atajo global o la bandeja piden algo a la isla. */
+  'ui:action': UiAction;
   error: OrbitError;
 }
 

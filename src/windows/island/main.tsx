@@ -25,8 +25,10 @@ import { useSessionStore } from '@/stores/session.store';
 import { useSettingsStore } from '@/stores/settings.store';
 import { useTranscriptStore } from '@/stores/transcript.store';
 import { useWeatherStore } from '@/stores/weather.store';
+import { bindUiActions } from '@/windows/island/actions';
 import { App } from '@/windows/island/App';
 import { bindRemoteControl } from '@/windows/island/remote';
+import { bindTrayLabels } from '@/windows/island/tray';
 
 // Composition root del frontend: registrar módulos y enlazar el registro con la isla.
 const registry = useRegistryStore.getState();
@@ -63,6 +65,11 @@ bindAnswerToIsland();
 
 // La ventana de ajustes (otra ventana) controla la isla con mensajes.
 bindRemoteControl();
+
+// Los atajos globales y la bandeja del sistema (Rust) piden cosas a la isla; la bandeja se rotula
+// con el idioma de la interfaz.
+void bindUiActions();
+bindTrayLabels();
 
 // Lo guardado por Rust (ocultar de screen share…). La isla siempre arranca centrada: Rust ya
 // ignora la posición guardada al abrir.

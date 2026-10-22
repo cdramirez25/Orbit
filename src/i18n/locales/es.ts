@@ -85,9 +85,42 @@ export const es = {
   'transcript.sample1': 'La capital de Australia es Canberra, no Sídney como mucha gente cree.',
   'transcript.sample2': 'El río más largo del mundo es el Nilo según la mayoría de las fuentes.',
   'transcript.sample3': '¿Cuál es la capital de Australia?',
-  'stt.error.modelMissing': 'Falta el modelo de transcripción',
+  'stt.error.modelMissing': 'Falta el modelo de transcripción. Descárgalo en Ajustes, Audio.',
   'stt.error.modelLoad': 'No se pudo cargar el modelo de transcripción',
   'stt.error.generic': 'Falló la transcripción',
+
+  // ── Transcripción: idioma y modelo (Ajustes, Audio) ─────────────────────
+  'stt.section': 'Transcripción',
+  'stt.language.label': 'Idioma de la voz',
+  'stt.language.aria': 'Idioma de la transcripción',
+  'stt.language.auto': 'Automático',
+  'stt.language.hint':
+    'Si siempre se habla el mismo idioma, elígelo: acierta más y tarda menos. Automático lo detecta en cada frase.',
+  'stt.model.title': 'Modelo de voz',
+  'stt.model.ready': 'Descargado',
+  'stt.model.missing': 'Sin descargar',
+  'stt.model.downloading': 'Descargando',
+  'stt.model.download': 'Descargar',
+  'stt.model.cancel': 'Cancelar',
+  'stt.model.remove': 'Borrar',
+  'stt.model.progress': 'Progreso de la descarga',
+  'stt.model.hint':
+    'La voz se transcribe en tu equipo con Whisper: el audio nunca sale de él. El modelo se descarga una sola vez.',
+  'stt.model.error.network': 'No se pudo descargar. Revisa tu conexión e inténtalo de nuevo.',
+  'stt.model.error.disk': 'No se pudo guardar el modelo en el disco.',
+  'stt.model.error.corrupt': 'La descarga llegó dañada. Inténtalo de nuevo.',
+  'stt.model.error.busy': 'Espera a que termine la descarga.',
+  'stt.model.error.generic': 'No se pudo completar la operación con el modelo.',
+
+  // ── Atajos globales y bandeja del sistema ───────────────────────────────
+  'settings.section.shortcuts': 'Atajos',
+  'shortcuts.toggleQuestion': 'Grabar audio y responder',
+  'shortcuts.toggleIsland': 'Mostrar u ocultar la isla',
+  'shortcuts.unavailable': 'En uso por otra app',
+  'shortcuts.hint': 'Funcionan con cualquier app en primer plano.',
+  'tray.toggleIsland': 'Mostrar u ocultar la isla',
+  'tray.settings': 'Ajustes',
+  'tray.quit': 'Salir de Orbit',
 
   // ── Barra de navegación de ajustes ──────────────────────────────────────
   'settings.nav.aria': 'Secciones de ajustes',
@@ -156,7 +189,7 @@ export const es = {
     'La IA lo sigue en todas las preguntas de esta sesión y recuerda todo lo que se pregunte y se responda.',
   'sessions.field.autoAnswer': 'Contestar sola las preguntas que oiga',
   'sessions.field.autoAnswerHint':
-    'Apagado: solo responde cuando pulsas Grabar pregunta y luego Terminar y responder.',
+    'Apagado: solo responde cuando pulsas Grabar audio y luego Terminar y responder.',
   'sessions.action.save': 'Guardar',
   'sessions.action.use': 'Usar esta sesión',
   'sessions.action.inUse': 'En uso',
@@ -169,19 +202,18 @@ export const es = {
   'sessions.error.emptyName': 'La sesión necesita un nombre',
   'sessions.error.generic': 'No se pudo guardar la sesión',
 
-  // ── IA en la isla (grabar pregunta) ─────────────────────────────────────
+  // ── IA en la isla (grabar audio) ─────────────────────────────────────
   'prompter.module': 'IA',
   'prompter.session.aria': 'Sesión activa',
   'prompter.session.none': 'Sin sesión',
   'prompter.session.previous': 'Sesión anterior',
   'prompter.session.next': 'Sesión siguiente',
   'prompter.session.new': 'Nueva sesión',
-  'prompter.record': 'Grabar pregunta',
+  'prompter.record': 'Grabar audio',
   'prompter.finish': 'Terminar y responder',
   'prompter.cancel': 'Cancelar',
   'prompter.recording': 'Grabando…',
-  'prompter.hint':
-    'Pulsa Grabar pregunta, haz o reproduce la pregunta y pulsa Terminar y responder.',
+  'prompter.hint': 'Pulsa Grabar audio, haz o reproduce la pregunta y pulsa Terminar y responder.',
   'prompter.error.permission': 'Falta el permiso para capturar el audio (Ajustes del Sistema)',
   'ai.error.noQuestion': 'No se oyó ninguna pregunta',
   'prompter.type.aria': 'Escribir una pregunta',

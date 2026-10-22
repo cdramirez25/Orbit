@@ -1,4 +1,5 @@
 import type { IslandAnchor, Point } from '@/types/island';
+import type { SttLanguage } from '@/types/stt';
 
 /**
  * Espejo de `Settings` en Rust (`settings/mod.rs`): lo que se persiste en JSON. Subconjunto de la
@@ -10,4 +11,6 @@ export interface IslandSettings {
   islandAnchor: IslandAnchor;
   /** Esquina superior izquierda de la ventana en modo libre. */
   freeOrigin: Point | null;
+  /** Idioma de la transcripción. */
+  sttLanguage: SttLanguage;
 }

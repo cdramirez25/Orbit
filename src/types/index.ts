@@ -27,8 +27,10 @@ export type {
 } from './pipeline';
 export type { MediaCommand, NowPlaying } from './media';
 export type { RemoteCommand, RemoteState } from './remote';
+export type { ShortcutInfo, UiAction } from './shortcuts';
 export type { Session, SessionMessage, SessionsState, SessionUpdate } from './sessions';
 export type { IslandSettings } from './settings';
+export type { ModelState, ModelStatus, SttLanguage } from './stt';
 export type {
   Units,
   WeatherCurrent,

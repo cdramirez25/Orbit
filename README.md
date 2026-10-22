@@ -10,9 +10,10 @@
 
 </div>
 
-> **Status:** early development (v0.1.0). The island already shows the weather of your area and a clipboard history,
-> and captures system audio (the waves follow the real volume); transcription and the Prompter are not ready yet.
-> See the [roadmap](#roadmap).
+> **Status:** early development (v0.1.0). The island already shows the weather, a clipboard history and the music
+> that is playing; it transcribes the system audio on your computer (local Whisper) and answers questions with the AI
+> you choose (Claude, ChatGPT, Groq, Ollama or Docker), with a context and history per session. Global shortcuts and a
+> tray icon are in. Packaging is not ready yet. See the [roadmap](#roadmap).
 
 ---
 
@@ -22,26 +23,33 @@ Orbit is a dynamic island for your desktop: a black pill at the top of the scree
 right when you need it, what matters. It is built around modules, so what it shows depends on the active module.
 
 The first one is **Prompter**, designed for video calls (Meet, Zoom, Teams…). Orbit listens to what the other people
-say, detects when someone asks a question, and shows you the answer in the island, like a teleprompter. It only hears
-the audio that comes out of your speakers or headphones; your microphone is never captured.
+say, transcribes it live, and when you press **Record audio** (or a shortcut) and then **Finish and answer**, it shows
+you the answer in the island, like a teleprompter. You can also type the question, or let a session answer the
+questions it hears by itself. It only hears the audio that comes out of your speakers or headphones; your microphone
+is never captured.
 
 ## What exists today
 
-| Area          | Status                                                                                                                                                                                                                                               |
-| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Island window | Transparent, borderless, always on top, and it never steals focus. On macOS it is an `NSPanel`.                                                                                                                                                      |
-| State machine | `hidden`, `idle`, `compact`, `expanded` and `alert`, with tested transitions (Vitest).                                                                                                                                                               |
-| Animation     | Width, height and radius morphing with `motion/react` springs; content that fades in and out in a staggered way.                                                                                                                                     |
-| Notch         | Detection on macOS (`attached` style) and a `floating` mode for Macs without a notch and for Windows.                                                                                                                                                |
-| Click-through | The window ignores the mouse except when the pointer is over the island.                                                                                                                                                                             |
-| Modules       | `OrbitModule` interface + a registry with priority arbitration and a switcher between resident modules.                                                                                                                                              |
-| Settings      | In development, a native window opens on startup (drag it anywhere on the screen, close it, reopen it from the gear in the island card) to control the island, language, privacy and audio.                                                          |
-| Music         | What is playing on your computer (Spotify, Music, YouTube or any other tab in your browser) with its cover, a progress bar and previous, play/pause and next buttons. On macOS it uses a private system API, so it may stop working after an update. |
-| Weather       | Current weather and today's forecast for your area, always one click away in the island (Open-Meteo, no API key).                                                                                                                                    |
-| Clipboard     | History of the text and images you copy during the session, with copy again, delete one and clear all. It lives in memory only.                                                                                                                      |
-| UI            | Accessible primitives (`Button`, `IconButton`, `Toggle`, `Tab`, `Card`) with a global `cursor: pointer`. All icons come from [Lucide](https://lucide.dev); no emojis.                                                                                |
-| Languages     | Spanish and English (`src/i18n/locales/`).                                                                                                                                                                                                           |
-| System audio  | Capture permission (macOS), real capture (ScreenCaptureKit on macOS, WASAPI loopback on Windows), conversion to 16 kHz mono, and the volume that drives the island's waves.                                                                          |
+| Area          | Status                                                                                                                                                                                                                                                                                                                                             |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Island window | Transparent, borderless, always on top, and it never steals focus. On macOS it is an `NSPanel`.                                                                                                                                                                                                                                                    |
+| State machine | `hidden`, `idle`, `compact`, `expanded` and `alert`, with tested transitions (Vitest).                                                                                                                                                                                                                                                             |
+| Animation     | Width, height and radius morphing with `motion/react` springs; content that fades in and out in a staggered way.                                                                                                                                                                                                                                   |
+| Notch         | Detection on macOS (`attached` style) and a `floating` mode for Macs without a notch and for Windows.                                                                                                                                                                                                                                              |
+| Click-through | The window ignores the mouse except when the pointer is over the island.                                                                                                                                                                                                                                                                           |
+| Modules       | `OrbitModule` interface + a registry with priority arbitration and a switcher between resident modules.                                                                                                                                                                                                                                            |
+| Settings      | A native window with a sidebar (Island, Sessions, Audio, AI, General). It opens on startup in development; you can close it and reopen it from the gear in the island card or from the tray icon.                                                                                                                                                  |
+| Music         | What is playing on your computer (Spotify, Music, YouTube or any other tab in your browser) with its cover, a progress bar you can click or drag to seek, and previous, play/pause and next buttons. On macOS it uses a private system API, so it may stop working after an update.                                                                |
+| Weather       | Current weather and today's forecast for your area, always one click away in the island (Open-Meteo, no API key).                                                                                                                                                                                                                                  |
+| Clipboard     | History of the text and images you copy during the session, with copy again, delete one and clear all. It lives in memory only.                                                                                                                                                                                                                    |
+| UI            | Accessible primitives (`Button`, `IconButton`, `Toggle`, `Tab`, `Card`) with a global `cursor: pointer`. All icons come from [Lucide](https://lucide.dev); no emojis.                                                                                                                                                                              |
+| Languages     | Spanish and English (`src/i18n/locales/`).                                                                                                                                                                                                                                                                                                         |
+| System audio  | Capture permission (macOS), real capture (ScreenCaptureKit on macOS, WASAPI loopback on Windows), conversion to 16 kHz mono, and the volume that drives the island's waves.                                                                                                                                                                        |
+| Transcription | Local [Whisper](https://github.com/ggml-org/whisper.cpp) (`small` multilingual model, GPU with Metal on macOS) with live text in the island. Language: automatic, Spanish or English. The model (≈ 488 MB) is downloaded from Settings → Audio, with progress, cancel, automatic resume and an integrity check, and can be deleted from there too. |
+| AI providers  | Claude, ChatGPT, Groq, Ollama (local) and Docker Model Runner (local). Save and test each one, list its models and pick the one in use. Answers stream in and render bold, italic, code and lists.                                                                                                                                                 |
+| Sessions      | Each session has its own prompt (how the AI should act), the whole history of questions and answers as context, an optional AI of its own, and an "answer by itself" switch. Ask by recording audio or by typing in the island.                                                                                                                    |
+| Shortcuts     | Global, they work with any app in front: `Cmd/Ctrl+Shift+Space` records the audio and sends the question, and `Cmd/Ctrl+Shift+H` shows or hides the island.                                                                                                                                                                                        |
+| Tray          | An icon in the menu bar (macOS) or the notification area (Windows) to show or hide the island, open Settings or quit.                                                                                                                                                                                                                              |
 
 ## Stack
 
@@ -54,7 +62,8 @@ the audio that comes out of your speakers or headphones; your microphone is neve
 | State           | Zustand                                                   |
 | Styling         | Tailwind CSS 4 (utilities) + CSS variables                |
 | Tests           | Vitest + Testing Library (frontend) · `cargo test` (Rust) |
-| Async Rust      | `tokio` (arrives with streaming STT, Phase 3)             |
+| Transcription   | `whisper-rs` (whisper.cpp), local, no network             |
+| Local storage   | SQLite (`rusqlite`) for AI keys, config and sessions      |
 | Package manager | `pnpm`                                                    |
 
 **Platforms:** macOS 13+ (main development target) and Windows 10 2004+ / 11. Linux is out of scope.
@@ -81,6 +90,14 @@ pnpm tauri dev
 `pnpm tauri dev` opens the full app (native window + island demo). If you only want to work on the frontend,
 `pnpm dev` serves it at <http://localhost:1420/island.html>.
 
+### First use
+
+1. **Settings → Audio:** download the voice model (once) and, if you always speak the same language, pick it.
+2. **Settings → AI:** choose a provider, enter its key (or the address of a local one), press Test and Use.
+3. **Settings → Sessions:** create a session and, if you want, give it a prompt and an AI of its own.
+4. In the island, open the AI card and press **Record audio** (or `Cmd/Ctrl+Shift+Space`) while the question plays,
+   then **Finish and answer**. You can also type the question in the field below.
+
 > On macOS, capturing system audio requires granting the **Screen Recording** permission
 > (System Settings → Privacy & Security). The "System audio" section of the settings window shows the permission status and
 > takes you to Settings. With `pnpm tauri dev`, macOS grants the permission to the terminal (or app) you launch Orbit
@@ -104,30 +121,33 @@ system APIs or the UI.
 
 ```
  Input adapters                    Core                      Output adapters
- (Tauri commands, shortcuts, ──►  pipeline/ · modules/  ──►  (Deepgram, local Whisper, Anthropic,
-  tray, events to the frontend)   only know traits           OpenAI-compatible, ScreenCaptureKit,
-                                                             WASAPI, keychain, JSON settings)
+ (Tauri commands, shortcuts, ──►  pipeline/ · modules/  ──►  (local Whisper, Claude, ChatGPT, Groq,
+  tray, events to the frontend)   only know traits           Ollama, Docker, ScreenCaptureKit, WASAPI,
+                                                             SQLite, JSON settings)
 ```
 
 Key rules:
 
-- `pipeline/` and `modules/` depend **only on traits** (`AudioSource`, `SttEngine`, `LlmProvider`, `EventSink`,
-  `WeatherProvider`, `ClipboardPort`).
+- `pipeline/` and `modules/` depend **only on traits** (`AudioSource`, `SttEngine`, `LlmClient`, `ModelSource`,
+  `EventSink`, `WeatherProvider`, `ClipboardPort`).
 - Concrete implementations are instantiated **only** in the _composition root_ (`lib.rs` + `app_state.rs`).
 - Adapters never know about each other. Switching provider or operating system means picking another adapter.
 - Tauri commands are thin: they validate, call the core and return. No business logic.
 - In the frontend, components **never** call `invoke()`: they go through stores and hooks, and only `src/ipc/` talks
   to Rust.
 
-### The Prompter pipeline (target)
+### The Prompter pipeline
 
 ```
-System audio → resampling (16 kHz mono) → VAD → streaming STT
-   → question detector (+ ~30 s buffer) → streaming LLM → island (expanded)
+System audio → resampling (16 kHz mono) → segmenter (pauses) → local Whisper (draft + final)
+   → question (recorded with the button/shortcut, typed, or detected) → streaming LLM → island (expanded)
 ```
 
-The question detector fires on an end of utterance or a ~600–800 ms silence **and** a heuristic (a `?` sign,
-Spanish/English interrogatives, or a list of options). There will also be a manual shortcut (`answer_now`).
+Whisper does not stream, so the live text is a draft that is repeated over the phrase in progress and closed at each
+pause. The question comes from the audio recorded between **Record audio** and **Finish and answer**, from what you
+type, or, in a session with "answer by itself" on, from any phrase that looks like a question (a `?` sign or a
+Spanish/English interrogative). The AI receives the session prompt and the history of that session (the oldest turns
+are dropped when it gets too long).
 
 ### Repository structure
 
@@ -141,14 +161,15 @@ Orbit/
 ├── src/                 # Frontend (React + TSX)
 │   ├── windows/         #   entry points, one per window (island/ and settings/)
 │   ├── components/      #   ui/ (primitives) and island/ (Island, NotchShape, IslandContent, ModuleSwitcher)
-│   ├── modules/         #   island modules (plugins): registry.ts, demo/, weather/, clipboard/ and music/
+│   ├── modules/         #   island modules (plugins): registry.ts, prompter/ (AI), weather/, clipboard/, music/ and demo/
 │   ├── features/        #   settings window content (settings/)
-│   ├── stores/          #   global state with Zustand (island, settings, audio, weather, clipboard)
+│   ├── stores/          #   global state with Zustand (island, settings, audio, transcript, answer, sessions, model…)
 │   ├── hooks/           #   useHitTest, useIslandDrag, useReducedMotion, useNow…
 │   ├── ipc/             #   the only layer that talks to Rust (commands, events, errors)
 │   ├── lib/
 │   │   ├── island/      #     state machine and animation constants
-│   │   ├── audio/       #     system audio volume as a MotionValue
+│   │   ├── audio/       #     system audio volume as a MotionValue and error messages
+│   │   ├── markdown.ts  #     safe markdown parser for the answers (no HTML)
 │   │   ├── weather/     #     weather codes to condition types
 │   │   └── utils/       #     pure utilities (cn, time)
 │   ├── i18n/            #   Spanish and English texts
@@ -162,7 +183,13 @@ Orbit/
         ├── lib.rs       #   composition root: adapters are chosen here
         ├── app_state.rs #   shared state
         ├── events.rs    #   domain events and the EventSink port
-        ├── commands/    #   thin Tauri commands: audio, clipboard, island, pipeline and weather
+        ├── commands/    #   thin Tauri commands: ai, audio, clipboard, desktop, island, media, pipeline, sessions, stt and weather
+        ├── shortcuts.rs #   global shortcuts (input adapter)
+        ├── tray.rs      #   menu bar / notification area icon (input adapter)
+        ├── db/          #   local SQLite database (migrations)
+        ├── ai/          #   providers, HTTP clients, prompter (answers) and SQLite store
+        ├── sessions/    #   sessions: prompt, history and context
+        ├── stt/         #   SttEngine port, segmenter, transcriber, local Whisper and the model download
         ├── window/      #   island and settings windows, positioning, notch and platform/ (macOS and Windows)
         ├── audio/       #   AudioSource port, resampling, volume level, permission and debug WAV
         │   └── platform/ #    ScreenCaptureKit (macOS) and WASAPI loopback (Windows)
@@ -183,6 +210,14 @@ Orbit/
 - **Clipboard history:** it only lives in memory and is gone when Orbit quits. Contents that password managers mark as
   concealed are never recorded, and nothing you copy is logged or sent anywhere.
 - **System audio:** only what comes out of your speakers or headphones; your microphone is never captured.
+- **Transcription:** it runs on your computer with Whisper; the audio is never sent anywhere and is not saved. The only
+  network use is downloading the model from [Hugging Face](https://huggingface.co/ggerganov/whisper.cpp), which
+  receives your IP address.
+- **AI:** the text of the question, the session prompt and the session history are sent to the provider you picked
+  (Claude, ChatGPT or Groq). With Ollama or Docker everything stays on your computer. Nothing else is sent.
+- **Keys and sessions:** they are stored in a local SQLite database (`orbit.db`, in the app's config folder), readable
+  only by your user; nothing is written to the repository or to logs.
+- **Shortcuts:** Orbit only registers the two combinations above; it does not read anything else you type.
 
 ## Roadmap
 
@@ -190,10 +225,12 @@ Orbit/
 | ----- | -------------------------------------------------------------------------- | ----------- |
 | 0     | Scaffolding: Tauri 2 + React + Vite + Tailwind, lint, `@/` alias           | Done        |
 | 1     | The island: window, state machine, animations, notch, click-through, i18n  | Done        |
-| 2     | System audio capture (macOS and Windows), resampling and level meter       | In progress |
-| 3     | Streaming transcription (Deepgram) and a local engine with `whisper-rs`    | Pending     |
-| 4     | LLM clients (Anthropic and OpenAI-compatible), question detector, Prompter | Pending     |
-| 5     | Settings, keychain, global shortcuts, tray, onboarding and consent         | Pending     |
+| 2     | System audio capture (macOS and Windows), resampling and level meter       | Done        |
+| 3     | Transcription: local engine with `whisper-rs` (cloud streaming is pending) | Done        |
+| 4     | LLM clients (Claude, ChatGPT, Groq, Ollama, Docker), sessions, Prompter    | Done        |
+| 5     | Settings, global shortcuts and tray done; onboarding and consent pending   | In progress |
 | 6     | Polish, packaging (`.dmg`, `.msi`/`.exe`) and module documentation         | Pending     |
 
-Along the way two resident modules were added ahead of the Prompter: the weather and the clipboard history.
+Along the way three resident modules were added: the weather, the clipboard history and the music. API keys are
+stored in SQLite instead of the system keychain, so they never trigger keychain prompts. Windows-specific code
+(shortcuts, tray, music, system audio) is compile-checked but has not been run on a real Windows machine yet.

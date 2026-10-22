@@ -1,16 +1,19 @@
 import { create } from 'zustand';
 
 import { commands } from '@/ipc/commands';
-import type { IslandAnchor, IslandStyle } from '@/types';
+import type { IslandAnchor, IslandStyle, SttLanguage } from '@/types';
 
 interface SettingsStore {
   islandStyle: IslandStyle;
   hideFromScreenShare: boolean;
   /** Dónde está la isla: izquierda, centro (automático), derecha o libre. */
   anchor: IslandAnchor;
+  /** Idioma de la transcripción: automático o uno fijo. */
+  sttLanguage: SttLanguage;
   setIslandStyle: (style: IslandStyle) => void;
   setHideFromScreenShare: (hide: boolean) => void;
   setAnchor: (anchor: IslandAnchor) => Promise<void>;
+  setSttLanguage: (language: SttLanguage) => Promise<void>;
   /** Carga lo guardado por Rust (ancla, ocultar de screen share). */
   load: () => Promise<void>;
 }
@@ -19,6 +22,7 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
   islandStyle: 'floating',
   hideFromScreenShare: true,
   anchor: 'center',
+  sttLanguage: 'auto',
 
   setIslandStyle: (islandStyle) => set({ islandStyle }),
 
@@ -37,10 +41,24 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
     }
   },
 
+  setSttLanguage: async (sttLanguage) => {
+    set({ sttLanguage });
+    try {
+      const saved = await commands.setSttLanguage(sttLanguage);
+      set({ sttLanguage: saved.sttLanguage });
+    } catch {
+      // Se mantiene el valor local; Rust no pudo aplicarlo.
+    }
+  },
+
   load: async () => {
     try {
       const saved = await commands.getIslandSettings();
-      set({ anchor: saved.islandAnchor, hideFromScreenShare: saved.hideFromScreenShare });
+      set({
+        anchor: saved.islandAnchor,
+        hideFromScreenShare: saved.hideFromScreenShare,
+        sttLanguage: saved.sttLanguage,
+      });
     } catch {
       // Sin ajustes guardados se queda con los valores por defecto.
     }

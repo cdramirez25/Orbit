@@ -17,7 +17,7 @@ tauri-build = { version = "2.7", features = [] }
 [dependencies]
 # `macos-private-api` es necesario para ventanas transparentes en macOS (debe coincidir
 # con `app.macOSPrivateApi` en tauri.conf.json). Implica no publicar en la Mac App Store.
-tauri = { version = "2.12", features = ["macos-private-api"] }
+tauri = { version = "2.12", features = ["macos-private-api", "tray-icon", "image-png"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
@@ -38,6 +38,10 @@ whisper-rs = "0.16"
 # Base de datos local (SQLite) para las claves y la configuración de la IA. El SQLite viene incluido
 # (`bundled`), así que no depende de nada del sistema. MIT; SQLite es de dominio público.
 rusqlite = { version = "0.40", features = ["bundled"] }
+# Atajos globales del teclado (grabar la pregunta, mostrar u ocultar la isla). MIT OR Apache-2.0.
+tauri-plugin-global-shortcut = "2"
+# Verifica que el modelo de Whisper descargado es el esperado. MIT OR Apache-2.0.
+sha2 = "0.11"
 
 # Solo macOS: ventana convertida en NSPanel + detección del notch (window/platform/macos.rs) y
 # captura del audio del sistema con ScreenCaptureKit (audio/platform/macos_sck.rs). Whisper usa

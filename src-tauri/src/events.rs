@@ -10,6 +10,7 @@ use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter};
 
 use crate::media::NowPlaying;
+use crate::stt::model::ModelStatus;
 
 // Las variantes sin emisor todavía se usan desde las Fases 2–4 (audio, STT, LLM).
 #[allow(dead_code)]
@@ -29,6 +30,17 @@ pub struct OrbitError {
     pub code: String,
     pub message: String,
     pub recoverable: bool,
+}
+
+/// Algo que el usuario pidió desde fuera de las ventanas (un atajo global o la bandeja del
+/// sistema) y que la isla ejecuta.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum UiAction {
+    /// Empezar a grabar la pregunta o, si ya se graba, terminarla y enviarla a la IA.
+    ToggleQuestion,
+    /// Mostrar la isla si está oculta; ocultarla si no.
+    ToggleIsland,
 }
 
 #[allow(dead_code)]
@@ -57,6 +69,10 @@ pub enum DomainEvent {
     SessionsChanged,
     /// Cambió lo que suena (o dejó de sonar: `None`).
     MediaChanged(Option<NowPlaying>),
+    /// Cambió el modelo de transcripción: se está descargando, se descargó, se borró o falló.
+    ModelStatus(ModelStatus),
+    /// Un atajo global o la bandeja piden algo a la isla.
+    UiAction(UiAction),
     Error(OrbitError),
 }
 
@@ -74,6 +90,8 @@ impl DomainEvent {
             Self::ClipboardChanged => "clipboard:changed",
             Self::SessionsChanged => "sessions:changed",
             Self::MediaChanged(_) => "media:changed",
+            Self::ModelStatus(_) => "stt:model",
+            Self::UiAction(_) => "ui:action",
             Self::Error(_) => "error",
         }
     }
@@ -90,6 +108,8 @@ impl DomainEvent {
             } => json!({ "text": text, "endOfUtterance": end_of_utterance }),
             Self::LlmDone | Self::ClipboardChanged | Self::SessionsChanged => Value::Null,
             Self::MediaChanged(now_playing) => json!(now_playing),
+            Self::ModelStatus(status) => json!(status),
+            Self::UiAction(action) => json!(action),
             Self::Error(error) => json!(error),
         }
     }
@@ -202,6 +222,7 @@ mod tests {
             (DomainEvent::LlmDone, "llm:done"),
             (DomainEvent::ClipboardChanged, "clipboard:changed"),
             (DomainEvent::SessionsChanged, "sessions:changed"),
+            (DomainEvent::UiAction(UiAction::ToggleIsland), "ui:action"),
         ];
         for (event, name) in names {
             assert_eq!(event.name(), name);
@@ -223,6 +244,14 @@ mod tests {
             json!({ "text": "hola", "endOfUtterance": true })
         );
         assert_eq!(DomainEvent::LlmDone.payload(), Value::Null);
+        assert_eq!(
+            DomainEvent::UiAction(UiAction::ToggleQuestion).payload(),
+            json!("toggleQuestion")
+        );
+        assert_eq!(
+            DomainEvent::UiAction(UiAction::ToggleIsland).payload(),
+            json!("toggleIsland")
+        );
         assert_eq!(
             DomainEvent::LlmStart {
                 question: "¿Qué?".into()

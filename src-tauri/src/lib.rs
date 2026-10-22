@@ -15,7 +15,9 @@ mod media;
 mod pipeline;
 mod sessions;
 mod settings;
+mod shortcuts;
 mod stt;
+mod tray;
 mod weather;
 mod window;
 
@@ -43,6 +45,8 @@ use crate::pipeline::{Pipeline, PipelineConfig};
 use crate::sessions::sqlite::SqliteSessionStore;
 use crate::sessions::SessionService;
 use crate::settings::Settings;
+use crate::stt::model::{small_model, ModelService};
+use crate::stt::model_source::HttpModelSource;
 use crate::stt::whisper_local::{WhisperEngine, MODEL_FILE};
 use crate::stt::SttEngine;
 use crate::weather::ip_locator::IpLocator;
@@ -100,6 +104,13 @@ pub fn run() {
             commands::island::set_island_origin,
             commands::island::quit_app,
             commands::settings_window::open_settings_window,
+            commands::stt::stt_model_status,
+            commands::stt::stt_model_download,
+            commands::stt::stt_model_cancel,
+            commands::stt::stt_model_remove,
+            commands::stt::set_stt_language,
+            commands::desktop::get_shortcuts,
+            commands::desktop::set_tray_labels,
         ])
         .setup(|app| {
             window::prepare_app(app)?;
@@ -131,13 +142,20 @@ pub fn run() {
                 debug_wav: std::env::var_os("ORBIT_DEBUG_WAV").map(PathBuf::from),
             };
 
-            // Transcripción local (Whisper): el modelo vive en la carpeta de datos de la app y se
-            // carga al empezar a escuchar.
+            // Transcripción local (Whisper): el modelo vive en la carpeta de datos de la app (se
+            // descarga desde Ajustes) y se carga al empezar a escuchar.
             let model_path = app.path().app_data_dir()?.join("models").join(MODEL_FILE);
-            let whisper = Arc::new(WhisperEngine::new(model_path));
+            let whisper = Arc::new(WhisperEngine::new(model_path.clone()));
+            whisper.set_language(settings.stt_language);
             let primer = Arc::clone(&whisper);
             std::thread::spawn(move || primer.prime_disk_cache());
             let stt: Arc<dyn SttEngine> = whisper;
+            let models = Arc::new(ModelService::new(
+                model_path,
+                small_model(),
+                Arc::new(HttpModelSource::small()),
+                Arc::clone(&events),
+            ));
 
             // Base de datos local (SQLite, `orbit.db` en la carpeta de la app). Guarda las claves y la
             // configuración de la IA. Si no se puede abrir, Orbit sigue funcionando con una base en
@@ -170,7 +188,8 @@ pub fn run() {
                 Arc::clone(&prompter),
                 Arc::clone(&recorder),
             ));
-            let pipeline = Pipeline::new(audio_source, pipeline_events, config).with_stt(stt);
+            let pipeline =
+                Pipeline::new(audio_source, pipeline_events, config).with_stt(Arc::clone(&stt));
 
             // Clima: ubicación por IP (ipwho.is) + datos de Open-Meteo, con un solo cliente HTTP.
             let http = weather::http::agent();
@@ -205,10 +224,14 @@ pub fn run() {
                     prompter,
                     sessions,
                     recorder,
+                    stt,
+                    models,
                 },
                 settings,
                 settings_path,
             ));
+            app.manage(tray::TrayState::default());
+            shortcuts::register(app.handle());
 
             window::island_window::create(app.handle(), &settings)?;
             window::island_window::spawn_display_watcher(app.handle().clone());

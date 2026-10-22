@@ -66,15 +66,15 @@ beforeEach(() => {
 });
 
 describe('botón de grabar la pregunta', () => {
-  it('antes de grabar ofrece "Grabar pregunta"', () => {
+  it('antes de grabar ofrece "Grabar audio"', () => {
     render(<Expanded />);
-    expect(screen.getByRole('button', { name: 'Grabar pregunta' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Grabar audio' })).toBeEnabled();
     expect(screen.queryByRole('button', { name: 'Terminar y responder' })).not.toBeInTheDocument();
   });
 
   it('al grabar empieza a escuchar y el botón pasa a "Terminar y responder"', async () => {
     render(<Expanded />);
-    await click('Grabar pregunta');
+    await click('Grabar audio');
 
     expect(mocked.questionStart).toHaveBeenCalledTimes(1);
     expect(screen.getByRole('button', { name: 'Terminar y responder' })).toBeInTheDocument();
@@ -84,40 +84,40 @@ describe('botón de grabar la pregunta', () => {
 
   it('al terminar se le hace la pregunta a la IA y vuelve el botón de grabar', async () => {
     render(<Expanded />);
-    await click('Grabar pregunta');
+    await click('Grabar audio');
     await click('Terminar y responder');
 
     expect(mocked.questionFinish).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole('button', { name: 'Grabar pregunta' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Grabar audio' })).toBeInTheDocument();
   });
 
   it('cancelar vuelve atrás sin responder', async () => {
     render(<Expanded />);
-    await click('Grabar pregunta');
+    await click('Grabar audio');
     await click('Cancelar');
 
     expect(mocked.questionCancel).toHaveBeenCalledTimes(1);
     expect(mocked.questionFinish).not.toHaveBeenCalled();
-    expect(screen.getByRole('button', { name: 'Grabar pregunta' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Grabar audio' })).toBeInTheDocument();
   });
 
   it('si no se oyó ninguna pregunta lo dice', async () => {
     mocked.questionFinish.mockRejectedValue({ code: 'ai.noQuestion', message: 'x' });
     render(<Expanded />);
-    await click('Grabar pregunta');
+    await click('Grabar audio');
     await click('Terminar y responder');
 
     expect(screen.getByRole('alert')).toHaveTextContent('No se oyó ninguna pregunta');
-    expect(screen.getByRole('button', { name: 'Grabar pregunta' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Grabar audio' })).toBeInTheDocument();
   });
 
   it('si falta el permiso de audio al empezar lo dice y no queda "grabando"', async () => {
     mocked.questionStart.mockRejectedValue({ code: 'audio.permissionDenied', message: 'x' });
     render(<Expanded />);
-    await click('Grabar pregunta');
+    await click('Grabar audio');
 
     expect(screen.getByRole('alert')).toHaveTextContent('Falta el permiso para capturar el audio');
-    expect(screen.getByRole('button', { name: 'Grabar pregunta' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Grabar audio' })).toBeInTheDocument();
     expect(useQuestionStore.getState().recording).toBe(false);
   });
 
@@ -143,7 +143,7 @@ describe('botón de grabar la pregunta', () => {
   it('se traduce al inglés', () => {
     useLocaleStore.setState({ locale: 'en' });
     render(<Expanded />);
-    expect(screen.getByRole('button', { name: 'Record question' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Record audio' })).toBeInTheDocument();
   });
 });
 
@@ -181,7 +181,7 @@ describe('escribir la pregunta en la isla', () => {
 
   it('mientras se graba una pregunta no se puede escribir otra', async () => {
     render(<Expanded />);
-    await click('Grabar pregunta');
+    await click('Grabar audio');
     expect(field()).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Enviar pregunta' })).toBeDisabled();
   });
@@ -213,7 +213,7 @@ describe('escribir la pregunta en la isla', () => {
     render(<Expanded />);
     fireEvent.focus(field());
     await act(async () => {});
-    expect(screen.getByRole('button', { name: 'Grabar pregunta' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Grabar audio' })).toBeInTheDocument();
   });
 
   it('se traduce al inglés', () => {

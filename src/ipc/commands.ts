@@ -11,6 +11,7 @@ import type {
   IslandAnchor,
   MediaCommand,
   IslandSettings,
+  ModelStatus,
   NotchInfo,
   NowPlaying,
   PermissionStatus,
@@ -19,6 +20,8 @@ import type {
   SessionMessage,
   SessionsState,
   SessionUpdate,
+  ShortcutInfo,
+  SttLanguage,
   WeatherReport,
 } from '@/types';
 
@@ -38,6 +41,7 @@ const DEFAULT_SETTINGS: IslandSettings = {
   hideFromScreenShare: true,
   islandAnchor: 'center',
   freeOrigin: null,
+  sttLanguage: 'auto',
 };
 
 // En el navegador el puntero se rastrea con eventos del DOM (en Tauri lo da Rust).
@@ -116,6 +120,46 @@ function stopSimulation(): void {
   emitLocal('audio:level', 0);
   emitLocal('pipeline:state', 'idle');
 }
+
+// Solo navegador: el modelo de transcripción simulado (descarga con progreso) para ver Ajustes con `pnpm dev`.
+const BROWSER_MODEL_BYTES = 487_601_967;
+const MODEL_TICK_MS = 120;
+const MODEL_STEP = 0.02;
+let browserModel: ModelStatus = {
+  state: 'missing',
+  downloaded: 0,
+  total: BROWSER_MODEL_BYTES,
+  error: null,
+};
+let modelSimulation: ReturnType<typeof setInterval> | undefined;
+
+function setBrowserModel(next: ModelStatus): void {
+  browserModel = next;
+  emitLocal('stt:model', next);
+}
+
+function simulateModelDownload(): void {
+  if (browserModel.state !== 'missing') return;
+  setBrowserModel({ ...browserModel, state: 'downloading', downloaded: 0, error: null });
+  modelSimulation = setInterval(() => {
+    const downloaded = Math.min(
+      browserModel.downloaded + BROWSER_MODEL_BYTES * MODEL_STEP,
+      BROWSER_MODEL_BYTES,
+    );
+    if (downloaded >= BROWSER_MODEL_BYTES) {
+      clearInterval(modelSimulation);
+      setBrowserModel({ ...browserModel, state: 'ready', downloaded: BROWSER_MODEL_BYTES });
+    } else {
+      setBrowserModel({ ...browserModel, downloaded });
+    }
+  }, MODEL_TICK_MS);
+}
+
+// Solo navegador: los atajos tal como los devolvería Rust.
+const BROWSER_SHORTCUTS: ShortcutInfo[] = [
+  { action: 'toggleQuestion', keys: 'CommandOrControl+Shift+Space', registered: true },
+  { action: 'toggleIsland', keys: 'CommandOrControl+Shift+H', registered: true },
+];
 
 // Solo navegador: datos de muestra para ver el clima y el portapapeles con `pnpm dev`.
 const SAMPLE_WEATHER: Omit<WeatherReport, 'fetchedAtMs'> = {
@@ -627,6 +671,49 @@ export const commands = {
   /** ¿Se está grabando una pregunta? (por si la ventana se abrió con una grabación en marcha). */
   questionIsRecording: (): Promise<boolean> =>
     isTauri() ? invoke<boolean>('question_is_recording') : Promise.resolve(browserRecording),
+
+  /** Estado del modelo de transcripción: si está, cuánto se lleva descargado y el último fallo. */
+  sttModelStatus: (): Promise<ModelStatus> =>
+    isTauri() ? invoke<ModelStatus>('stt_model_status') : Promise.resolve(browserModel),
+
+  /** Empieza a descargar el modelo; el progreso llega por el evento `stt:model`. */
+  sttModelDownload: (): Promise<void> => {
+    if (isTauri()) return invoke<void>('stt_model_download');
+    simulateModelDownload();
+    return Promise.resolve();
+  },
+
+  sttModelCancel: (): Promise<void> => {
+    if (isTauri()) return invoke<void>('stt_model_cancel');
+    clearInterval(modelSimulation);
+    setBrowserModel({ ...browserModel, state: 'missing', downloaded: 0 });
+    return Promise.resolve();
+  },
+
+  /** Borra el modelo del disco (se puede volver a descargar). */
+  sttModelRemove: (): Promise<void> => {
+    if (isTauri()) return invoke<void>('stt_model_remove');
+    setBrowserModel({ ...browserModel, state: 'missing', downloaded: 0, error: null });
+    return Promise.resolve();
+  },
+
+  /** Cambia el idioma de la transcripción; Rust lo guarda y lo aplica desde la siguiente frase. */
+  setSttLanguage: (language: SttLanguage): Promise<IslandSettings> =>
+    isTauri()
+      ? invoke<IslandSettings>('set_stt_language', { language })
+      : Promise.resolve({ ...DEFAULT_SETTINGS, sttLanguage: language }),
+
+  /** Los atajos globales y si se pudieron registrar. */
+  getShortcuts: (): Promise<ShortcutInfo[]> =>
+    isTauri() ? invoke<ShortcutInfo[]>('get_shortcuts') : Promise.resolve(BROWSER_SHORTCUTS),
+
+  /** Rotula el menú de la bandeja (la crea la primera vez) con los textos del idioma activo. */
+  setTrayLabels: (labels: {
+    toggleIsland: string;
+    settings: string;
+    quit: string;
+  }): Promise<void> =>
+    isTauri() ? invoke<void>('set_tray_labels', { labels }) : Promise.resolve(),
 
   /** Abre la ventana de ajustes (solo en desarrollo) o la trae al frente. */
   openSettingsWindow: (): Promise<void> => {

@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 
 import { Button } from '@/components/ui';
 import { PageHeader, Section } from '@/features/settings/layout';
+import { TranscriptionSection } from '@/features/settings/pages/TranscriptionSection';
 import type { MessageKey } from '@/i18n/messages';
 import { useT } from '@/i18n/useT';
 import { sttErrorKey } from '@/lib/audio/stt-error';
@@ -54,52 +55,55 @@ export function AudioPage() {
   return (
     <>
       <PageHeader title={t('settings.nav.audio')} />
-      <Section title={t('settings.panel.audio')}>
-        <div
-          className="flex flex-wrap items-center gap-1.5"
-          role="group"
-          aria-label={t('settings.panel.audio')}
-        >
-          {permission && (
-            <span
-              role="status"
-              className={cn(
-                'inline-flex items-center gap-1 rounded-full bg-white/8 px-2 py-0.5 text-[11px] font-medium',
-                PERMISSION_TONE[permission],
-              )}
+      <div className="flex flex-col gap-3">
+        <Section title={t('settings.panel.audio')}>
+          <div
+            className="flex flex-wrap items-center gap-1.5"
+            role="group"
+            aria-label={t('settings.panel.audio')}
+          >
+            {permission && (
+              <span
+                role="status"
+                className={cn(
+                  'inline-flex items-center gap-1 rounded-full bg-white/8 px-2 py-0.5 text-[11px] font-medium',
+                  PERMISSION_TONE[permission],
+                )}
+              >
+                <span className="size-1.5 rounded-full bg-current" aria-hidden />
+                {t(PERMISSION_LABEL[permission])}
+              </span>
+            )}
+            <Button
+              size="sm"
+              variant={listening ? 'danger' : 'primary'}
+              onClick={() => void toggleListening()}
             >
-              <span className="size-1.5 rounded-full bg-current" aria-hidden />
-              {t(PERMISSION_LABEL[permission])}
+              {t(listening ? 'audio.stop' : 'audio.listen')}
+            </Button>
+            {permission === 'notDetermined' && (
+              <Button size="sm" variant="primary" onClick={() => void requestPermission()}>
+                {t('audio.permission.request')}
+              </Button>
+            )}
+            {permission === 'denied' && (
+              <Button size="sm" variant="primary" onClick={() => void openPermissionSettings()}>
+                {t('audio.permission.openSettings')}
+              </Button>
+            )}
+          </div>
+          <p className="text-[11px] leading-snug text-ink-faint">{t('audio.hint')}</p>
+          {errorMessage && (
+            <span role="alert" className="text-[11px] text-danger">
+              {t(errorMessage)}
             </span>
           )}
-          <Button
-            size="sm"
-            variant={listening ? 'danger' : 'primary'}
-            onClick={() => void toggleListening()}
-          >
-            {t(listening ? 'audio.stop' : 'audio.listen')}
-          </Button>
-          {permission === 'notDetermined' && (
-            <Button size="sm" variant="primary" onClick={() => void requestPermission()}>
-              {t('audio.permission.request')}
-            </Button>
-          )}
           {permission === 'denied' && (
-            <Button size="sm" variant="primary" onClick={() => void openPermissionSettings()}>
-              {t('audio.permission.openSettings')}
-            </Button>
+            <span className="text-[11px] text-ink-faint">{t('audio.permission.restartHint')}</span>
           )}
-        </div>
-        <p className="text-[11px] leading-snug text-ink-faint">{t('audio.hint')}</p>
-        {errorMessage && (
-          <span role="alert" className="text-[11px] text-danger">
-            {t(errorMessage)}
-          </span>
-        )}
-        {permission === 'denied' && (
-          <span className="text-[11px] text-ink-faint">{t('audio.permission.restartHint')}</span>
-        )}
-      </Section>
+        </Section>
+        <TranscriptionSection />
+      </div>
     </>
   );
 }

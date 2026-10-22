@@ -7,6 +7,8 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
+use crate::stt::SttLanguage;
+
 /// Dónde se coloca la isla en la pantalla.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -38,6 +40,8 @@ pub struct Settings {
     /// ¿Ya se le pidió al usuario el permiso para capturar el audio del sistema? macOS no dice si
     /// un permiso está "denegado" o "sin pedir": hay que recordarlo para mostrar el mensaje justo.
     pub screen_capture_prompted: bool,
+    /// Idioma de la transcripción: automático o uno fijo.
+    pub stt_language: SttLanguage,
 }
 
 impl Default for Settings {
@@ -47,6 +51,7 @@ impl Default for Settings {
             island_anchor: IslandAnchor::Center,
             free_origin: None,
             screen_capture_prompted: false,
+            stt_language: SttLanguage::Auto,
         }
     }
 }
@@ -118,6 +123,7 @@ mod tests {
             island_anchor: IslandAnchor::Free,
             free_origin: Some(Point { x: 120.5, y: 40.0 }),
             screen_capture_prompted: true,
+            stt_language: SttLanguage::Es,
         };
         settings.save(&path).unwrap();
         assert_eq!(Settings::load(&path), settings);
@@ -141,6 +147,16 @@ mod tests {
     }
 
     #[test]
+    fn the_transcription_language_defaults_to_automatic_and_survives_a_restart() {
+        assert_eq!(Settings::default().stt_language, SttLanguage::Auto);
+
+        let path = temp_path("language");
+        fs::write(&path, r#"{ "sttLanguage": "en" }"#).unwrap();
+        assert_eq!(Settings::load(&path).stt_language, SttLanguage::En);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
     fn partial_file_keeps_defaults_for_missing_fields() {
         let path = temp_path("partial");
         fs::write(&path, r#"{ "islandAnchor": "left" }"#).unwrap();
@@ -155,6 +171,7 @@ mod tests {
         let json = serde_json::to_value(Settings::default()).unwrap();
         assert_eq!(json["islandAnchor"], "center");
         assert_eq!(json["hideFromScreenShare"], true);
+        assert_eq!(json["sttLanguage"], "auto");
         assert!(json["freeOrigin"].is_null());
     }
 }

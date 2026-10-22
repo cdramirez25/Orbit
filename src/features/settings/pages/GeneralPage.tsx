@@ -2,6 +2,7 @@ import { Power } from 'lucide-react';
 
 import { Button, Tab, Toggle } from '@/components/ui';
 import { PageHeader, Section } from '@/features/settings/layout';
+import { ShortcutsSection } from '@/features/settings/pages/ShortcutsSection';
 import { useLocaleStore } from '@/i18n/locale.store';
 import { LOCALE_NAMES } from '@/i18n/messages';
 import { useT } from '@/i18n/useT';
@@ -46,6 +47,8 @@ export function GeneralPage() {
             ))}
           </div>
         </Section>
+
+        <ShortcutsSection />
 
         <Section title={t('settings.section.privacy')}>
           <label className="flex items-center gap-2 text-[12px] text-ink">

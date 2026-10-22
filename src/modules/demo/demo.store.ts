@@ -93,7 +93,7 @@ export function bindDemoToIsland(): () => void {
  * Muestra la tarjeta de IA: la elige entre los módulos y abre la isla desde reposo, compacta u oculta.
  * Una tarjeta ya abierta o un aviso no se pisan.
  */
-function showPrompter(): void {
+export function showPrompter(): void {
   useRegistryStore.getState().select(PROMPTER_MODULE_ID);
   const island = useIslandStore.getState();
   const state = island.snapshot.state;

@@ -4,11 +4,13 @@
 pub mod ai;
 pub mod audio;
 pub mod clipboard;
+pub mod desktop;
 pub mod island;
 pub mod media;
 pub mod pipeline;
 pub mod sessions;
 pub mod settings_window;
+pub mod stt;
 pub mod weather;
 
 use serde::ser::SerializeStruct;
@@ -30,6 +32,8 @@ pub enum CommandError {
     Ai(#[from] crate::ai::AiError),
     #[error("error de la sesión: {0}")]
     Session(#[from] crate::sessions::SessionError),
+    #[error("error del modelo de transcripción: {0}")]
+    Model(#[from] crate::stt::model::ModelError),
 }
 
 impl CommandError {
@@ -43,6 +47,7 @@ impl CommandError {
             Self::Media(error) => error.code(),
             Self::Ai(error) => error.code(),
             Self::Session(error) => error.code(),
+            Self::Model(error) => error.code(),
         }
     }
 }

@@ -81,9 +81,42 @@ export const en: Record<MessageKey, string> = {
   'transcript.sample1': 'The capital of Australia is Canberra, not Sydney as many people think.',
   'transcript.sample2': 'The longest river in the world is the Nile according to most sources.',
   'transcript.sample3': 'What is the capital of Australia?',
-  'stt.error.modelMissing': 'Transcription model not found',
+  'stt.error.modelMissing': 'Transcription model not found. Download it in Settings, Audio.',
   'stt.error.modelLoad': 'Could not load the transcription model',
   'stt.error.generic': 'Transcription failed',
+
+  // ── Transcription: language and model (Settings, Audio) ─────────────────
+  'stt.section': 'Transcription',
+  'stt.language.label': 'Spoken language',
+  'stt.language.aria': 'Transcription language',
+  'stt.language.auto': 'Automatic',
+  'stt.language.hint':
+    'If the same language is always spoken, pick it: it is more accurate and faster. Automatic detects it in every phrase.',
+  'stt.model.title': 'Voice model',
+  'stt.model.ready': 'Downloaded',
+  'stt.model.missing': 'Not downloaded',
+  'stt.model.downloading': 'Downloading',
+  'stt.model.download': 'Download',
+  'stt.model.cancel': 'Cancel',
+  'stt.model.remove': 'Delete',
+  'stt.model.progress': 'Download progress',
+  'stt.model.hint':
+    'Speech is transcribed on your computer with Whisper: the audio never leaves it. The model is downloaded only once.',
+  'stt.model.error.network': 'Could not download. Check your connection and try again.',
+  'stt.model.error.disk': 'Could not save the model to disk.',
+  'stt.model.error.corrupt': 'The download arrived damaged. Try again.',
+  'stt.model.error.busy': 'Wait for the download to finish.',
+  'stt.model.error.generic': 'The operation on the model could not be completed.',
+
+  // ── Global shortcuts and system tray ────────────────────────────────────
+  'settings.section.shortcuts': 'Shortcuts',
+  'shortcuts.toggleQuestion': 'Record audio and answer',
+  'shortcuts.toggleIsland': 'Show or hide the island',
+  'shortcuts.unavailable': 'In use by another app',
+  'shortcuts.hint': 'They work with any app in the foreground.',
+  'tray.toggleIsland': 'Show or hide the island',
+  'tray.settings': 'Settings',
+  'tray.quit': 'Quit Orbit',
 
   // ── Settings navigation bar ─────────────────────────────────────────────
   'settings.nav.aria': 'Settings sections',
@@ -152,7 +185,7 @@ export const en: Record<MessageKey, string> = {
     'The AI follows it in every question of this session and remembers everything asked and answered.',
   'sessions.field.autoAnswer': 'Answer the questions it hears by itself',
   'sessions.field.autoAnswerHint':
-    'Off: it only answers when you press Record question and then Finish and answer.',
+    'Off: it only answers when you press Record audio and then Finish and answer.',
   'sessions.action.save': 'Save',
   'sessions.action.use': 'Use this session',
   'sessions.action.inUse': 'In use',
@@ -165,18 +198,18 @@ export const en: Record<MessageKey, string> = {
   'sessions.error.emptyName': 'The session needs a name',
   'sessions.error.generic': 'Could not save the session',
 
-  // ── AI in the island (record a question) ────────────────────────────────
+  // ── AI in the island (record audio) ────────────────────────────────
   'prompter.module': 'AI',
   'prompter.session.aria': 'Active session',
   'prompter.session.none': 'No session',
   'prompter.session.previous': 'Previous session',
   'prompter.session.next': 'Next session',
   'prompter.session.new': 'New session',
-  'prompter.record': 'Record question',
+  'prompter.record': 'Record audio',
   'prompter.finish': 'Finish and answer',
   'prompter.cancel': 'Cancel',
   'prompter.recording': 'Recording…',
-  'prompter.hint': 'Press Record question, ask or play the question and press Finish and answer.',
+  'prompter.hint': 'Press Record audio, ask or play the question and press Finish and answer.',
   'prompter.error.permission': 'Audio capture permission is missing (System Settings)',
   'ai.error.noQuestion': 'No question was heard',
   'prompter.type.aria': 'Type a question',
