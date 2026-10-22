@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use crate::events::UiAction;
+use crate::keep_awake::KeepAwakeSetting;
 use crate::stt::catalog::SttModel;
 use crate::stt::SttLanguage;
 
@@ -53,6 +54,8 @@ pub struct Settings {
     pub model_dir: Option<PathBuf>,
     /// ¿Ya terminó (o saltó) la guía de primer arranque?
     pub onboarding_done: bool,
+    /// Modo de pantalla encendida (apagado, siempre, un tiempo o un horario diario).
+    pub keep_awake: KeepAwakeSetting,
 }
 
 impl Default for Settings {
@@ -67,6 +70,7 @@ impl Default for Settings {
             shortcuts: HashMap::new(),
             model_dir: None,
             onboarding_done: false,
+            keep_awake: KeepAwakeSetting::Off,
         }
     }
 }
@@ -143,6 +147,10 @@ mod tests {
             shortcuts: HashMap::from([(UiAction::ToggleIsland, "Alt+Space".to_owned())]),
             model_dir: Some(PathBuf::from("/Volumes/Externo/modelos")),
             onboarding_done: true,
+            keep_awake: KeepAwakeSetting::Schedule {
+                start: 840,
+                end: 1020,
+            },
         };
         settings.save(&path).unwrap();
         assert_eq!(Settings::load(&path), settings);
@@ -185,6 +193,19 @@ mod tests {
         assert_eq!(Settings::load(&path).stt_model, SttModel::Small);
         fs::write(&path, r#"{ "sttModel": "medium" }"#).unwrap();
         assert_eq!(Settings::load(&path).stt_model, SttModel::Medium);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn keep_awake_defaults_to_off_and_survives_a_restart() {
+        assert_eq!(Settings::default().keep_awake, KeepAwakeSetting::Off);
+
+        let path = temp_path("awake");
+        // Un archivo de antes de existir el módulo no trae el campo.
+        fs::write(&path, r#"{ "sttLanguage": "es" }"#).unwrap();
+        assert_eq!(Settings::load(&path).keep_awake, KeepAwakeSetting::Off);
+        fs::write(&path, r#"{ "keepAwake": { "mode": "always" } }"#).unwrap();
+        assert_eq!(Settings::load(&path).keep_awake, KeepAwakeSetting::Always);
         fs::remove_file(path).unwrap();
     }
 
@@ -236,6 +257,7 @@ mod tests {
         assert_eq!(json["shortcuts"], serde_json::json!({}));
         assert!(json["modelDir"].is_null());
         assert_eq!(json["onboardingDone"], false);
+        assert_eq!(json["keepAwake"], serde_json::json!({ "mode": "off" }));
         assert!(json["freeOrigin"].is_null());
     }
 }

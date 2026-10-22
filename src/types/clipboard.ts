@@ -1,3 +1,6 @@
+/** Lo que se le pide a la IA sobre un texto copiado. Espejo de `TextAction` en Rust. */
+export type ClipboardAiAction = 'translate' | 'summarize' | 'explain';
+
 /** Espejo de `EntryView` en `src-tauri/src/clipboard/history.rs`. */
 
 export type ClipboardKind = 'text' | 'image';

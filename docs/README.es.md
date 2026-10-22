@@ -10,8 +10,8 @@
 
 </div>
 
-> **Estado:** en desarrollo temprano (v0.1.0). La isla ya muestra el clima, un historial del portapapeles y la música
-> que suena; transcribe el audio del sistema en tu computadora (Whisper local) y responde preguntas con la IA que
+> **Estado:** en desarrollo temprano (v0.1.0). La isla ya muestra el clima, un historial del portapapeles, la música
+> que suena y un control para mantener la pantalla encendida; transcribe el audio del sistema en tu computadora (Whisper local) y responde preguntas con la IA que
 > elijas (Claude, ChatGPT, Groq, Gemini, Ollama o Docker), con contexto e historial por sesión. Ya hay atajos globales y un
 > icono en la bandeja. El empaquetado todavía no está listo. Consulta la [hoja de ruta](#hoja-de-ruta).
 
@@ -32,7 +32,8 @@ Hoy trae cuatro módulos:
 - **Música:** lo que suena, con su portada y controles, y una barra de progreso donde puedes hacer clic o arrastrar
   para adelantar o atrasar.
 - **Clima:** el clima actual y el pronóstico de hoy de tu zona.
-- **Portapapeles:** el historial de lo que copias durante la sesión.
+- **Portapapeles:** el historial de lo que copias durante la sesión, con traducir, resumir y explicar con la IA que elijas.
+- **Pantalla encendida:** evita que tu pantalla se apague durante un tiempo, en un horario diario o hasta que lo desactives.
 
 Alrededor de ellos hay una ventana de ajustes, un icono en la bandeja y atajos globales del teclado.
 
@@ -49,7 +50,8 @@ Alrededor de ellos hay una ventana de ajustes, un icono en la bandeja y atajos g
 | Ajustes            | Una ventana nativa con barra lateral (Isla, Sesiones, Audio, IA, General). En desarrollo se abre al iniciar; puedes cerrarla y volver a abrirla con el engranaje de la tarjeta o con el icono de la bandeja.                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | Música             | Lo que suena en tu computadora (Spotify, Música, YouTube o cualquier pestaña del navegador) con su portada, una barra de progreso donde puedes hacer clic o arrastrar para adelantar o atrasar, y botones de anterior, play/pausa y siguiente. En macOS usa una API privada del sistema, así que puede dejar de funcionar tras una actualización.                                                                                                                                                                                                                                                                                  |
 | Clima              | Clima actual y pronóstico de hoy de tu zona, siempre a un clic en la isla (Open-Meteo, sin clave de API).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| Portapapeles       | Historial de los textos e imágenes que copias durante la sesión: volver a copiar, borrar uno o borrar todo. Vive solo en memoria.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Portapapeles       | Historial de los textos e imágenes que copias durante la sesión: volver a copiar, borrar uno o borrar todo. Cada texto se puede traducir, resumir o explicar con la IA que elijas, y el resultado se copia. Vive solo en memoria.                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Pantalla encendida | Evita que la pantalla se apague o se atenúe: durante un tiempo que eliges (de 30 min a 12 h), en un horario diario (por ejemplo, de 2 pm a 5 pm) o siempre, hasta que lo desactives. Se retoma solo al reiniciar y vuelve a la normalidad si Orbit se cierra.                                                                                                                                                                                                                                                                                                                                                                      |
 | UI                 | Primitivos accesibles (`Button`, `IconButton`, `Toggle`, `Tab`, `Card`) con `cursor: pointer` global. Todos los iconos son de [Lucide](https://lucide.dev); sin emojis.                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | Idiomas            | Español e inglés (`src/i18n/locales/`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | Audio del sistema  | Permiso de captura (macOS), captura real (ScreenCaptureKit en macOS, WASAPI loopback en Windows), conversión a 16 kHz mono y volumen que mueve las ondas de la isla.                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
@@ -174,7 +176,7 @@ Orbit/
 ├── src/                 # Frontend (React + TSX)
 │   ├── windows/         #   puntos de entrada, uno por ventana (island/ y settings/)
 │   ├── components/      #   ui/ (primitivos) e island/ (Island, NotchShape, IslandContent, ModuleSwitcher)
-│   ├── modules/         #   módulos de la isla (plugins): registry.ts, prompter/ (IA), weather/, clipboard/, music/ y demo/
+│   ├── modules/         #   módulos de la isla (plugins): registry.ts, prompter/ (IA), weather/, clipboard/, music/, awake/ y demo/
 │   ├── features/        #   contenido de la ventana de ajustes (settings/)
 │   ├── stores/          #   estado global con Zustand (island, settings, audio, transcript, answer, sessions, model…)
 │   ├── hooks/           #   useHitTest, useIslandDrag, useReducedMotion, useNow…
@@ -196,7 +198,7 @@ Orbit/
         ├── lib.rs       #   composition root: aquí se eligen los adaptadores
         ├── app_state.rs #   estado compartido
         ├── events.rs    #   eventos de dominio y puerto EventSink
-        ├── commands/    #   comandos de Tauri (finos): ai, audio, clipboard, desktop, island, media, pipeline, sessions, stt y weather
+        ├── commands/    #   comandos de Tauri (finos): ai, audio, awake, clipboard, desktop, island, media, pipeline, sessions, stt y weather
         ├── shortcuts.rs #   atajos globales configurables (adaptador de entrada)
         ├── tray.rs      #   icono de la barra de menú / área de notificaciones (adaptador de entrada)
         ├── db/          #   base de datos local SQLite (migraciones)
@@ -209,6 +211,7 @@ Orbit/
         ├── pipeline/    #   orquestador: audio del sistema → volumen → eventos
         ├── weather/     #   puertos de ubicación y pronóstico, caché, localizador por IP y adaptador de Open-Meteo
         ├── clipboard/   #   puerto del portapapeles, historial en memoria, monitor y adaptador del sistema
+        ├── keep_awake/  #   modos y horario de pantalla encendida, reloj y adaptador del sistema
         ├── media/       #   puerto de la música, monitor de lo que suena y adaptadores en platform/ (macOS: perl + MediaRemote; Windows: GSMTC)
         └── settings/    #   configuración persistida
 ```
@@ -221,7 +224,8 @@ Orbit/
   comercial y sus datos tienen licencia CC BY 4.0.
 - **Música:** el título, el artista y la portada de lo que suena se leen del sistema y solo se muestran en la isla; nunca se guardan ni se escriben en logs.
 - **Historial del portapapeles:** solo vive en memoria y desaparece al cerrar Orbit. Lo que los gestores de contraseñas
-  marcan como oculto nunca se registra, y nada de lo que copias se escribe en logs ni se envía a ningún lado.
+  marcan como oculto nunca se registra, y nada de lo que copias se escribe en logs ni se envía a ningún lado. La única
+  excepción es un texto que tú pides traducir, resumir o explicar: va al proveedor de IA que elegiste, como una pregunta.
 - **Audio del sistema:** solo lo que sale por tus bocinas o audífonos; tu micrófono nunca se captura.
 - **Transcripción:** se hace en tu computadora con Whisper; el audio no se envía a ningún lado ni se guarda. El único uso
   de red es la descarga de un modelo de voz desde [Hugging Face](https://huggingface.co/ggerganov/whisper.cpp), que recibe tu
@@ -241,7 +245,7 @@ sigue en [`docs/SPEC.md`](SPEC.md)).
 | Meta                      | Qué cubre                                                                                                                                                                                                                                          | Estado   |
 | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
 | La plataforma de la isla  | Ventana que nunca roba el foco, máquina de estados, animaciones, notch, click-through, registro de módulos con prioridades, español e inglés, primitivos de UI accesibles, ocultar de la pantalla compartida                                       | Hecha    |
-| Módulos residentes        | Clima, historial del portapapeles y música (con avance y retroceso)                                                                                                                                                                                | Hecha    |
+| Módulos residentes        | Clima, historial del portapapeles (con acciones de IA), música (con avance y retroceso) y mantener la pantalla encendida                                                                                                                           | Hecha    |
 | Escuchar y transcribir    | Captura del audio del sistema (macOS y Windows), Whisper local con texto en vivo, elegir, descargar y borrar el modelo de voz (Base, Small, Medium o Turbo) desde Ajustes, idioma de la transcripción. Planeado: más idiomas                       | Hecha    |
 | IA y Prompter             | Claude, ChatGPT, Groq, Gemini, Ollama y Docker; el modelo se elige de la lista que ofrece cada proveedor; sesiones con su propio prompt, historial e IA; preguntas grabadas o escritas; respuestas con markdown; claves en un archivo SQLite local | Hecha    |
 | Experiencia de escritorio | Hecho: ventana de ajustes, icono en la bandeja, atajos globales configurables, iniciar con la sesión, primer arranque guiado, elegir la carpeta del modelo de voz                                                                                  | Hecha    |

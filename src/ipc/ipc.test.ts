@@ -222,3 +222,88 @@ describe('atajos, inicio con la sesión, guía y carpeta del modelo en el navega
     expect(reset.dir).toContain('dev.orbit.island');
   });
 });
+
+describe('pantalla encendida en el navegador (simulado)', () => {
+  it('empieza desactivada y "siempre" la deja activa hasta apagarla', async () => {
+    const events: boolean[] = [];
+    const off = await onEvent('awake:changed', (status) => events.push(status.active));
+
+    expect(await commands.keepAwakeStatus()).toEqual({
+      setting: { mode: 'off' },
+      active: false,
+      error: null,
+    });
+
+    const on = await commands.keepAwakeSet({ mode: 'always' });
+    expect(on).toMatchObject({ setting: { mode: 'always' }, active: true });
+    expect((await commands.keepAwakeStatus()).active).toBe(true);
+
+    await commands.keepAwakeSet({ mode: 'off' });
+    expect((await commands.keepAwakeStatus()).active).toBe(false);
+    expect(events).toEqual([true, false]);
+    off();
+  });
+
+  it('un tiempo se apaga solo al vencer y lo avisa', async () => {
+    vi.useFakeTimers();
+    const modes: string[] = [];
+    const off = await onEvent('awake:changed', (status) => modes.push(status.setting.mode));
+
+    await commands.keepAwakeSet({ mode: 'until', endsAt: Date.now() + 5_000 });
+    expect((await commands.keepAwakeStatus()).active).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(6_000);
+
+    const status = await commands.keepAwakeStatus();
+    expect(status.active).toBe(false);
+    expect(status.setting).toEqual({ mode: 'off' });
+    expect(modes).toEqual(['until', 'off']);
+    off();
+  });
+
+  it('un tiempo que ya venció no se activa', async () => {
+    const status = await commands.keepAwakeSet({ mode: 'until', endsAt: Date.now() - 1 });
+    expect(status.active).toBe(false);
+    await commands.keepAwakeSet({ mode: 'off' });
+  });
+
+  it('un horario que pasa por la hora actual está activo y uno que no, no', async () => {
+    const now = new Date();
+    const minute = now.getHours() * 60 + now.getMinutes();
+    const around = await commands.keepAwakeSet({
+      mode: 'schedule',
+      start: (minute + 1439) % 1440,
+      end: (minute + 1) % 1440,
+    });
+    expect(around.active).toBe(true);
+
+    const elsewhere = await commands.keepAwakeSet({
+      mode: 'schedule',
+      start: (minute + 60) % 1440,
+      end: (minute + 120) % 1440,
+    });
+    expect(elsewhere.active).toBe(false);
+    await commands.keepAwakeSet({ mode: 'off' });
+  });
+
+  it('un horario con las dos horas iguales o fuera del día se rechaza', async () => {
+    for (const [start, end] of [
+      [600, 600],
+      [0, 1440],
+      [-5, 60],
+    ] as const) {
+      await expect(commands.keepAwakeSet({ mode: 'schedule', start, end })).rejects.toMatchObject({
+        code: 'awake.invalidSchedule',
+      });
+    }
+  });
+});
+
+describe('acciones de IA del portapapeles en el navegador (simulado)', () => {
+  it('devuelve un resultado de muestra del texto pedido', async () => {
+    vi.useFakeTimers();
+    const pending = commands.clipboardAi(4, 'translate', 'es');
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(await pending).toContain('https://orbit.example/docs/getting-started');
+  });
+});

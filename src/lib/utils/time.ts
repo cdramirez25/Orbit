@@ -5,6 +5,12 @@ export function formatClock(ms: number, locale: string, timeZone?: string): stri
   );
 }
 
+/** Una hora del día dada en minutos desde la medianoche (`840` → `2:00 PM` / `14:00`), en el idioma indicado. */
+export function formatMinuteOfDay(minute: number, locale: string): string {
+  const time = new Date(2000, 0, 1, Math.floor(minute / 60), minute % 60);
+  return new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit' }).format(time);
+}
+
 /** Duración de una canción: `3:07`, o `1:02:03` si pasa de la hora. */
 export function formatDuration(totalSeconds: number): string {
   const seconds = Math.max(0, Math.floor(totalSeconds));

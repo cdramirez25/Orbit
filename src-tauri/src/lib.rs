@@ -11,6 +11,7 @@ mod clipboard;
 mod commands;
 mod db;
 mod events;
+mod keep_awake;
 mod media;
 mod pipeline;
 mod sessions;
@@ -40,6 +41,9 @@ use crate::clipboard::system::SystemClipboard;
 use crate::clipboard::ClipboardService;
 use crate::db::Db;
 use crate::events::{DomainEvent, EventSink, PipelineState, TauriEventSink};
+use crate::keep_awake::clock::SystemClock;
+use crate::keep_awake::system::SystemKeepAwake;
+use crate::keep_awake::KeepAwakeService;
 use crate::media::MediaService;
 use crate::pipeline::{Pipeline, PipelineConfig};
 use crate::sessions::sqlite::SqliteSessionStore;
@@ -97,6 +101,10 @@ pub fn run() {
             commands::clipboard::copy_clipboard_entry,
             commands::clipboard::delete_clipboard_entry,
             commands::clipboard::clear_clipboard_history,
+            commands::clipboard::copy_clipboard_text,
+            commands::clipboard::clipboard_ai,
+            commands::awake::keep_awake_status,
+            commands::awake::keep_awake_set,
             commands::media::get_now_playing,
             commands::media::media_command,
             commands::media::media_seek,
@@ -238,6 +246,16 @@ pub fn run() {
             ));
             media::spawn_monitor(Arc::clone(&media));
 
+            // Pantalla encendida: lo que se eligió la última vez (siempre, un horario o lo que falte de
+            // un tiempo) se retoma solo; un hilo vigila cuándo empieza y termina cada cosa.
+            let awake = Arc::new(KeepAwakeService::new(
+                Box::new(SystemKeepAwake),
+                Arc::new(SystemClock),
+                Arc::clone(&events),
+                settings.keep_awake.clone(),
+            ));
+            keep_awake::spawn_ticker(Arc::clone(&awake));
+
             app.manage(AppState::new(
                 events,
                 Services {
@@ -252,6 +270,7 @@ pub fn run() {
                     recorder,
                     stt,
                     models,
+                    awake,
                 },
                 settings.clone(),
                 settings_path,

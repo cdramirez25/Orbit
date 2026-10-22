@@ -14,6 +14,8 @@ vi.mock('@/ipc/commands', () => ({
     copyClipboardEntry: vi.fn().mockResolvedValue(undefined),
     deleteClipboardEntry: vi.fn().mockResolvedValue(undefined),
     clearClipboardHistory: vi.fn().mockResolvedValue(undefined),
+    clipboardAi: vi.fn(),
+    copyClipboardText: vi.fn().mockResolvedValue(undefined),
   },
 }));
 
@@ -44,7 +46,12 @@ const image: ClipboardEntry = {
 beforeEach(() => {
   vi.clearAllMocks();
   useLocaleStore.setState({ locale: 'es' });
-  useClipboardStore.setState({ entries: [text, image], copiedId: null });
+  useClipboardStore.setState({
+    entries: [text, image],
+    copiedId: null,
+    aiResult: null,
+    aiResultCopied: false,
+  });
 });
 
 describe('historial del portapapeles', () => {
@@ -92,6 +99,70 @@ describe('historial del portapapeles', () => {
     render(<Expanded />);
     expect(screen.getByRole('button', { name: 'Clear the whole history' })).toBeInTheDocument();
     expect(screen.getByText(/10 characters/)).toBeInTheDocument();
+  });
+
+  describe('acciones de IA sobre lo copiado', () => {
+    it('un texto ofrece traducir, resumir y explicar; una imagen no', () => {
+      render(<Expanded />);
+      expect(screen.getAllByRole('button', { name: 'Traducir' })).toHaveLength(1);
+      expect(screen.getAllByRole('button', { name: 'Resumir' })).toHaveLength(1);
+      expect(screen.getAllByRole('button', { name: 'Explicar' })).toHaveLength(1);
+    });
+
+    it('traducir pide a la IA ese texto en el idioma de la interfaz y muestra el resultado', async () => {
+      let finish: (value: string) => void = () => {};
+      mocked.clipboardAi.mockImplementation(() => new Promise((resolve) => (finish = resolve)));
+      render(<Expanded />);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Traducir' }));
+      expect(mocked.clipboardAi).toHaveBeenCalledWith(2, 'translate', 'es');
+      expect(screen.getByText('Traducción')).toBeInTheDocument();
+      expect(screen.getByText('Pensando…')).toBeInTheDocument();
+
+      finish('hello world');
+      expect(await screen.findByText('hello world')).toBeInTheDocument();
+      expect(screen.queryByText('Pensando…')).not.toBeInTheDocument();
+    });
+
+    it('el resultado se copia con un botón y se cierra con otro', async () => {
+      mocked.clipboardAi.mockResolvedValue('Resumen corto');
+      render(<Expanded />);
+      fireEvent.click(screen.getByRole('button', { name: 'Resumir' }));
+      await screen.findByText('Resumen corto');
+
+      fireEvent.click(screen.getByRole('button', { name: 'Copiar resultado' }));
+      await waitFor(() => expect(mocked.copyClipboardText).toHaveBeenCalledWith('Resumen corto'));
+
+      fireEvent.click(screen.getByRole('button', { name: 'Cerrar resultado' }));
+      expect(screen.queryByText('Resumen corto')).not.toBeInTheDocument();
+    });
+
+    it('si no hay una IA elegida o falla, lo explica con el mensaje de la IA', async () => {
+      mocked.clipboardAi.mockRejectedValue({ code: 'ai.notConfigured', message: 'x' });
+      render(<Expanded />);
+      fireEvent.click(screen.getByRole('button', { name: 'Explicar' }));
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Elige un proveedor de IA en Ajustes',
+      );
+    });
+
+    it('en inglés, los botones y el resultado salen en inglés y se pide en inglés', async () => {
+      useLocaleStore.setState({ locale: 'en' });
+      mocked.clipboardAi.mockResolvedValue('Hola mundo');
+      render(<Expanded />);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Translate' }));
+      expect(mocked.clipboardAi).toHaveBeenCalledWith(2, 'translate', 'en');
+      expect(await screen.findByText('Translation')).toBeInTheDocument();
+    });
+
+    it('un texto de la IA vacío lo dice en vez de dejar un hueco', async () => {
+      mocked.clipboardAi.mockResolvedValue('');
+      render(<Expanded />);
+      fireEvent.click(screen.getByRole('button', { name: 'Resumir' }));
+      expect(await screen.findByText('La IA no devolvió nada.')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Copiar resultado' })).not.toBeInTheDocument();
+    });
   });
 
   it('la pastilla cuenta los elementos', () => {

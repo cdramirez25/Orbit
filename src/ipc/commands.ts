@@ -7,10 +7,13 @@ import type {
   AiProviderId,
   AiSaveInput,
   AiStatus,
+  ClipboardAiAction,
   ClipboardEntry,
   IslandAnchor,
   MediaCommand,
   IslandSettings,
+  KeepAwakeSetting,
+  KeepAwakeStatus,
   ModelEntry,
   ModelStatus,
   NotchInfo,
@@ -302,6 +305,41 @@ function browserClipboardChanged(): void {
   emitLocal('clipboard:changed', null);
 }
 
+// Solo navegador: la pantalla encendida simulada, con los mismos modos y la misma validación que Rust.
+const MINUTES_PER_DAY = 24 * 60;
+let browserAwake: KeepAwakeStatus = { setting: { mode: 'off' }, active: false, error: null };
+let awakeTicker: ReturnType<typeof setInterval> | undefined;
+
+function awakeWanted(setting: KeepAwakeSetting): boolean {
+  switch (setting.mode) {
+    case 'off':
+      return false;
+    case 'always':
+      return true;
+    case 'until':
+      return Date.now() < setting.endsAt;
+    case 'schedule': {
+      const today = new Date();
+      const minute = today.getHours() * 60 + today.getMinutes();
+      return setting.start < setting.end
+        ? minute >= setting.start && minute < setting.end
+        : minute >= setting.start || minute < setting.end;
+    }
+  }
+}
+
+/** Como el hilo de Rust: apaga el modo que ya venció y avisa solo si algo cambió. */
+function refreshBrowserAwake(): void {
+  const setting: KeepAwakeSetting =
+    browserAwake.setting.mode === 'until' && Date.now() >= browserAwake.setting.endsAt
+      ? { mode: 'off' }
+      : browserAwake.setting;
+  const active = awakeWanted(setting);
+  if (setting === browserAwake.setting && active === browserAwake.active) return;
+  browserAwake = { setting, active, error: null };
+  emitLocal('awake:changed', browserAwake);
+}
+
 // Solo navegador: dos canciones de muestra para ver y probar los controles de música con `pnpm dev`.
 const SAMPLE_COVER = (from: string, to: string): string =>
   'data:image/svg+xml;utf8,' +
@@ -552,6 +590,51 @@ export const commands = {
     browserClipboard = [];
     browserClipboardChanged();
     return Promise.resolve();
+  },
+
+  /** Pone un texto en el portapapeles (el resultado de una acción de IA, por ejemplo). */
+  copyClipboardText: (text: string): Promise<void> => {
+    if (isTauri()) return invoke<void>('copy_clipboard_text', { text });
+    return navigator.clipboard?.writeText(text) ?? Promise.resolve();
+  },
+
+  /**
+   * Le pide a la IA activa que traduzca, resuma o explique un texto del historial y devuelve el
+   * resultado. `language` es el idioma de la interfaz.
+   */
+  clipboardAi: (id: number, action: ClipboardAiAction, language: string): Promise<string> => {
+    if (isTauri()) return invoke<string>('clipboard_ai', { id, action, language });
+    const text = browserClipboard.find((item) => item.id === id)?.text ?? '';
+    return new Promise((resolve) =>
+      setTimeout(() => resolve(`${action} (${language}): ${text}`), 600),
+    );
+  },
+
+  /** El modo de pantalla encendida y si está manteniéndose ahora mismo. */
+  keepAwakeStatus: (): Promise<KeepAwakeStatus> =>
+    isTauri() ? invoke<KeepAwakeStatus>('keep_awake_status') : Promise.resolve(browserAwake),
+
+  /**
+   * Cambia el modo de pantalla encendida (apagado, siempre, un tiempo o un horario diario). Los
+   * cambios que vengan solos (se acabó el tiempo, empezó el horario) llegan por `awake:changed`.
+   */
+  keepAwakeSet: (setting: KeepAwakeSetting): Promise<KeepAwakeStatus> => {
+    if (isTauri()) return invoke<KeepAwakeStatus>('keep_awake_set', { setting });
+    if (
+      setting.mode === 'schedule' &&
+      (setting.start === setting.end ||
+        setting.start < 0 ||
+        setting.end < 0 ||
+        setting.start >= MINUTES_PER_DAY ||
+        setting.end >= MINUTES_PER_DAY)
+    ) {
+      return Promise.reject({ code: 'awake.invalidSchedule', message: 'horario no válido' });
+    }
+    clearInterval(awakeTicker);
+    browserAwake = { setting, active: awakeWanted(setting), error: null };
+    emitLocal('awake:changed', browserAwake);
+    awakeTicker = setting.mode === 'off' ? undefined : setInterval(refreshBrowserAwake, 1000);
+    return Promise.resolve(browserAwake);
   },
 
   /** Lo que suena ahora en el sistema, o `null` si no suena nada. */

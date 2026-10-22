@@ -44,6 +44,10 @@ tauri-plugin-global-shortcut = "2"
 sha2 = "0.11"
 # Abrir Orbit al iniciar sesión (LaunchAgent en macOS, registro de inicio en Windows). MIT OR Apache-2.0.
 tauri-plugin-autostart = "2"
+# Mantener la pantalla encendida (IOKit en macOS, SetThreadExecutionState en Windows). MIT.
+keepawake = "0.6"
+# Hora local para los horarios de pantalla encendida. MIT OR Apache-2.0.
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
 # Selector nativo de carpeta para elegir dónde se guarda el modelo de voz. MIT OR Apache-2.0.
 tauri-plugin-dialog = "2"
 

@@ -1,3 +1,4 @@
+import type { KeepAwakeStatus } from './awake';
 import type { NowPlaying } from './media';
 import type { UiAction } from './shortcuts';
 import type { ModelStatus } from './stt';
@@ -52,6 +53,8 @@ export interface PipelineEvents {
   'stt:model': ModelStatus;
   /** Un atajo global o la bandeja piden algo a la isla. */
   'ui:action': UiAction;
+  /** Cambió el modo de pantalla encendida, o empezó o terminó (se acabó el tiempo, el horario…). */
+  'awake:changed': KeepAwakeStatus;
   error: OrbitError;
 }
 

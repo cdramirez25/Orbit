@@ -34,6 +34,8 @@ pub enum ClipboardError {
     NotFound,
     #[error("no se pudo procesar la imagen: {0}")]
     Image(String),
+    #[error("ese elemento no es un texto")]
+    NotText,
 }
 
 impl ClipboardError {
@@ -43,6 +45,7 @@ impl ClipboardError {
             Self::System(_) => "clipboard.system",
             Self::NotFound => "clipboard.notFound",
             Self::Image(_) => "clipboard.image",
+            Self::NotText => "clipboard.notText",
         }
     }
 }
@@ -148,6 +151,17 @@ impl ClipboardService {
         drop(state);
         self.events.publish(DomainEvent::ClipboardChanged);
         Ok(())
+    }
+
+    /// El texto completo de un elemento del historial (no sube nada ni toca el portapapeles).
+    pub fn text_of(&self, id: u64) -> Result<String, ClipboardError> {
+        self.state().history.text_of(id)
+    }
+
+    /// Pone un texto en el portapapeles (por ejemplo, lo que contestó la IA). El monitor lo verá
+    /// como una copia más y lo guardará en el historial.
+    pub fn write_text(&self, text: String) -> Result<(), ClipboardError> {
+        self.port.write(&Content::Text(text))
     }
 
     pub fn delete(&self, id: u64) -> bool {
@@ -389,6 +403,42 @@ mod tests {
 
         service.copy_at(id, 2).unwrap();
         assert_eq!(clipboard.writes(), vec![original]);
+    }
+
+    #[test]
+    fn writing_a_text_puts_it_in_the_clipboard_and_the_monitor_records_it() {
+        let (service, clipboard, _) = setup();
+
+        service.write_text("resultado de la IA".into()).unwrap();
+
+        assert_eq!(
+            clipboard.writes(),
+            vec![Content::Text("resultado de la IA".into())]
+        );
+        // Entra al historial como cualquier copia del usuario.
+        assert!(service.poll_at(1));
+        assert_eq!(texts(&service), vec!["resultado de la IA"]);
+    }
+
+    #[test]
+    fn the_full_text_of_an_entry_is_available_for_the_ai() {
+        let (service, clipboard, _) = setup();
+        clipboard.copy_text("texto completo");
+        service.poll_at(1);
+        clipboard.copy(picture(2));
+        service.poll_at(2);
+
+        let list = service.list();
+        let image = list
+            .iter()
+            .find(|e| e.kind == history::Kind::Image)
+            .unwrap();
+        let text = list.iter().find(|e| e.kind == history::Kind::Text).unwrap();
+        assert_eq!(service.text_of(text.id).unwrap(), "texto completo");
+        assert!(matches!(
+            service.text_of(image.id),
+            Err(ClipboardError::NotText)
+        ));
     }
 
     #[test]

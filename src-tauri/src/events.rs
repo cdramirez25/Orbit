@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter};
 
+use crate::keep_awake::KeepAwakeStatus;
 use crate::media::NowPlaying;
 use crate::stt::model::ModelStatus;
 
@@ -73,6 +74,8 @@ pub enum DomainEvent {
     ModelStatus(ModelStatus),
     /// Un atajo global o la bandeja piden algo a la isla.
     UiAction(UiAction),
+    /// Cambió el modo de pantalla encendida, o empezó o terminó (se acabó el tiempo, el horario…).
+    KeepAwake(KeepAwakeStatus),
     Error(OrbitError),
 }
 
@@ -92,6 +95,7 @@ impl DomainEvent {
             Self::MediaChanged(_) => "media:changed",
             Self::ModelStatus(_) => "stt:model",
             Self::UiAction(_) => "ui:action",
+            Self::KeepAwake(_) => "awake:changed",
             Self::Error(_) => "error",
         }
     }
@@ -110,6 +114,7 @@ impl DomainEvent {
             Self::MediaChanged(now_playing) => json!(now_playing),
             Self::ModelStatus(status) => json!(status),
             Self::UiAction(action) => json!(action),
+            Self::KeepAwake(status) => json!(status),
             Self::Error(error) => json!(error),
         }
     }
@@ -171,6 +176,7 @@ pub mod testing {
 mod tests {
     use super::testing::FakeEventSink;
     use super::*;
+    use crate::keep_awake::KeepAwakeSetting;
 
     #[test]
     fn fake_sink_records_events_in_order() {
@@ -223,6 +229,14 @@ mod tests {
             (DomainEvent::ClipboardChanged, "clipboard:changed"),
             (DomainEvent::SessionsChanged, "sessions:changed"),
             (DomainEvent::UiAction(UiAction::ToggleIsland), "ui:action"),
+            (
+                DomainEvent::KeepAwake(KeepAwakeStatus {
+                    setting: KeepAwakeSetting::Off,
+                    active: false,
+                    error: None,
+                }),
+                "awake:changed",
+            ),
         ];
         for (event, name) in names {
             assert_eq!(event.name(), name);
@@ -251,6 +265,19 @@ mod tests {
         assert_eq!(
             DomainEvent::UiAction(UiAction::ToggleIsland).payload(),
             json!("toggleIsland")
+        );
+        assert_eq!(
+            DomainEvent::KeepAwake(KeepAwakeStatus {
+                setting: KeepAwakeSetting::Until { ends_at: 9 },
+                active: true,
+                error: None,
+            })
+            .payload(),
+            json!({
+                "setting": { "mode": "until", "endsAt": 9 },
+                "active": true,
+                "error": null
+            })
         );
         assert_eq!(
             DomainEvent::LlmStart {

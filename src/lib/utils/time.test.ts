@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatClock, formatDuration, formatRelativeTime } from '@/lib/utils/time';
+import {
+  formatClock,
+  formatDuration,
+  formatMinuteOfDay,
+  formatRelativeTime,
+} from '@/lib/utils/time';
 
 const NOW = Date.UTC(2026, 9, 21, 12, 0, 0);
 const MINUTE = 60_000;
@@ -10,6 +15,15 @@ describe('formatClock', () => {
   it('da la hora del día en el formato del idioma', () => {
     expect(formatClock(NOW, 'es', 'UTC')).toMatch(/12:00/);
     expect(formatClock(NOW + 13 * HOUR, 'en', 'UTC')).toMatch(/1:00\s?AM/i);
+  });
+});
+
+describe('formatMinuteOfDay', () => {
+  it('da una hora del día en el formato del idioma', () => {
+    expect(formatMinuteOfDay(14 * 60, 'en')).toMatch(/2:00\s?PM/i);
+    expect(formatMinuteOfDay(14 * 60 + 30, 'en')).toMatch(/2:30\s?PM/i);
+    expect(formatMinuteOfDay(0, 'en')).toMatch(/12:00\s?AM/i);
+    expect(formatMinuteOfDay(14 * 60, 'es')).toMatch(/2:00|14:00/);
   });
 });
 

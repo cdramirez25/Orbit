@@ -9,6 +9,7 @@ use crate::ai::AiService;
 use crate::audio::permission::AudioPermission;
 use crate::clipboard::ClipboardService;
 use crate::events::EventSink;
+use crate::keep_awake::KeepAwakeService;
 use crate::media::MediaService;
 use crate::pipeline::Pipeline;
 use crate::sessions::SessionService;
@@ -42,6 +43,8 @@ pub struct AppState {
     pub stt: Arc<dyn SttEngine>,
     /// El modelo de transcripción en disco: estado, descarga y borrado.
     pub models: Arc<ModelService>,
+    /// Mantiene la pantalla encendida según el modo elegido (módulo Pantalla encendida de la isla).
+    pub awake: Arc<KeepAwakeService>,
     settings: RwLock<Settings>,
     settings_path: PathBuf,
 }
@@ -59,6 +62,7 @@ pub struct Services {
     pub recorder: Arc<QuestionRecorder>,
     pub stt: Arc<dyn SttEngine>,
     pub models: Arc<ModelService>,
+    pub awake: Arc<KeepAwakeService>,
 }
 
 impl AppState {
@@ -81,6 +85,7 @@ impl AppState {
             recorder: services.recorder,
             stt: services.stt,
             models: services.models,
+            awake: services.awake,
             settings: RwLock::new(settings),
             settings_path,
         }

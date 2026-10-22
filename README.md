@@ -10,8 +10,8 @@
 
 </div>
 
-> **Status:** early development (v0.1.0). The island already shows the weather, a clipboard history and the music
-> that is playing; it transcribes the system audio on your computer (local Whisper) and answers questions with the AI
+> **Status:** early development (v0.1.0). The island already shows the weather, a clipboard history, the music
+> that is playing and a keep-the-screen-on control; it transcribes the system audio on your computer (local Whisper) and answers questions with the AI
 > you choose (Claude, ChatGPT, Groq, Gemini, Ollama or Docker), with a context and history per session. Global shortcuts and a
 > tray icon are in. Packaging is not ready yet. See the [roadmap](#roadmap).
 
@@ -32,7 +32,8 @@ Today it comes with four modules:
   captured.
 - **Music:** what is playing, with its cover and controls, and a progress bar you can click or drag to seek.
 - **Weather:** the current weather and today's forecast for your area.
-- **Clipboard:** the history of what you copy during the session.
+- **Clipboard:** the history of what you copy during the session, with translate, summarize and explain by the AI you chose.
+- **Screen on:** keeps your screen from turning off for a set time, on a daily schedule or until you turn it off.
 
 Around them there is a settings window, a tray icon and global keyboard shortcuts.
 
@@ -49,7 +50,8 @@ Around them there is a settings window, a tray icon and global keyboard shortcut
 | Settings      | A native window with a sidebar (Island, Sessions, Audio, AI, General). It opens on startup in development; you can close it and reopen it from the gear in the island card or from the tray icon.                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | Music         | What is playing on your computer (Spotify, Music, YouTube or any other tab in your browser) with its cover, a progress bar you can click or drag to seek, and previous, play/pause and next buttons. On macOS it uses a private system API, so it may stop working after an update.                                                                                                                                                                                                                                                                                                                                  |
 | Weather       | Current weather and today's forecast for your area, always one click away in the island (Open-Meteo, no API key).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| Clipboard     | History of the text and images you copy during the session, with copy again, delete one and clear all. It lives in memory only.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Clipboard     | History of the text and images you copy during the session, with copy again, delete one and clear all. Each text can be translated, summarized or explained by the AI you chose, and the result can be copied. It lives in memory only.                                                                                                                                                                                                                                                                                                                                                                              |
+| Screen on     | Keeps the screen from turning off or dimming: for a time you pick (30 min to 12 h), on a daily schedule (for example 2 pm to 5 pm) or always, until you turn it off. It comes back on by itself after a restart and returns to normal if Orbit quits.                                                                                                                                                                                                                                                                                                                                                                |
 | UI            | Accessible primitives (`Button`, `IconButton`, `Toggle`, `Tab`, `Card`) with a global `cursor: pointer`. All icons come from [Lucide](https://lucide.dev); no emojis.                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | Languages     | Spanish and English (`src/i18n/locales/`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | System audio  | Capture permission (macOS), real capture (ScreenCaptureKit on macOS, WASAPI loopback on Windows), conversion to 16 kHz mono, and the volume that drives the island's waves.                                                                                                                                                                                                                                                                                                                                                                                                                                          |
@@ -174,7 +176,7 @@ Orbit/
 ├── src/                 # Frontend (React + TSX)
 │   ├── windows/         #   entry points, one per window (island/ and settings/)
 │   ├── components/      #   ui/ (primitives) and island/ (Island, NotchShape, IslandContent, ModuleSwitcher)
-│   ├── modules/         #   island modules (plugins): registry.ts, prompter/ (AI), weather/, clipboard/, music/ and demo/
+│   ├── modules/         #   island modules (plugins): registry.ts, prompter/ (AI), weather/, clipboard/, music/, awake/ and demo/
 │   ├── features/        #   settings window content (settings/)
 │   ├── stores/          #   global state with Zustand (island, settings, audio, transcript, answer, sessions, model…)
 │   ├── hooks/           #   useHitTest, useIslandDrag, useReducedMotion, useNow…
@@ -196,7 +198,7 @@ Orbit/
         ├── lib.rs       #   composition root: adapters are chosen here
         ├── app_state.rs #   shared state
         ├── events.rs    #   domain events and the EventSink port
-        ├── commands/    #   thin Tauri commands: ai, audio, clipboard, desktop, island, media, pipeline, sessions, stt and weather
+        ├── commands/    #   thin Tauri commands: ai, audio, awake, clipboard, desktop, island, media, pipeline, sessions, stt and weather
         ├── shortcuts.rs #   configurable global shortcuts (input adapter)
         ├── tray.rs      #   menu bar / notification area icon (input adapter)
         ├── db/          #   local SQLite database (migrations)
@@ -209,6 +211,7 @@ Orbit/
         ├── pipeline/    #   orchestrator: system audio → volume → events
         ├── weather/     #   location and forecast ports, cache, IP locator and Open-Meteo adapter
         ├── clipboard/   #   clipboard port, in-memory history, monitor and system adapter
+        ├── keep_awake/  #   keep-the-screen-on modes and schedule, clock and system adapter
         ├── media/       #   music port, now-playing monitor and platform/ adapters (macOS: perl + MediaRemote; Windows: GSMTC)
         └── settings/    #   persisted configuration
 ```
@@ -221,7 +224,8 @@ Orbit/
   and its data is licensed CC BY 4.0.
 - **Music:** the title, artist and cover of what is playing are read from the system and shown only in the island; they are never saved or logged.
 - **Clipboard history:** it only lives in memory and is gone when Orbit quits. Contents that password managers mark as
-  concealed are never recorded, and nothing you copy is logged or sent anywhere.
+  concealed are never recorded, and nothing you copy is logged or sent anywhere. The only exception is a text you
+  explicitly translate, summarize or explain: it goes to the AI provider you chose, like a question.
 - **System audio:** only what comes out of your speakers or headphones; your microphone is never captured.
 - **Transcription:** it runs on your computer with Whisper; the audio is never sent anywhere and is not saved. The only
   network use is downloading a voice model from [Hugging Face](https://huggingface.co/ggerganov/whisper.cpp), which
@@ -241,7 +245,7 @@ roadmap is organised by goals instead of by the original phases (the technical p
 | Goal                        | What it covers                                                                                                                                                                                                                        | Status      |
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
 | The island platform         | Window that never steals focus, state machine, animations, notch, click-through, module registry with priorities, Spanish and English, accessible UI primitives, hide from screen share                                               | Done        |
-| Resident modules            | Weather, clipboard history and music (with seek)                                                                                                                                                                                      | Done        |
+| Resident modules            | Weather, clipboard history (with AI actions), music (with seek) and keep the screen on                                                                                                                                                | Done        |
 | Listen and transcribe       | System audio capture (macOS and Windows), local Whisper with live text, choose, download and delete the voice model (Base, Small, Medium or Turbo) from Settings, transcription language. Planned: more languages                     | Done        |
 | AI and Prompter             | Claude, ChatGPT, Groq, Gemini, Ollama and Docker; the model is chosen from the list each provider offers; sessions with their own prompt, history and AI; recorded or typed questions; markdown answers; keys in a local SQLite file  | Done        |
 | Everyday desktop experience | Done: settings window, tray icon, configurable global shortcuts, launch at login, guided first run, choose the voice model folder                                                                                                     | Done        |

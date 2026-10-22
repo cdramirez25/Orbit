@@ -168,6 +168,19 @@ impl History {
         }
     }
 
+    /// El texto completo de un elemento (para mandarlo a la IA). Una imagen no tiene texto.
+    pub fn text_of(&self, id: u64) -> Result<String, ClipboardError> {
+        let entry = self
+            .entries
+            .iter()
+            .find(|entry| entry.id == id)
+            .ok_or(ClipboardError::NotFound)?;
+        match &entry.item {
+            Item::Text(text) => Ok(text.clone()),
+            Item::Image(_) => Err(ClipboardError::NotText),
+        }
+    }
+
     /// Sube un elemento al primer lugar (por ejemplo, al volver a copiarlo desde el historial).
     pub fn touch(&mut self, id: u64, now_ms: u64) -> bool {
         match self.entries.iter().position(|entry| entry.id == id) {
@@ -291,6 +304,26 @@ mod tests {
             height: side,
             rgba,
         })
+    }
+
+    #[test]
+    fn the_full_text_of_an_entry_can_be_read_but_not_an_images() {
+        let mut history = History::default();
+        let long = "palabra ".repeat(100);
+        let text_id = history.push(text(&long), 1).unwrap();
+        let image_id = history.push(picture(3, 8), 2).unwrap();
+
+        // El historial muestra solo el principio, pero la IA recibe el texto completo.
+        assert_eq!(history.text_of(text_id).unwrap(), long);
+        assert!(matches!(
+            history.text_of(image_id),
+            Err(ClipboardError::NotText)
+        ));
+        assert!(matches!(
+            history.text_of(999),
+            Err(ClipboardError::NotFound)
+        ));
+        assert_eq!(ClipboardError::NotText.code(), "clipboard.notText");
     }
 
     #[test]

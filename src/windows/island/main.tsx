@@ -3,6 +3,7 @@ import '@/styles/base.css';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
+import { awakeModule } from '@/modules/awake';
 import { clipboardModule } from '@/modules/clipboard';
 import { demoModule } from '@/modules/demo';
 import {
@@ -17,6 +18,7 @@ import { bindRegistryToIsland, useRegistryStore } from '@/modules/registry';
 import { weatherModule } from '@/modules/weather';
 import { useAnswerStore } from '@/stores/answer.store';
 import { useAudioStore } from '@/stores/audio.store';
+import { useAwakeStore } from '@/stores/awake.store';
 import { useClipboardStore } from '@/stores/clipboard.store';
 import { useIslandStore } from '@/stores/island.store';
 import { useMediaStore } from '@/stores/media.store';
@@ -36,6 +38,7 @@ registry.register(demoModule);
 registry.register(weatherModule);
 registry.register(clipboardModule);
 registry.register(musicModule);
+registry.register(awakeModule);
 registry.register(prompterModule);
 bindRegistryToIsland();
 
@@ -44,9 +47,11 @@ bindRegistryToIsland();
 useWeatherStore.getState().startPolling();
 void useClipboardStore.getState().bind();
 void useMediaStore.getState().bind();
+void useAwakeStore.getState().bind();
 registry.startActivity(weatherModule.id);
 registry.startActivity(clipboardModule.id);
 registry.startActivity(musicModule.id);
+registry.startActivity(awakeModule.id);
 registry.startActivity(prompterModule.id);
 
 // Escucha del audio del sistema: volumen y estado desde Rust → las ondas de la isla.

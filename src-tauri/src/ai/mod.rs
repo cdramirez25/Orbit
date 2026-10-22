@@ -13,6 +13,7 @@ pub mod prompter;
 pub mod providers;
 pub mod recorder;
 pub mod sqlite;
+pub mod transform;
 
 use std::sync::{Mutex, MutexGuard, PoisonError};
 

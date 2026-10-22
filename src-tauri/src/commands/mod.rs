@@ -3,6 +3,7 @@
 
 pub mod ai;
 pub mod audio;
+pub mod awake;
 pub mod clipboard;
 pub mod desktop;
 pub mod island;
@@ -38,6 +39,8 @@ pub enum CommandError {
     Shortcut(#[from] crate::shortcuts::ShortcutError),
     #[error("no se pudo cambiar el inicio con la sesión: {0}")]
     Autostart(String),
+    #[error("error de la pantalla encendida: {0}")]
+    KeepAwake(#[from] crate::keep_awake::KeepAwakeError),
 }
 
 impl CommandError {
@@ -54,6 +57,7 @@ impl CommandError {
             Self::Model(error) => error.code(),
             Self::Shortcut(error) => error.code(),
             Self::Autostart(_) => "autostart.failed",
+            Self::KeepAwake(error) => error.code(),
         }
     }
 }
@@ -100,6 +104,14 @@ mod tests {
     fn ai_errors_keep_their_stable_code() {
         let error = CommandError::from(crate::ai::AiError::Unauthorized);
         assert_eq!(error.code(), "ai.unauthorized");
+    }
+
+    #[test]
+    fn keep_awake_errors_keep_their_stable_code() {
+        let error = CommandError::from(crate::keep_awake::KeepAwakeError::InvalidSchedule);
+        assert_eq!(error.code(), "awake.invalidSchedule");
+        let error = CommandError::from(crate::keep_awake::KeepAwakeError::System("x".into()));
+        assert_eq!(error.code(), "awake.system");
     }
 
     #[test]
