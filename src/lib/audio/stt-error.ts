@@ -14,5 +14,6 @@ export function modelErrorKey(code: string): MessageKey {
   if (code === 'stt.model.disk') return 'stt.model.error.disk';
   if (code === 'stt.model.corrupt') return 'stt.model.error.corrupt';
   if (code === 'stt.model.busy') return 'stt.model.error.busy';
+  if (code === 'stt.model.notReady') return 'stt.model.error.notReady';
   return 'stt.model.error.generic';
 }

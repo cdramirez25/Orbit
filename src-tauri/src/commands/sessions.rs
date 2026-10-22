@@ -11,7 +11,7 @@ use crate::events::DomainEvent;
 use crate::sessions::{Message, SessionUpdate, SessionsState};
 
 /// Lo último que se dijo puede estar todavía en camino desde la captura de audio: se espera un
-/// momento antes de cerrar la frase al terminar de grabar la pregunta.
+/// momento antes de cerrar la frase al terminar de grabar audio.
 const TAIL_WAIT: Duration = Duration::from_millis(350);
 /// Cuánto se espera a que la transcripción termine de procesar la última frase.
 const FLUSH_TIMEOUT: Duration = Duration::from_secs(10);

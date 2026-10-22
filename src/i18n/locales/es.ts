@@ -98,18 +98,31 @@ export const es = {
     'Si siempre se habla el mismo idioma, elígelo: acierta más y tarda menos. Automático lo detecta en cada frase.',
   'stt.model.title': 'Modelo de voz',
   'stt.model.ready': 'Descargado',
-  'stt.model.missing': 'Sin descargar',
   'stt.model.downloading': 'Descargando',
   'stt.model.download': 'Descargar',
   'stt.model.cancel': 'Cancelar',
   'stt.model.remove': 'Borrar',
   'stt.model.progress': 'Progreso de la descarga',
   'stt.model.hint':
-    'La voz se transcribe en tu equipo con Whisper: el audio nunca sale de él. El modelo se descarga una sola vez.',
+    'La voz se transcribe en tu equipo con Whisper: el audio nunca sale de él. Un modelo más grande entiende mejor, pero pesa más y tarda más. Se descarga una sola vez y puedes cambiarlo cuando quieras.',
+  'stt.model.use': 'Usar',
+  'stt.model.inUse': 'En uso',
+  'stt.model.recommended': 'Recomendado',
+  'stt.model.name.base': 'Base',
+  'stt.model.name.small': 'Small',
+  'stt.model.name.medium': 'Medium',
+  'stt.model.name.turbo': 'Turbo',
+  'stt.model.desc.base': 'Rápido y liviano, pero se equivoca más, sobre todo en español.',
+  'stt.model.desc.small': 'Equilibrado: buena precisión sin pedirle mucho a tu equipo.',
+  'stt.model.desc.medium':
+    'Muy preciso, pero grande y lento si tu equipo no tiene una GPU potente.',
+  'stt.model.desc.turbo':
+    'Casi tan preciso como el más grande y de tamaño razonable, pero necesita un equipo potente.',
   'stt.model.error.network': 'No se pudo descargar. Revisa tu conexión e inténtalo de nuevo.',
   'stt.model.error.disk': 'No se pudo guardar el modelo en el disco.',
   'stt.model.error.corrupt': 'La descarga llegó dañada. Inténtalo de nuevo.',
   'stt.model.error.busy': 'Espera a que termine la descarga.',
+  'stt.model.error.notReady': 'Ese modelo todavía no está descargado.',
   'stt.model.error.generic': 'No se pudo completar la operación con el modelo.',
 
   // ── Atajos globales y bandeja del sistema ───────────────────────────────
@@ -312,9 +325,9 @@ export const es = {
   'stt.model.folderChange': 'Cambiar carpeta',
   'stt.model.folderMoving': 'Moviendo…',
   'stt.model.folderReset': 'Usar la carpeta de Orbit',
-  'stt.model.folderPickTitle': 'Elige dónde guardar el modelo de voz',
+  'stt.model.folderPickTitle': 'Elige dónde guardar los modelos de voz',
   'stt.model.folderHint':
-    'Al cambiar la carpeta, el modelo que ya descargaste se mueve a la nueva.',
+    'Al cambiar la carpeta, los modelos que ya descargaste se mueven a la nueva.',
 
   // ── Guía de primer arranque ─────────────────────────────────────────────
   'guide.title': 'Primeros pasos',
@@ -341,7 +354,7 @@ export const es = {
     'Para oír lo que suena en tu computadora, macOS pide el permiso de Grabación de pantalla. Orbit solo usa el audio del sistema.',
   'guide.model.title': 'Modelo de voz',
   'guide.model.body':
-    'Orbit transcribe en tu computadora con Whisper. El modelo se descarga una sola vez.',
+    'Orbit transcribe en tu computadora con Whisper. Elige un modelo: se descarga una sola vez y después puedes cambiarlo en Ajustes.',
   'guide.ai.title': 'Tu IA',
   'guide.ai.body':
     'Elige con qué IA responde Orbit: escribe su clave, elige un modelo y pulsa Guardar, Probar y Usar este.',

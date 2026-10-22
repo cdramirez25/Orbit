@@ -10,6 +10,7 @@ import { Keys } from '@/features/settings/pages/ShortcutsSection';
 import { usePermissionPolling } from '@/hooks/usePermissionPolling';
 import type { MessageKey } from '@/i18n/messages';
 import { useT } from '@/i18n/useT';
+import { isActiveModelReady } from '@/lib/audio/stt-models';
 import { cn } from '@/lib/utils/cn';
 import { useAiStore } from '@/stores/ai.store';
 import { useAudioStore } from '@/stores/audio.store';
@@ -106,7 +107,7 @@ function StepBody({ step }: { step: StepId }): ReactNode {
 export function Onboarding() {
   const t = useT();
   const permission = useAudioStore((s) => s.permission);
-  const modelReady = useModelStore((s) => s.status?.state === 'ready');
+  const modelReady = useModelStore((s) => isActiveModelReady(s.status));
   const aiActive = useAiStore((s) => s.status?.active != null);
   const loadAi = useAiStore((s) => s.load);
   const setOnboardingDone = useSettingsStore((s) => s.setOnboardingDone);

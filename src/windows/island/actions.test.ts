@@ -48,7 +48,7 @@ describe('mostrar u ocultar la isla', () => {
   });
 });
 
-describe('grabar la pregunta con el atajo', () => {
+describe('grabar audio con el atajo', () => {
   it('sin grabar: empieza a grabar', async () => {
     const { start, finish } = questionStub({ recording: false });
     applyUiAction('toggleQuestion');

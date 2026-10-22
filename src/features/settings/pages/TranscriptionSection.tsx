@@ -1,15 +1,16 @@
-import { Download, FolderOpen, Trash2, X } from 'lucide-react';
+import { Check, Download, FolderOpen, Trash2, X } from 'lucide-react';
 
-import { Button, ProgressBar, Tab } from '@/components/ui';
+import { Button, IconButton, ProgressBar, Tab } from '@/components/ui';
 import { Field, Section } from '@/features/settings/layout';
 import { LOCALE_NAMES, type MessageKey } from '@/i18n/messages';
 import { useT } from '@/i18n/useT';
 import { modelErrorKey } from '@/lib/audio/stt-error';
+import { RECOMMENDED_MODEL, STT_MODELS, isDownloading } from '@/lib/audio/stt-models';
 import { formatBytes, percentOf } from '@/lib/utils/bytes';
 import { cn } from '@/lib/utils/cn';
 import { useModelStore } from '@/stores/model.store';
 import { useSettingsStore } from '@/stores/settings.store';
-import type { ModelState, SttLanguage } from '@/types';
+import type { ModelEntry, SttLanguage, SttModel } from '@/types';
 
 /** Los idiomas fijos se rotulan con su código (cada uno se reconoce a sí mismo); `auto` se traduce. */
 const LANGUAGES: ReadonlyArray<{ id: SttLanguage; label: string | null; title?: string }> = [
@@ -18,79 +19,178 @@ const LANGUAGES: ReadonlyArray<{ id: SttLanguage; label: string | null; title?: 
   { id: 'en', label: 'EN', title: LOCALE_NAMES.en },
 ];
 
-const STATE_LABEL: Record<ModelState, MessageKey> = {
-  ready: 'stt.model.ready',
-  missing: 'stt.model.missing',
-  downloading: 'stt.model.downloading',
+const MODEL_NAME: Record<SttModel, MessageKey> = {
+  base: 'stt.model.name.base',
+  small: 'stt.model.name.small',
+  medium: 'stt.model.name.medium',
+  turbo: 'stt.model.name.turbo',
 };
 
-const STATE_TONE: Record<ModelState, string> = {
-  ready: 'text-accent',
-  missing: 'text-ink-dim',
-  downloading: 'text-ink-dim',
+const MODEL_DESCRIPTION: Record<SttModel, MessageKey> = {
+  base: 'stt.model.desc.base',
+  small: 'stt.model.desc.small',
+  medium: 'stt.model.desc.medium',
+  turbo: 'stt.model.desc.turbo',
 };
+
+function Chip({ tone, children }: { tone: 'accent' | 'dim'; children: string }) {
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center gap-1 rounded-full bg-white/8 px-2 py-0.5 text-[10px] font-medium',
+        tone === 'accent' ? 'text-accent' : 'text-ink-dim',
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
+/** Un modelo de voz: qué es, cuánto pesa y lo que se puede hacer con él (bajarlo, usarlo, borrarlo). */
+function ModelRow({
+  entry,
+  active,
+  locked,
+}: {
+  entry: ModelEntry;
+  active: boolean;
+  /** No se puede empezar nada: ya se baja otro modelo o se están moviendo los archivos. */
+  locked: boolean;
+}) {
+  const t = useT();
+  const download = useModelStore((s) => s.download);
+  const cancel = useModelStore((s) => s.cancel);
+  const remove = useModelStore((s) => s.remove);
+  const use = useModelStore((s) => s.use);
+
+  const name = t(MODEL_NAME[entry.model]);
+  const percent = percentOf(entry.downloaded, entry.total);
+
+  return (
+    <li
+      aria-label={name}
+      className={cn(
+        'flex flex-col gap-1.5 rounded-xl bg-white/6 px-3 py-2',
+        active && entry.state === 'ready' && 'ring-1 ring-accent/50',
+      )}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <span className="flex flex-wrap items-center gap-1.5 text-[12px] font-medium text-ink">
+            {name}
+            {entry.model === RECOMMENDED_MODEL && (
+              <Chip tone="dim">{t('stt.model.recommended')}</Chip>
+            )}
+            {entry.state === 'ready' &&
+              (active ? (
+                <Chip tone="accent">{t('stt.model.inUse')}</Chip>
+              ) : (
+                <Chip tone="dim">{t('stt.model.ready')}</Chip>
+              ))}
+          </span>
+          <span className="text-[11px] leading-snug text-ink-faint">
+            {formatBytes(entry.total)} · {t(MODEL_DESCRIPTION[entry.model])}
+          </span>
+        </div>
+
+        <div className="flex shrink-0 items-center gap-1">
+          {entry.state === 'missing' && (
+            <Button
+              size="sm"
+              variant={active ? 'primary' : 'secondary'}
+              disabled={locked}
+              aria-label={`${t('stt.model.download')} ${name}`}
+              onClick={() => void download(entry.model)}
+            >
+              <Download aria-hidden className="size-3" />
+              {t('stt.model.download')}
+            </Button>
+          )}
+          {entry.state === 'downloading' && (
+            <Button
+              size="sm"
+              aria-label={`${t('stt.model.cancel')} ${name}`}
+              onClick={() => void cancel()}
+            >
+              <X aria-hidden className="size-3" />
+              {t('stt.model.cancel')}
+            </Button>
+          )}
+          {entry.state === 'ready' && !active && (
+            <Button
+              size="sm"
+              disabled={locked}
+              aria-label={`${t('stt.model.use')} ${name}`}
+              onClick={() => void use(entry.model)}
+            >
+              <Check aria-hidden className="size-3" />
+              {t('stt.model.use')}
+            </Button>
+          )}
+          {entry.state === 'ready' && (
+            <IconButton
+              label={`${t('stt.model.remove')} ${name}`}
+              disabled={locked}
+              className="size-6 hover:text-danger"
+              onClick={() => void remove(entry.model)}
+            >
+              <Trash2 aria-hidden className="size-3" />
+            </IconButton>
+          )}
+        </div>
+      </div>
+
+      {entry.state === 'downloading' && (
+        <div className="flex flex-col gap-1">
+          <ProgressBar value={percent} label={`${t('stt.model.progress')} ${name}`} />
+          <span className="text-[11px] text-ink-faint tabular-nums">
+            {percent} % · {formatBytes(entry.downloaded)} / {formatBytes(entry.total)}
+          </span>
+        </div>
+      )}
+
+      {entry.error && (
+        <span role="alert" className="text-[11px] text-danger">
+          {t(modelErrorKey(entry.error))}
+        </span>
+      )}
+    </li>
+  );
+}
 
 /**
- * El modelo de voz: su estado, descargarlo o borrarlo, la carpeta donde se guarda y los avisos.
- * Lo usan la sección de transcripción de Ajustes y la guía de primer arranque.
+ * Los modelos de voz: cuál se usa, bajar, usar o borrar cada uno, la carpeta donde se guardan y los
+ * avisos. Lo usan la sección de transcripción de Ajustes y la guía de primer arranque.
  */
 export function ModelControls() {
   const t = useT();
   const status = useModelStore((s) => s.status);
   const commandError = useModelStore((s) => s.errorCode);
   const movingDir = useModelStore((s) => s.movingDir);
-  const download = useModelStore((s) => s.download);
-  const cancel = useModelStore((s) => s.cancel);
-  const remove = useModelStore((s) => s.remove);
   const chooseDir = useModelStore((s) => s.chooseDir);
   const resetDir = useModelStore((s) => s.resetDir);
 
-  const errorCode = commandError ?? status?.error ?? null;
-  const percent = status ? percentOf(status.downloaded, status.total) : 0;
-  const folderLocked = movingDir || status?.state === 'downloading';
+  const downloading = isDownloading(status);
+  const locked = movingDir || downloading;
+  const entries = STT_MODELS.map((model) => status?.models.find((e) => e.model === model)).filter(
+    (entry): entry is ModelEntry => entry !== undefined,
+  );
 
   return (
     <>
       {status && (
-        <Field label={t('stt.model.title')}>
-          <span
-            role="status"
-            className={cn(
-              'inline-flex items-center gap-1 rounded-full bg-white/8 px-2 py-0.5 text-[11px] font-medium',
-              STATE_TONE[status.state],
-            )}
-          >
-            <span className="size-1.5 rounded-full bg-current" aria-hidden />
-            {t(STATE_LABEL[status.state])}
-          </span>
-          <span className="text-[11px] text-ink-faint">{formatBytes(status.total)}</span>
-          {status.state === 'missing' && (
-            <Button size="sm" variant="primary" onClick={() => void download()}>
-              <Download aria-hidden className="size-3" />
-              {t('stt.model.download')}
-            </Button>
-          )}
-          {status.state === 'downloading' && (
-            <Button size="sm" onClick={() => void cancel()}>
-              <X aria-hidden className="size-3" />
-              {t('stt.model.cancel')}
-            </Button>
-          )}
-          {status.state === 'ready' && (
-            <Button size="sm" variant="danger" onClick={() => void remove()}>
-              <Trash2 aria-hidden className="size-3" />
-              {t('stt.model.remove')}
-            </Button>
-          )}
-        </Field>
-      )}
-
-      {status?.state === 'downloading' && (
-        <div className="flex flex-col gap-1">
-          <ProgressBar value={percent} label={t('stt.model.progress')} />
-          <span className="text-[11px] text-ink-faint tabular-nums">
-            {percent} % · {formatBytes(status.downloaded)} / {formatBytes(status.total)}
-          </span>
+        <div className="flex flex-col gap-1.5">
+          <span className="text-[11px] text-ink-dim">{t('stt.model.title')}</span>
+          <ul className="flex flex-col gap-1.5">
+            {entries.map((entry) => (
+              <ModelRow
+                key={entry.model}
+                entry={entry}
+                active={entry.model === status.active}
+                locked={locked}
+              />
+            ))}
+          </ul>
         </div>
       )}
 
@@ -104,28 +204,23 @@ export function ModelControls() {
           </span>
           <Button
             size="sm"
-            disabled={folderLocked}
+            disabled={locked}
             onClick={() => void chooseDir(t('stt.model.folderPickTitle'))}
           >
             <FolderOpen aria-hidden className="size-3" />
             {t(movingDir ? 'stt.model.folderMoving' : 'stt.model.folderChange')}
           </Button>
           {status.customDir && (
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={folderLocked}
-              onClick={() => void resetDir()}
-            >
+            <Button size="sm" variant="ghost" disabled={locked} onClick={() => void resetDir()}>
               {t('stt.model.folderReset')}
             </Button>
           )}
         </Field>
       )}
 
-      {errorCode && (
+      {commandError && (
         <span role="alert" className="text-[11px] text-danger">
-          {t(modelErrorKey(errorCode))}
+          {t(modelErrorKey(commandError))}
         </span>
       )}
       <p className="text-[11px] leading-snug text-ink-faint">{t('stt.model.hint')}</p>

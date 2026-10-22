@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use crate::events::UiAction;
+use crate::stt::catalog::SttModel;
 use crate::stt::SttLanguage;
 
 /// Dónde se coloca la isla en la pantalla.
@@ -44,6 +45,8 @@ pub struct Settings {
     pub screen_capture_prompted: bool,
     /// Idioma de la transcripción: automático o uno fijo.
     pub stt_language: SttLanguage,
+    /// Modelo de voz que se usa (`small` hasta que el usuario elija otro).
+    pub stt_model: SttModel,
     /// Atajos globales que el usuario cambió (los que no están aquí usan el de por defecto).
     pub shortcuts: HashMap<UiAction, String>,
     /// Carpeta del modelo de voz que el usuario eligió; `None` = la carpeta de datos de la app.
@@ -60,6 +63,7 @@ impl Default for Settings {
             free_origin: None,
             screen_capture_prompted: false,
             stt_language: SttLanguage::Auto,
+            stt_model: SttModel::Small,
             shortcuts: HashMap::new(),
             model_dir: None,
             onboarding_done: false,
@@ -135,6 +139,7 @@ mod tests {
             free_origin: Some(Point { x: 120.5, y: 40.0 }),
             screen_capture_prompted: true,
             stt_language: SttLanguage::Es,
+            stt_model: SttModel::Turbo,
             shortcuts: HashMap::from([(UiAction::ToggleIsland, "Alt+Space".to_owned())]),
             model_dir: Some(PathBuf::from("/Volumes/Externo/modelos")),
             onboarding_done: true,
@@ -167,6 +172,19 @@ mod tests {
         let path = temp_path("language");
         fs::write(&path, r#"{ "sttLanguage": "en" }"#).unwrap();
         assert_eq!(Settings::load(&path).stt_language, SttLanguage::En);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn the_voice_model_defaults_to_small_so_existing_installs_keep_theirs() {
+        assert_eq!(Settings::default().stt_model, SttModel::Small);
+
+        let path = temp_path("model");
+        // Un archivo de antes de poder elegir modelo no trae el campo.
+        fs::write(&path, r#"{ "sttLanguage": "es" }"#).unwrap();
+        assert_eq!(Settings::load(&path).stt_model, SttModel::Small);
+        fs::write(&path, r#"{ "sttModel": "medium" }"#).unwrap();
+        assert_eq!(Settings::load(&path).stt_model, SttModel::Medium);
         fs::remove_file(path).unwrap();
     }
 
@@ -214,6 +232,7 @@ mod tests {
         assert_eq!(json["islandAnchor"], "center");
         assert_eq!(json["hideFromScreenShare"], true);
         assert_eq!(json["sttLanguage"], "auto");
+        assert_eq!(json["sttModel"], "small");
         assert_eq!(json["shortcuts"], serde_json::json!({}));
         assert!(json["modelDir"].is_null());
         assert_eq!(json["onboardingDone"], false);

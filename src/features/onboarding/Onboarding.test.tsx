@@ -10,7 +10,8 @@ import { useGuideStore } from '@/stores/guide.store';
 import { useModelStore } from '@/stores/model.store';
 import { useSettingsStore } from '@/stores/settings.store';
 import { useShortcutStore } from '@/stores/shortcuts.store';
-import type { AiStatus, ModelStatus, PermissionStatus } from '@/types';
+import { modelStatus } from '@/test/factories';
+import type { AiStatus, PermissionStatus } from '@/types';
 
 vi.mock('@/ipc/commands', () => ({
   commands: {
@@ -23,6 +24,7 @@ vi.mock('@/ipc/commands', () => ({
     sttModelDownload: vi.fn(),
     sttModelCancel: vi.fn(),
     sttModelRemove: vi.fn(),
+    sttModelUse: vi.fn(),
     sttModelChooseDir: vi.fn(),
     sttModelResetDir: vi.fn(),
   },
@@ -30,14 +32,9 @@ vi.mock('@/ipc/commands', () => ({
 
 const mocked = vi.mocked(commands);
 
-const model = (state: ModelStatus['state']): ModelStatus => ({
-  state,
-  downloaded: state === 'ready' ? 1000 : 0,
-  total: 1000,
-  error: null,
-  dir: '/modelos',
-  customDir: false,
-});
+/** Los modelos con el que se usa (`small`) en ese estado. */
+const model = (state: 'missing' | 'ready') =>
+  modelStatus({ entries: { small: { state } }, dir: '/modelos' });
 
 const aiStatus = (active: AiStatus['active']): AiStatus => ({
   active,
@@ -49,7 +46,7 @@ const aiStatus = (active: AiStatus['active']): AiStatus => ({
 function setup(
   options: {
     permission?: PermissionStatus;
-    model?: ModelStatus['state'];
+    model?: 'missing' | 'ready';
     active?: AiStatus['active'];
   } = {},
 ) {
@@ -142,15 +139,45 @@ describe('guía de primer arranque', () => {
     expect(screen.queryByRole('button', { name: 'Saltar este paso' })).not.toBeInTheDocument();
   });
 
-  it('el paso del modelo ofrece descargarlo y deja seguir cuando ya está', async () => {
+  it('el paso del modelo deja elegir entre los cuatro y seguir cuando el elegido está descargado', async () => {
     setup({ permission: 'notRequired', model: 'missing' });
     await act(async () => {});
     await next('Empezar');
 
-    expect(screen.getByRole('button', { name: 'Descargar' })).toBeInTheDocument();
+    const names = screen.getAllByRole('listitem').map((item) => item.getAttribute('aria-label'));
+    expect(
+      names.filter((name) => ['Base', 'Small', 'Medium', 'Turbo'].includes(name ?? '')),
+    ).toEqual(['Base', 'Small', 'Medium', 'Turbo']);
+    expect(screen.getByText('Recomendado')).toBeInTheDocument();
     expect(button('Siguiente')).toBeDisabled();
 
-    act(() => useModelStore.setState({ status: model('ready') }));
+    // Cualquiera de los cuatro se puede bajar desde la guía.
+    fireEvent.click(button('Descargar Medium'));
+    expect(mocked.sttModelDownload).toHaveBeenCalledWith('medium');
+
+    // Al terminar, Rust lo deja en uso y la guía deja seguir.
+    act(() =>
+      useModelStore.setState({
+        status: modelStatus({ active: 'medium', entries: { medium: { state: 'ready' } } }),
+      }),
+    );
+    expect(button('Siguiente')).toBeEnabled();
+  });
+
+  it('el paso del modelo no avanza si el que se usa no está, aunque haya otro descargado', async () => {
+    setup({ permission: 'notRequired', model: 'missing' });
+    useModelStore.setState({ status: modelStatus({ entries: { base: { state: 'ready' } } }) });
+    await act(async () => {});
+    await next('Empezar');
+
+    expect(button('Usar Base')).toBeInTheDocument();
+    expect(button('Siguiente')).toBeDisabled();
+
+    mocked.sttModelUse.mockResolvedValue(
+      modelStatus({ active: 'base', entries: { base: { state: 'ready' } } }),
+    );
+    fireEvent.click(button('Usar Base'));
+    await act(async () => {});
     expect(button('Siguiente')).toBeEnabled();
   });
 

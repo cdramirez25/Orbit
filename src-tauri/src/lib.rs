@@ -45,10 +45,11 @@ use crate::pipeline::{Pipeline, PipelineConfig};
 use crate::sessions::sqlite::SqliteSessionStore;
 use crate::sessions::SessionService;
 use crate::settings::Settings;
+use crate::stt::catalog::SttModel;
 use crate::stt::location::ModelLocation;
-use crate::stt::model::{small_model, ModelService};
+use crate::stt::model::{ModelService, ModelSpec};
 use crate::stt::model_source::HttpModelSource;
-use crate::stt::whisper_local::{WhisperEngine, MODEL_FILE};
+use crate::stt::whisper_local::WhisperEngine;
 use crate::stt::SttEngine;
 use crate::weather::ip_locator::IpLocator;
 use crate::weather::open_meteo::OpenMeteo;
@@ -114,6 +115,7 @@ pub fn run() {
             commands::stt::stt_model_download,
             commands::stt::stt_model_cancel,
             commands::stt::stt_model_remove,
+            commands::stt::stt_model_use,
             commands::stt::stt_model_choose_dir,
             commands::stt::stt_model_reset_dir,
             commands::stt::set_stt_language,
@@ -155,22 +157,29 @@ pub fn run() {
                 debug_wav: std::env::var_os("ORBIT_DEBUG_WAV").map(PathBuf::from),
             };
 
-            // Transcripción local (Whisper): el modelo vive en la carpeta de datos de la app (se
-            // descarga desde Ajustes) y se carga al empezar a escuchar.
+            // Transcripción local (Whisper): los modelos viven en la carpeta de datos de la app (se
+            // descargan desde Ajustes o la guía) y el elegido se carga al empezar a escuchar.
             let model_location = Arc::new(ModelLocation::new(
                 app.path().app_data_dir()?.join("models"),
-                MODEL_FILE,
                 settings.model_dir.clone(),
+                settings.stt_model,
             ));
             let whisper = Arc::new(WhisperEngine::new(Arc::clone(&model_location)));
             whisper.set_language(settings.stt_language);
             let primer = Arc::clone(&whisper);
             std::thread::spawn(move || primer.prime_disk_cache());
             let stt: Arc<dyn SttEngine> = whisper;
+            let model_specs = SttModel::ALL
+                .iter()
+                .map(|&model| ModelSpec {
+                    model,
+                    expected: model.expected(),
+                    source: Arc::new(HttpModelSource::for_model(model)),
+                })
+                .collect();
             let models = Arc::new(ModelService::new(
                 model_location,
-                small_model(),
-                Arc::new(HttpModelSource::small()),
+                model_specs,
                 Arc::clone(&events),
             ));
 

@@ -37,7 +37,7 @@ pub struct OrbitError {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum UiAction {
-    /// Empezar a grabar la pregunta o, si ya se graba, terminarla y enviarla a la IA.
+    /// Empezar a grabar audio o, si ya se graba, terminarlo y enviarlo a la IA.
     ToggleQuestion,
     /// Mostrar la isla si está oculta; ocultarla si no.
     ToggleIsland,

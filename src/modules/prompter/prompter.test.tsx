@@ -65,7 +65,7 @@ beforeEach(() => {
   mocked.setIslandKeyboard.mockResolvedValue();
 });
 
-describe('botón de grabar la pregunta', () => {
+describe('botón Grabar audio', () => {
   it('antes de grabar ofrece "Grabar audio"', () => {
     render(<Expanded />);
     expect(screen.getByRole('button', { name: 'Grabar audio' })).toBeEnabled();

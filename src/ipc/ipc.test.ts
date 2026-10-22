@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { commands } from '@/ipc/commands';
 import { commandErrorCode } from '@/ipc/errors';
 import { emitLocal, onEvent } from '@/ipc/events';
+import type { SttModel } from '@/types';
 
 afterEach(async () => {
   await commands.stopListening(); // deja la simulación parada entre tests
@@ -89,38 +90,80 @@ describe('simulación de la escucha en el navegador', () => {
   });
 });
 
-describe('modelo de transcripción en el navegador (simulado)', () => {
-  it('descargar avanza por pasos hasta quedar descargado, y borrar lo deja sin descargar', async () => {
+describe('modelos de transcripción en el navegador (simulado)', () => {
+  const entry = async (model: SttModel) =>
+    (await commands.sttModelStatus()).models.find((e) => e.model === model);
+
+  it('ofrece los cuatro modelos, sin descargar, con small en uso', async () => {
+    const status = await commands.sttModelStatus();
+    expect(status.models.map((e) => e.model)).toEqual(['base', 'small', 'medium', 'turbo']);
+    expect(status.models.every((e) => e.state === 'missing')).toBe(true);
+    expect(status.active).toBe('small');
+  });
+
+  it('descargar avanza por pasos, deja el modelo en uso y borrar lo deja sin descargar', async () => {
     vi.useFakeTimers();
     const states: string[] = [];
-    const off = await onEvent('stt:model', (status) => states.push(status.state));
+    const off = await onEvent('stt:model', (status) =>
+      states.push(status.models.find((e) => e.model === 'base')?.state ?? ''),
+    );
 
-    expect((await commands.sttModelStatus()).state).toBe('missing');
-    await commands.sttModelDownload();
-    expect((await commands.sttModelStatus()).state).toBe('downloading');
+    await commands.sttModelDownload('base');
+    expect((await entry('base'))?.state).toBe('downloading');
 
     await vi.advanceTimersByTimeAsync(10_000);
-    const done = await commands.sttModelStatus();
-    expect(done.state).toBe('ready');
-    expect(done.downloaded).toBe(done.total);
+    const done = await entry('base');
+    expect(done?.state).toBe('ready');
+    expect(done?.downloaded).toBe(done?.total);
+    expect((await commands.sttModelStatus()).active).toBe('base');
     expect(states[0]).toBe('downloading');
     expect(states.at(-1)).toBe('ready');
 
-    await commands.sttModelRemove();
-    expect((await commands.sttModelStatus()).state).toBe('missing');
+    await commands.sttModelRemove('base');
+    expect((await entry('base'))?.state).toBe('missing');
     off();
+  });
+
+  it('se baja de uno en uno', async () => {
+    vi.useFakeTimers();
+    await commands.sttModelDownload('medium');
+    await expect(commands.sttModelDownload('turbo')).rejects.toMatchObject({
+      code: 'stt.model.busy',
+    });
+    await expect(commands.sttModelRemove('medium')).rejects.toMatchObject({
+      code: 'stt.model.busy',
+    });
+    await commands.sttModelCancel();
   });
 
   it('cancelar a mitad deja el modelo sin descargar', async () => {
     vi.useFakeTimers();
-    await commands.sttModelDownload();
+    await commands.sttModelDownload('turbo');
     await vi.advanceTimersByTimeAsync(500);
     await commands.sttModelCancel();
     await vi.advanceTimersByTimeAsync(10_000);
 
-    const status = await commands.sttModelStatus();
-    expect(status.state).toBe('missing');
-    expect(status.downloaded).toBe(0);
+    const turbo = await entry('turbo');
+    expect(turbo?.state).toBe('missing');
+    expect(turbo?.downloaded).toBe(0);
+  });
+
+  it('solo se puede usar un modelo ya descargado', async () => {
+    vi.useFakeTimers();
+    await expect(commands.sttModelUse('medium')).rejects.toMatchObject({
+      code: 'stt.model.notReady',
+    });
+
+    await commands.sttModelDownload('base');
+    await vi.advanceTimersByTimeAsync(10_000);
+    await commands.sttModelDownload('small');
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect((await commands.sttModelStatus()).active).toBe('small');
+
+    const status = await commands.sttModelUse('base');
+    expect(status.active).toBe('base');
+    await commands.sttModelRemove('base');
+    await commands.sttModelRemove('small');
   });
 
   it('el idioma elegido vuelve en los ajustes y los atajos se listan', async () => {

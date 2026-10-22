@@ -1,9 +1,10 @@
-//! El modelo de transcripción en disco: si está, su descarga (con progreso, cancelación y
-//! verificación) y su borrado.
+//! Los modelos de transcripción en disco: cuáles están, su descarga (con progreso, cancelación y
+//! verificación), su borrado y cuál se usa.
 //!
-//! Núcleo (§4.0): de dónde se baja lo decide el puerto `ModelSource`; el adaptador de red está en
-//! `model_source.rs` y lo elige el composition root (`lib.rs`). Así se prueba sin red.
+//! Núcleo (§4.0): de dónde se baja cada modelo lo decide el puerto `ModelSource`; el adaptador de red
+//! está en `model_source.rs` y lo elige el composition root (`lib.rs`). Así se prueba sin red.
 
+use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::{ErrorKind, Read, Write};
 use std::path::{Path, PathBuf};
@@ -15,6 +16,7 @@ use std::time::{Duration, Instant};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
+use super::catalog::SttModel;
 use super::location::ModelLocation;
 use crate::events::{DomainEvent, EventSink};
 
@@ -33,25 +35,24 @@ pub struct Expected {
     pub sha256: String,
 }
 
-/// El modelo `small` multilingüe de whisper.cpp (el que usa `whisper_local`).
-pub fn small_model() -> Expected {
-    Expected {
-        size: 487_601_967,
-        sha256: "1be3a9b2063867b937e64e2ec7483364a79917e157fa98c5d94b5c1fffea987b".into(),
-    }
-}
-
 /// Una descarga abierta: el tamaño completo del modelo y el flujo de bytes desde donde se pidió.
 pub struct Download {
     pub total: u64,
     pub reader: Box<dyn Read + Send>,
 }
 
-/// Puerto: de dónde sale el modelo.
+/// Puerto: de dónde sale un modelo.
 pub trait ModelSource: Send + Sync {
     /// Abre la descarga a partir del byte `from` (0 = desde el principio). Así una conexión que se
     /// cae a la mitad se reanuda donde se quedó en vez de empezar de cero.
     fn open(&self, from: u64) -> Result<Download, ModelError>;
+}
+
+/// Un modelo que se puede bajar: qué se espera de su archivo y de dónde viene.
+pub struct ModelSpec {
+    pub model: SttModel,
+    pub expected: Expected,
+    pub source: Arc<dyn ModelSource>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -62,8 +63,12 @@ pub enum ModelError {
     Disk(String),
     #[error("el modelo descargado no es el esperado")]
     Corrupt,
-    #[error("el modelo se está descargando")]
+    #[error("se está descargando un modelo")]
     Busy,
+    #[error("el modelo no está descargado")]
+    NotReady,
+    #[error("ese modelo no existe")]
+    Unknown,
 }
 
 impl ModelError {
@@ -74,6 +79,8 @@ impl ModelError {
             Self::Disk(_) => "stt.model.disk",
             Self::Corrupt => "stt.model.corrupt",
             Self::Busy => "stt.model.busy",
+            Self::NotReady => "stt.model.notReady",
+            Self::Unknown => "stt.model.unknown",
         }
     }
 }
@@ -86,18 +93,28 @@ pub enum ModelState {
     Ready,
 }
 
-/// Lo que la interfaz ve del modelo (espejo de `src/types/stt.ts`).
+/// Un modelo tal como lo ve la interfaz.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ModelStatus {
+pub struct ModelEntry {
+    pub model: SttModel,
     pub state: ModelState,
     /// Bytes descargados hasta ahora.
     pub downloaded: u64,
     /// Tamaño del modelo.
     pub total: u64,
-    /// Código del último fallo de la descarga (`stt.model.*`); `None` si no hubo.
+    /// Código del último fallo de su descarga (`stt.model.*`); `None` si no hubo.
     pub error: Option<String>,
-    /// Carpeta donde está (o estará) el modelo.
+}
+
+/// Lo que la interfaz ve de los modelos (espejo de `src/types/stt.ts`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelStatus {
+    /// El que usa el motor.
+    pub active: SttModel,
+    pub models: Vec<ModelEntry>,
+    /// Carpeta donde están (o estarán) los modelos.
     pub dir: String,
     /// ¿Es una carpeta que eligió el usuario (y no la de la app)?
     pub custom_dir: bool,
@@ -105,9 +122,11 @@ pub struct ModelStatus {
 
 #[derive(Default)]
 struct Progress {
-    downloading: bool,
+    /// El modelo que se está bajando; solo se baja uno a la vez.
+    downloading: Option<SttModel>,
     downloaded: u64,
-    error: Option<&'static str>,
+    /// El último fallo de la descarga de cada modelo.
+    errors: HashMap<SttModel, &'static str>,
 }
 
 enum Outcome {
@@ -117,8 +136,7 @@ enum Outcome {
 
 pub struct ModelService {
     location: Arc<ModelLocation>,
-    expected: Expected,
-    source: Arc<dyn ModelSource>,
+    specs: Vec<ModelSpec>,
     events: Arc<dyn EventSink>,
     progress: Mutex<Progress>,
     cancel: AtomicBool,
@@ -128,14 +146,12 @@ pub struct ModelService {
 impl ModelService {
     pub fn new(
         location: Arc<ModelLocation>,
-        expected: Expected,
-        source: Arc<dyn ModelSource>,
+        specs: Vec<ModelSpec>,
         events: Arc<dyn EventSink>,
     ) -> Self {
         Self {
             location,
-            expected,
-            source,
+            specs,
             events,
             progress: Mutex::new(Progress::default()),
             cancel: AtomicBool::new(false),
@@ -154,44 +170,52 @@ impl ModelService {
         self.progress.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    fn part_path(&self) -> PathBuf {
-        let mut name = self.location.path().into_os_string();
+    fn spec(&self, model: SttModel) -> Result<&ModelSpec, ModelError> {
+        self.specs
+            .iter()
+            .find(|spec| spec.model == model)
+            .ok_or(ModelError::Unknown)
+    }
+
+    fn part_path(&self, model: SttModel) -> PathBuf {
+        let mut name = self.location.path_of(model).into_os_string();
         name.push(".part");
         PathBuf::from(name)
     }
 
+    fn entry(&self, spec: &ModelSpec, progress: &Progress) -> ModelEntry {
+        let total = spec.expected.size;
+        let (state, downloaded, error) = if progress.downloading == Some(spec.model) {
+            (ModelState::Downloading, progress.downloaded, None)
+        } else if self.location.path_of(spec.model).is_file() {
+            (ModelState::Ready, total, None)
+        } else {
+            let error = progress
+                .errors
+                .get(&spec.model)
+                .map(|code| (*code).to_owned());
+            (ModelState::Missing, 0, error)
+        };
+        ModelEntry {
+            model: spec.model,
+            state,
+            downloaded,
+            total,
+            error,
+        }
+    }
+
     pub fn status(&self) -> ModelStatus {
         let progress = self.lock();
-        let total = self.expected.size;
-        let dir = self.location.dir().display().to_string();
-        let custom_dir = self.location.is_custom();
-        if progress.downloading {
-            return ModelStatus {
-                state: ModelState::Downloading,
-                downloaded: progress.downloaded,
-                total,
-                error: None,
-                dir,
-                custom_dir,
-            };
-        }
-        if self.location.path().is_file() {
-            return ModelStatus {
-                state: ModelState::Ready,
-                downloaded: total,
-                total,
-                error: None,
-                dir,
-                custom_dir,
-            };
-        }
         ModelStatus {
-            state: ModelState::Missing,
-            downloaded: 0,
-            total,
-            dir,
-            custom_dir,
-            error: progress.error.map(str::to_owned),
+            active: self.location.active(),
+            models: self
+                .specs
+                .iter()
+                .map(|spec| self.entry(spec, &progress))
+                .collect(),
+            dir: self.location.dir().display().to_string(),
+            custom_dir: self.location.is_custom(),
         }
     }
 
@@ -199,17 +223,28 @@ impl ModelService {
         self.events.publish(DomainEvent::ModelStatus(self.status()));
     }
 
-    /// Empieza a descargar el modelo en segundo plano. Si ya está o ya se está bajando, no hace nada.
-    pub fn download(self: &Arc<Self>) -> Result<(), ModelError> {
+    /// Empieza a descargar un modelo en segundo plano y, si llega entero y verificado, ejecuta
+    /// `then` (la app lo usa para dejarlo como modelo activo). Si ya está o ya se está bajando, no
+    /// hace nada; si se está bajando otro, falla: se baja de uno en uno.
+    pub fn download(
+        self: &Arc<Self>,
+        model: SttModel,
+        then: impl FnOnce() + Send + 'static,
+    ) -> Result<(), ModelError> {
+        self.spec(model)?;
         {
             let mut progress = self.lock();
-            if progress.downloading || self.location.path().is_file() {
+            match progress.downloading {
+                Some(current) if current == model => return Ok(()),
+                Some(_) => return Err(ModelError::Busy),
+                None => {}
+            }
+            if self.location.path_of(model).is_file() {
                 return Ok(());
             }
-            *progress = Progress {
-                downloading: true,
-                ..Progress::default()
-            };
+            progress.downloading = Some(model);
+            progress.downloaded = 0;
+            progress.errors.remove(&model);
         }
         self.cancel.store(false, Ordering::SeqCst);
         self.publish();
@@ -217,10 +252,14 @@ impl ModelService {
         let service = Arc::clone(self);
         thread::Builder::new()
             .name("orbit-model-download".into())
-            .spawn(move || service.download_blocking())
+            .spawn(move || {
+                if service.download_blocking(model) {
+                    then();
+                }
+            })
             .map(|_| ())
             .map_err(|error| {
-                self.lock().downloading = false;
+                self.lock().downloading = None;
                 ModelError::Disk(error.to_string())
             })
     }
@@ -230,25 +269,38 @@ impl ModelService {
         self.cancel.store(true, Ordering::SeqCst);
     }
 
-    /// Borra el modelo (y cualquier descarga a medias). Con una descarga en curso no se puede.
-    pub fn remove(&self) -> Result<(), ModelError> {
-        if self.lock().downloading {
+    /// Borra un modelo (y cualquier descarga a medias suya). Mientras se baja, no se puede.
+    pub fn remove(&self, model: SttModel) -> Result<(), ModelError> {
+        self.spec(model)?;
+        if self.lock().downloading == Some(model) {
             return Err(ModelError::Busy);
         }
-        for path in [self.location.path(), self.part_path()] {
+        for path in [self.location.path_of(model), self.part_path(model)] {
             remove_if_exists(&path)?;
         }
-        self.lock().error = None;
+        self.lock().errors.remove(&model);
         self.publish();
         Ok(())
     }
 
-    /// Cambia la carpeta del modelo (`None` = volver a la de la app). Si el modelo ya estaba
-    /// descargado se mueve a la carpeta nueva, salvo que ahí ya haya uno: ese se usa tal cual y el
-    /// de antes no se toca. Con una descarga en curso no se puede. No guarda el ajuste: eso lo hace
-    /// quien llama.
+    /// Elige el modelo que usa el motor. Tiene que estar descargado. No guarda el ajuste: eso lo
+    /// hace quien llama.
+    pub fn set_active(&self, model: SttModel) -> Result<(), ModelError> {
+        self.spec(model)?;
+        if !self.location.path_of(model).is_file() {
+            return Err(ModelError::NotReady);
+        }
+        self.location.set_active(model);
+        self.publish();
+        Ok(())
+    }
+
+    /// Cambia la carpeta de los modelos (`None` = volver a la de la app). Los que ya estaban
+    /// descargados se mueven a la carpeta nueva, salvo los que ahí ya existan: esos se usan tal cual
+    /// y los de antes no se tocan. Con una descarga en curso no se puede. No guarda el ajuste: eso lo
+    /// hace quien llama.
     pub fn set_dir(&self, dir: Option<PathBuf>) -> Result<(), ModelError> {
-        if self.lock().downloading {
+        if self.lock().downloading.is_some() {
             return Err(ModelError::Busy);
         }
         let new_dir = dir
@@ -257,42 +309,58 @@ impl ModelService {
         fs::create_dir_all(&new_dir).map_err(disk)?;
         check_writable(&new_dir)?;
 
-        let old = self.location.path();
-        let new = new_dir.join(self.location.file_name());
-        if old != new && old.is_file() && !new.exists() {
-            move_file(&old, &new)?;
+        let mut moved: Vec<(PathBuf, PathBuf)> = Vec::new();
+        for spec in &self.specs {
+            let old = self.location.path_of(spec.model);
+            let new = new_dir.join(spec.model.file_name());
+            if old == new || !old.is_file() || new.exists() {
+                continue;
+            }
+            if let Err(error) = move_file(&old, &new) {
+                // Que no quede la mitad en cada sitio: se devuelve lo ya movido.
+                for (from, to) in moved.iter().rev() {
+                    let _ = move_file(to, from);
+                }
+                return Err(error);
+            }
+            moved.push((old, new));
         }
         self.location.set_custom_dir(dir);
         self.publish();
         Ok(())
     }
 
-    /// El cuerpo de la descarga: bloquea hasta terminar. Lo llama el hilo de `download`.
-    pub(crate) fn download_blocking(&self) {
-        let outcome = self.fetch();
+    /// El cuerpo de la descarga: bloquea hasta terminar y dice si el modelo quedó descargado. Lo
+    /// llama el hilo de `download`.
+    pub(crate) fn download_blocking(&self, model: SttModel) -> bool {
+        let outcome = self.spec(model).and_then(|spec| self.fetch(spec));
         {
             let mut progress = self.lock();
-            progress.downloading = false;
-            progress.error = match &outcome {
+            progress.downloading = None;
+            match &outcome {
                 Err(error) => {
-                    tracing::warn!(%error, "no se pudo descargar el modelo de transcripción");
-                    Some(error.code())
+                    tracing::warn!(%error, ?model, "no se pudo descargar el modelo de transcripción");
+                    progress.errors.insert(model, error.code());
                 }
-                Ok(_) => None,
-            };
+                Ok(_) => {
+                    progress.errors.remove(&model);
+                }
+            }
         }
-        if matches!(outcome, Ok(Outcome::Done)) {
-            tracing::info!("modelo de transcripción descargado");
+        let done = matches!(outcome, Ok(Outcome::Done));
+        if done {
+            tracing::info!(?model, "modelo de transcripción descargado");
         }
         self.publish();
+        done
     }
 
-    fn fetch(&self) -> Result<Outcome, ModelError> {
-        let path = self.location.path();
+    fn fetch(&self, spec: &ModelSpec) -> Result<Outcome, ModelError> {
+        let path = self.location.path_of(spec.model);
         if let Some(dir) = path.parent() {
             fs::create_dir_all(dir).map_err(disk)?;
         }
-        let part = self.part_path();
+        let part = self.part_path(spec.model);
         let mut transfer = Transfer {
             file: File::create(&part).map_err(disk)?,
             hasher: Sha256::new(),
@@ -301,7 +369,7 @@ impl ModelService {
 
         let mut resumes = 0;
         let outcome = loop {
-            match self.transfer(&mut transfer) {
+            match self.transfer(spec, &mut transfer) {
                 // Una caída de la conexión no tira lo ya bajado: se reanuda desde ahí.
                 Err(ModelError::Network(error)) if resumes < MAX_RESUMES => {
                     resumes += 1;
@@ -331,12 +399,12 @@ impl ModelService {
 
     /// Una pasada: abre la descarga donde se quedó, copia lo que llegue y, si llegó entero,
     /// comprueba su huella.
-    fn transfer(&self, transfer: &mut Transfer) -> Result<Outcome, ModelError> {
+    fn transfer(&self, spec: &ModelSpec, transfer: &mut Transfer) -> Result<Outcome, ModelError> {
         if self.cancel.load(Ordering::SeqCst) {
             return Ok(Outcome::Cancelled);
         }
-        let Download { total, mut reader } = self.source.open(transfer.downloaded)?;
-        if total != self.expected.size {
+        let Download { total, mut reader } = spec.source.open(transfer.downloaded)?;
+        if total != spec.expected.size {
             return Err(ModelError::Corrupt);
         }
 
@@ -355,7 +423,7 @@ impl ModelService {
             transfer.file.write_all(&buffer[..read]).map_err(disk)?;
             transfer.hasher.update(&buffer[..read]);
             transfer.downloaded += read as u64;
-            if transfer.downloaded > self.expected.size {
+            if transfer.downloaded > spec.expected.size {
                 return Err(ModelError::Corrupt);
             }
             if last_report.elapsed() >= PROGRESS_EVERY {
@@ -365,7 +433,7 @@ impl ModelService {
             }
         }
 
-        if transfer.downloaded != self.expected.size {
+        if transfer.downloaded != spec.expected.size {
             return Err(ModelError::Network("la descarga se cortó".into()));
         }
         transfer.file.sync_all().map_err(disk)?;
@@ -376,7 +444,7 @@ impl ModelService {
             .iter()
             .map(|byte| format!("{byte:02x}"))
             .collect();
-        if digest != self.expected.sha256 {
+        if digest != spec.expected.sha256 {
             return Err(ModelError::Corrupt);
         }
         Ok(Outcome::Done)
@@ -429,9 +497,14 @@ fn remove_if_exists(path: &Path) -> Result<(), ModelError> {
 #[cfg(test)]
 mod tests {
     use std::io::Cursor;
+    use std::sync::mpsc;
 
     use super::*;
     use crate::events::testing::FakeEventSink;
+
+    /// El archivo de `SttModel::Small`, el modelo con el que se prueba casi todo.
+    const SMALL: &str = "ggml-small.bin";
+    const BASE: &str = "ggml-base.bin";
 
     fn sha256_hex(bytes: &[u8]) -> String {
         Sha256::digest(bytes)
@@ -533,27 +606,65 @@ mod tests {
         dir
     }
 
-    fn service(
-        dir: &Path,
-        data: &[u8],
-        source: FakeSource,
-    ) -> (Arc<ModelService>, Arc<FakeEventSink>) {
+    fn spec(model: SttModel, data: &[u8], source: impl ModelSource + 'static) -> ModelSpec {
+        ModelSpec {
+            model,
+            expected: expected_for(data),
+            source: Arc::new(source),
+        }
+    }
+
+    struct Fixture {
+        service: Arc<ModelService>,
+        location: Arc<ModelLocation>,
+        events: Arc<FakeEventSink>,
+    }
+
+    /// Un servicio sobre `dir/models` con esos modelos (el activo es `Small`).
+    fn fixture(dir: &Path, specs: Vec<ModelSpec>) -> Fixture {
         let events = Arc::new(FakeEventSink::default());
+        let location = Arc::new(ModelLocation::new(
+            dir.join("models"),
+            None,
+            SttModel::Small,
+        ));
         let service = Arc::new(
             ModelService::new(
-                Arc::new(ModelLocation::fixed(dir.join("models").join("model.bin"))),
-                expected_for(data),
-                Arc::new(source),
+                Arc::clone(&location),
+                specs,
                 Arc::clone(&events) as Arc<dyn EventSink>,
             )
             .with_resume_delay(Duration::ZERO),
         );
-        (service, events)
+        Fixture {
+            service,
+            location,
+            events,
+        }
+    }
+
+    /// Un servicio con solo `Small`, que sirve `source`.
+    fn small(dir: &Path, data: &[u8], source: FakeSource) -> Fixture {
+        fixture(dir, vec![spec(SttModel::Small, data, source)])
+    }
+
+    fn entry(service: &ModelService, model: SttModel) -> ModelEntry {
+        service
+            .status()
+            .models
+            .into_iter()
+            .find(|entry| entry.model == model)
+            .unwrap()
     }
 
     fn wait_until_done(service: &ModelService) {
         for _ in 0..500 {
-            if service.status().state != ModelState::Downloading {
+            if service
+                .status()
+                .models
+                .iter()
+                .all(|entry| entry.state != ModelState::Downloading)
+            {
                 return;
             }
             thread::sleep(Duration::from_millis(10));
@@ -564,14 +675,18 @@ mod tests {
     #[test]
     fn a_missing_model_reports_its_expected_size() {
         let dir = temp_dir("missing");
-        let (service, _) = service(&dir, b"abc", FakeSource::serving(b"abc"));
+        let fx = small(&dir, b"abc", FakeSource::serving(b"abc"));
         assert_eq!(
-            service.status(),
+            fx.service.status(),
             ModelStatus {
-                state: ModelState::Missing,
-                downloaded: 0,
-                total: 3,
-                error: None,
+                active: SttModel::Small,
+                models: vec![ModelEntry {
+                    model: SttModel::Small,
+                    state: ModelState::Missing,
+                    downloaded: 0,
+                    total: 3,
+                    error: None,
+                }],
                 dir: dir.join("models").display().to_string(),
                 custom_dir: false,
             }
@@ -582,22 +697,27 @@ mod tests {
     fn downloading_saves_a_verified_model_and_reports_each_step() {
         let dir = temp_dir("ok");
         let data = vec![7_u8; 300_000];
-        let (service, events) = service(&dir, &data, FakeSource::serving(&data));
+        let fx = small(&dir, &data, FakeSource::serving(&data));
 
-        service.download().unwrap();
-        wait_until_done(&service);
+        fx.service.download(SttModel::Small, || {}).unwrap();
+        wait_until_done(&fx.service);
 
-        let status = service.status();
-        assert_eq!(status.state, ModelState::Ready);
-        assert_eq!(status.downloaded, data.len() as u64);
-        assert_eq!(fs::read(dir.join("models/model.bin")).unwrap(), data);
-        assert!(!dir.join("models/model.bin.part").exists());
+        let small = entry(&fx.service, SttModel::Small);
+        assert_eq!(small.state, ModelState::Ready);
+        assert_eq!(small.downloaded, data.len() as u64);
+        assert_eq!(fs::read(dir.join("models").join(SMALL)).unwrap(), data);
+        assert!(!dir.join("models/ggml-small.bin.part").exists());
 
-        let states: Vec<ModelState> = events
+        let states: Vec<ModelState> = fx
+            .events
             .events()
             .into_iter()
             .filter_map(|event| match event {
-                DomainEvent::ModelStatus(status) => Some(status.state),
+                DomainEvent::ModelStatus(status) => status
+                    .models
+                    .iter()
+                    .find(|entry| entry.model == SttModel::Small)
+                    .map(|entry| entry.state),
                 _ => None,
             })
             .collect();
@@ -606,31 +726,71 @@ mod tests {
     }
 
     #[test]
+    fn a_finished_download_runs_the_follow_up_but_a_failed_one_does_not() {
+        let dir = temp_dir("then");
+        let fx = small(&dir, b"abc", FakeSource::serving(b"abc"));
+        let (sender, receiver) = mpsc::channel();
+        let notify = sender.clone();
+        fx.service
+            .download(SttModel::Small, move || notify.send(()).unwrap())
+            .unwrap();
+        receiver.recv_timeout(Duration::from_secs(5)).unwrap();
+        assert_eq!(entry(&fx.service, SttModel::Small).state, ModelState::Ready);
+
+        let dir = temp_dir("then-corrupt");
+        let fx = small(&dir, b"abc", FakeSource::serving(b"xyz"));
+        fx.service
+            .download(SttModel::Small, move || sender.send(()).unwrap())
+            .unwrap();
+        wait_until_done(&fx.service);
+        // Si el seguimiento corriera, ya habría llegado.
+        thread::sleep(Duration::from_millis(50));
+        assert!(receiver.try_recv().is_err());
+    }
+
+    #[test]
     fn a_model_that_is_already_there_is_not_downloaded_again() {
         let dir = temp_dir("present");
-        let (service, events) = service(&dir, b"abc", FakeSource::serving(b"abc"));
+        let fx = small(&dir, b"abc", FakeSource::serving(b"abc"));
         fs::create_dir_all(dir.join("models")).unwrap();
-        fs::write(dir.join("models/model.bin"), b"mine").unwrap();
+        fs::write(dir.join("models").join(SMALL), b"mine").unwrap();
 
-        service.download().unwrap();
+        fx.service.download(SttModel::Small, || {}).unwrap();
 
-        assert_eq!(service.status().state, ModelState::Ready);
-        assert!(events.events().is_empty());
-        assert_eq!(fs::read(dir.join("models/model.bin")).unwrap(), b"mine");
+        assert_eq!(entry(&fx.service, SttModel::Small).state, ModelState::Ready);
+        assert!(fx.events.events().is_empty());
+        assert_eq!(fs::read(dir.join("models").join(SMALL)).unwrap(), b"mine");
+    }
+
+    #[test]
+    fn an_unknown_model_is_refused() {
+        let dir = temp_dir("unknown");
+        let fx = small(&dir, b"abc", FakeSource::serving(b"abc"));
+
+        let error = fx.service.download(SttModel::Medium, || {}).unwrap_err();
+        assert_eq!(error.code(), "stt.model.unknown");
+        assert_eq!(
+            fx.service.remove(SttModel::Medium).unwrap_err().code(),
+            "stt.model.unknown"
+        );
+        assert_eq!(
+            fx.service.set_active(SttModel::Medium).unwrap_err().code(),
+            "stt.model.unknown"
+        );
     }
 
     #[test]
     fn a_download_with_the_wrong_content_is_discarded() {
         let dir = temp_dir("corrupt");
-        let (service, _) = service(&dir, b"abc", FakeSource::serving(b"xyz"));
+        let fx = small(&dir, b"abc", FakeSource::serving(b"xyz"));
 
-        service.download_blocking();
+        fx.service.download_blocking(SttModel::Small);
 
-        let status = service.status();
-        assert_eq!(status.state, ModelState::Missing);
-        assert_eq!(status.error.as_deref(), Some("stt.model.corrupt"));
-        assert!(!dir.join("models/model.bin").exists());
-        assert!(!dir.join("models/model.bin.part").exists());
+        let small = entry(&fx.service, SttModel::Small);
+        assert_eq!(small.state, ModelState::Missing);
+        assert_eq!(small.error.as_deref(), Some("stt.model.corrupt"));
+        assert!(!dir.join("models").join(SMALL).exists());
+        assert!(!dir.join("models/ggml-small.bin.part").exists());
     }
 
     #[test]
@@ -641,12 +801,15 @@ mod tests {
             announced: 3,
             fail: false,
         };
-        let (service, _) = service(&dir, b"abc", source);
+        let fx = small(&dir, b"abc", source);
 
-        service.download_blocking();
+        fx.service.download_blocking(SttModel::Small);
 
-        assert_eq!(service.status().error.as_deref(), Some("stt.model.network"));
-        assert!(!dir.join("models/model.bin.part").exists());
+        assert_eq!(
+            entry(&fx.service, SttModel::Small).error.as_deref(),
+            Some("stt.model.network")
+        );
+        assert!(!dir.join("models/ggml-small.bin.part").exists());
     }
 
     #[test]
@@ -658,21 +821,21 @@ mod tests {
             cut_at: 100_000,
             opened_from: Mutex::new(Vec::new()),
         });
-        let events = Arc::new(FakeEventSink::default());
-        let service = ModelService::new(
-            Arc::new(ModelLocation::fixed(dir.join("models").join("model.bin"))),
-            expected_for(&data),
-            Arc::clone(&source) as Arc<dyn ModelSource>,
-            events,
-        )
-        .with_resume_delay(Duration::ZERO);
+        let fx = fixture(
+            &dir,
+            vec![ModelSpec {
+                model: SttModel::Small,
+                expected: expected_for(&data),
+                source: Arc::clone(&source) as Arc<dyn ModelSource>,
+            }],
+        );
 
-        service.download_blocking();
+        assert!(fx.service.download_blocking(SttModel::Small));
 
-        let status = service.status();
-        assert_eq!(status.error, None);
-        assert_eq!(status.state, ModelState::Ready);
-        assert_eq!(fs::read(dir.join("models/model.bin")).unwrap(), data);
+        let small = entry(&fx.service, SttModel::Small);
+        assert_eq!(small.error, None);
+        assert_eq!(small.state, ModelState::Ready);
+        assert_eq!(fs::read(dir.join("models").join(SMALL)).unwrap(), data);
         assert_eq!(*source.opened_from.lock().unwrap(), vec![0, 100_000]);
     }
 
@@ -684,11 +847,14 @@ mod tests {
             announced: 99,
             fail: false,
         };
-        let (service, _) = service(&dir, b"abc", source);
+        let fx = small(&dir, b"abc", source);
 
-        service.download_blocking();
+        fx.service.download_blocking(SttModel::Small);
 
-        assert_eq!(service.status().error.as_deref(), Some("stt.model.corrupt"));
+        assert_eq!(
+            entry(&fx.service, SttModel::Small).error.as_deref(),
+            Some("stt.model.corrupt")
+        );
     }
 
     #[test]
@@ -699,156 +865,242 @@ mod tests {
             announced: 0,
             fail: true,
         };
-        let (service, _) = service(&dir, b"abc", source);
+        let fx = small(&dir, b"abc", source);
 
-        service.download_blocking();
-        assert_eq!(service.status().error.as_deref(), Some("stt.model.network"));
+        assert!(!fx.service.download_blocking(SttModel::Small));
+        assert_eq!(
+            entry(&fx.service, SttModel::Small).error.as_deref(),
+            Some("stt.model.network")
+        );
 
         // Reintentar vuelve a pedir el modelo (aquí falla igual: la fuente sigue sin red).
-        service.download().unwrap();
-        wait_until_done(&service);
-        assert_eq!(service.status().error.as_deref(), Some("stt.model.network"));
+        fx.service.download(SttModel::Small, || {}).unwrap();
+        wait_until_done(&fx.service);
+        assert_eq!(
+            entry(&fx.service, SttModel::Small).error.as_deref(),
+            Some("stt.model.network")
+        );
     }
 
     #[test]
     fn cancelling_leaves_nothing_behind() {
         let dir = temp_dir("cancel");
         let data = vec![1_u8; 200_000];
-        let (service, _) = service(&dir, &data, FakeSource::serving(&data));
+        let fx = small(&dir, &data, FakeSource::serving(&data));
 
-        service.cancel();
+        fx.service.cancel();
         // `download_blocking` no reinicia la bandera: `download` sí. Aquí se prueba el corte directo.
-        service.download_blocking();
+        assert!(!fx.service.download_blocking(SttModel::Small));
 
-        let status = service.status();
-        assert_eq!(status.state, ModelState::Missing);
-        assert_eq!(status.error, None);
-        assert!(!dir.join("models/model.bin").exists());
-        assert!(!dir.join("models/model.bin.part").exists());
+        let small = entry(&fx.service, SttModel::Small);
+        assert_eq!(small.state, ModelState::Missing);
+        assert_eq!(small.error, None);
+        assert!(!dir.join("models").join(SMALL).exists());
+        assert!(!dir.join("models/ggml-small.bin.part").exists());
     }
 
     #[test]
     fn removing_deletes_the_model_and_any_partial_download() {
         let dir = temp_dir("remove");
-        let (service, events) = service(&dir, b"abc", FakeSource::serving(b"abc"));
+        let fx = small(&dir, b"abc", FakeSource::serving(b"abc"));
         fs::create_dir_all(dir.join("models")).unwrap();
-        fs::write(dir.join("models/model.bin"), b"abc").unwrap();
-        fs::write(dir.join("models/model.bin.part"), b"ab").unwrap();
-        assert_eq!(service.status().state, ModelState::Ready);
+        fs::write(dir.join("models").join(SMALL), b"abc").unwrap();
+        fs::write(dir.join("models/ggml-small.bin.part"), b"ab").unwrap();
+        assert_eq!(entry(&fx.service, SttModel::Small).state, ModelState::Ready);
 
-        service.remove().unwrap();
+        fx.service.remove(SttModel::Small).unwrap();
 
-        assert_eq!(service.status().state, ModelState::Missing);
-        assert!(!dir.join("models/model.bin.part").exists());
+        assert_eq!(
+            entry(&fx.service, SttModel::Small).state,
+            ModelState::Missing
+        );
+        assert!(!dir.join("models/ggml-small.bin.part").exists());
         assert!(matches!(
-            events.events().last(),
-            Some(DomainEvent::ModelStatus(status)) if status.state == ModelState::Missing
+            fx.events.events().last(),
+            Some(DomainEvent::ModelStatus(status))
+                if status.models[0].state == ModelState::Missing
         ));
         // Borrar lo que no está tampoco falla.
-        service.remove().unwrap();
+        fx.service.remove(SttModel::Small).unwrap();
     }
 
     #[test]
     fn a_model_in_the_middle_of_downloading_cannot_be_removed() {
         let dir = temp_dir("busy");
-        let (service, _) = service(&dir, b"abc", FakeSource::serving(b"abc"));
-        service.lock().downloading = true;
+        let fx = small(&dir, b"abc", FakeSource::serving(b"abc"));
+        fx.service.lock().downloading = Some(SttModel::Small);
 
-        let error = service.remove().unwrap_err();
+        let error = fx.service.remove(SttModel::Small).unwrap_err();
         assert_eq!(error.code(), "stt.model.busy");
     }
 
-    /// Servicio con una ubicación que se puede cambiar de carpeta (la de la app es `models/`).
-    fn movable(dir: &Path, data: &[u8]) -> (Arc<ModelService>, Arc<ModelLocation>) {
-        let location = Arc::new(ModelLocation::new(dir.join("models"), "model.bin", None));
-        let service = Arc::new(
-            ModelService::new(
-                Arc::clone(&location),
-                expected_for(data),
-                Arc::new(FakeSource::serving(data)),
-                Arc::new(FakeEventSink::default()) as Arc<dyn EventSink>,
-            )
-            .with_resume_delay(Duration::ZERO),
-        );
-        (service, location)
+    /// Dos modelos con contenidos distintos: `Base` (`b"base"`) y `Small` (`b"small!"`).
+    fn two_models(dir: &Path) -> Fixture {
+        fixture(
+            dir,
+            vec![
+                spec(SttModel::Base, b"base", FakeSource::serving(b"base")),
+                spec(SttModel::Small, b"small!", FakeSource::serving(b"small!")),
+            ],
+        )
     }
 
     #[test]
-    fn changing_the_folder_moves_the_downloaded_model_and_back() {
+    fn each_model_has_its_own_file_state_and_error() {
+        let dir = temp_dir("two");
+        let fx = two_models(&dir);
+
+        fx.service.download(SttModel::Base, || {}).unwrap();
+        wait_until_done(&fx.service);
+
+        assert_eq!(fs::read(dir.join("models").join(BASE)).unwrap(), b"base");
+        assert_eq!(entry(&fx.service, SttModel::Base).state, ModelState::Ready);
+        assert_eq!(entry(&fx.service, SttModel::Base).total, 4);
+        assert_eq!(
+            entry(&fx.service, SttModel::Small).state,
+            ModelState::Missing
+        );
+        assert_eq!(entry(&fx.service, SttModel::Small).total, 6);
+        assert_eq!(
+            fx.service
+                .status()
+                .models
+                .iter()
+                .map(|entry| entry.model)
+                .collect::<Vec<_>>(),
+            vec![SttModel::Base, SttModel::Small]
+        );
+    }
+
+    #[test]
+    fn only_one_model_downloads_at_a_time() {
+        let dir = temp_dir("one-at-a-time");
+        let fx = two_models(&dir);
+        fx.service.lock().downloading = Some(SttModel::Small);
+
+        let error = fx.service.download(SttModel::Base, || {}).unwrap_err();
+        assert_eq!(error.code(), "stt.model.busy");
+        // Pedir el mismo que ya se baja no es un error ni lo duplica.
+        fx.service.download(SttModel::Small, || {}).unwrap();
+        // Borrar el otro sí se puede mientras tanto.
+        fx.service.remove(SttModel::Base).unwrap();
+    }
+
+    #[test]
+    fn a_model_must_be_downloaded_before_it_can_be_chosen() {
+        let dir = temp_dir("choose");
+        let fx = two_models(&dir);
+
+        let error = fx.service.set_active(SttModel::Base).unwrap_err();
+        assert_eq!(error.code(), "stt.model.notReady");
+        assert_eq!(fx.location.active(), SttModel::Small);
+
+        fx.service.download(SttModel::Base, || {}).unwrap();
+        wait_until_done(&fx.service);
+        fx.service.set_active(SttModel::Base).unwrap();
+
+        assert_eq!(fx.location.active(), SttModel::Base);
+        assert_eq!(fx.service.status().active, SttModel::Base);
+        assert_eq!(fx.location.path(), dir.join("models").join(BASE));
+        assert!(matches!(
+            fx.events.events().last(),
+            Some(DomainEvent::ModelStatus(status)) if status.active == SttModel::Base
+        ));
+    }
+
+    fn put(dir: &Path, file: &str, content: &[u8]) {
+        fs::create_dir_all(dir).unwrap();
+        fs::write(dir.join(file), content).unwrap();
+    }
+
+    #[test]
+    fn changing_the_folder_moves_every_downloaded_model_and_back() {
         let dir = temp_dir("move");
-        let (service, location) = movable(&dir, b"abc");
-        fs::create_dir_all(dir.join("models")).unwrap();
-        fs::write(dir.join("models/model.bin"), b"abc").unwrap();
+        let fx = two_models(&dir);
+        put(&dir.join("models"), SMALL, b"small!");
+        put(&dir.join("models"), BASE, b"base");
         let other = dir.join("externo");
 
-        service.set_dir(Some(other.clone())).unwrap();
+        fx.service.set_dir(Some(other.clone())).unwrap();
 
-        assert_eq!(location.path(), other.join("model.bin"));
-        assert_eq!(fs::read(other.join("model.bin")).unwrap(), b"abc");
-        assert!(!dir.join("models/model.bin").exists());
-        let status = service.status();
-        assert_eq!(status.state, ModelState::Ready);
+        assert_eq!(fx.location.path(), other.join(SMALL));
+        assert_eq!(fs::read(other.join(SMALL)).unwrap(), b"small!");
+        assert_eq!(fs::read(other.join(BASE)).unwrap(), b"base");
+        assert!(!dir.join("models").join(SMALL).exists());
+        assert!(!dir.join("models").join(BASE).exists());
+        let status = fx.service.status();
+        assert!(status
+            .models
+            .iter()
+            .all(|entry| entry.state == ModelState::Ready));
         assert!(status.custom_dir);
         assert_eq!(status.dir, other.display().to_string());
 
-        service.set_dir(None).unwrap();
-        assert_eq!(fs::read(dir.join("models/model.bin")).unwrap(), b"abc");
-        assert!(!other.join("model.bin").exists());
-        assert!(!service.status().custom_dir);
+        fx.service.set_dir(None).unwrap();
+        assert_eq!(fs::read(dir.join("models").join(SMALL)).unwrap(), b"small!");
+        assert_eq!(fs::read(dir.join("models").join(BASE)).unwrap(), b"base");
+        assert!(!other.join(SMALL).exists());
+        assert!(!fx.service.status().custom_dir);
     }
 
     #[test]
     fn changing_the_folder_with_no_model_yet_only_changes_where_it_will_go() {
         let dir = temp_dir("move-empty");
-        let (service, location) = movable(&dir, b"abc");
+        let fx = two_models(&dir);
         let other = dir.join("otro");
 
-        service.set_dir(Some(other.clone())).unwrap();
+        fx.service.set_dir(Some(other.clone())).unwrap();
 
-        assert_eq!(service.status().state, ModelState::Missing);
+        assert_eq!(
+            entry(&fx.service, SttModel::Small).state,
+            ModelState::Missing
+        );
         assert!(other.is_dir(), "la carpeta nueva se crea");
-        assert_eq!(location.path(), other.join("model.bin"));
+        assert_eq!(fx.location.path(), other.join(SMALL));
     }
 
     #[test]
     fn a_model_already_in_the_new_folder_is_used_and_the_old_one_is_left_alone() {
         let dir = temp_dir("move-existing");
-        let (service, _) = movable(&dir, b"abc");
-        fs::create_dir_all(dir.join("models")).unwrap();
-        fs::write(dir.join("models/model.bin"), b"viejo").unwrap();
+        let fx = two_models(&dir);
+        put(&dir.join("models"), SMALL, b"viejo");
+        put(&dir.join("models"), BASE, b"base");
         let other = dir.join("otro");
-        fs::create_dir_all(&other).unwrap();
-        fs::write(other.join("model.bin"), b"nuevo").unwrap();
+        put(&other, SMALL, b"nuevo");
 
-        service.set_dir(Some(other.clone())).unwrap();
+        fx.service.set_dir(Some(other.clone())).unwrap();
 
-        assert_eq!(fs::read(other.join("model.bin")).unwrap(), b"nuevo");
-        assert_eq!(fs::read(dir.join("models/model.bin")).unwrap(), b"viejo");
+        assert_eq!(fs::read(other.join(SMALL)).unwrap(), b"nuevo");
+        assert_eq!(fs::read(dir.join("models").join(SMALL)).unwrap(), b"viejo");
+        // El que no estaba allí sí se movió.
+        assert_eq!(fs::read(other.join(BASE)).unwrap(), b"base");
     }
 
     #[test]
     fn a_folder_that_cannot_be_written_is_refused_and_nothing_changes() {
         let dir = temp_dir("move-bad");
-        let (service, location) = movable(&dir, b"abc");
-        fs::create_dir_all(dir.join("models")).unwrap();
-        fs::write(dir.join("models/model.bin"), b"abc").unwrap();
+        let fx = two_models(&dir);
+        put(&dir.join("models"), SMALL, b"small!");
         // "Carpeta" que en realidad es un archivo: no se puede crear nada dentro.
         let blocker = dir.join("archivo");
         fs::write(&blocker, b"x").unwrap();
 
-        let error = service.set_dir(Some(blocker.join("dentro"))).unwrap_err();
+        let error = fx
+            .service
+            .set_dir(Some(blocker.join("dentro")))
+            .unwrap_err();
 
         assert_eq!(error.code(), "stt.model.disk");
-        assert!(!location.is_custom());
-        assert_eq!(fs::read(dir.join("models/model.bin")).unwrap(), b"abc");
+        assert!(!fx.location.is_custom());
+        assert_eq!(fs::read(dir.join("models").join(SMALL)).unwrap(), b"small!");
     }
 
     #[test]
     fn the_folder_cannot_change_during_a_download() {
         let dir = temp_dir("move-busy");
-        let (service, _) = movable(&dir, b"abc");
-        service.lock().downloading = true;
-        let error = service.set_dir(Some(dir.join("x"))).unwrap_err();
+        let fx = two_models(&dir);
+        fx.service.lock().downloading = Some(SttModel::Base);
+        let error = fx.service.set_dir(Some(dir.join("x"))).unwrap_err();
         assert_eq!(error.code(), "stt.model.busy");
     }
 
@@ -856,16 +1108,16 @@ mod tests {
     fn a_download_goes_to_the_chosen_folder() {
         let dir = temp_dir("move-download");
         let data = vec![5_u8; 70_000];
-        let (service, location) = movable(&dir, &data);
+        let fx = small(&dir, &data, FakeSource::serving(&data));
         let other = dir.join("disco");
-        service.set_dir(Some(other.clone())).unwrap();
+        fx.service.set_dir(Some(other.clone())).unwrap();
 
-        service.download_blocking();
+        assert!(fx.service.download_blocking(SttModel::Small));
 
-        assert_eq!(service.status().state, ModelState::Ready);
-        assert_eq!(fs::read(other.join("model.bin")).unwrap(), data);
-        assert!(!dir.join("models/model.bin").exists());
-        assert_eq!(location.path(), other.join("model.bin"));
+        assert_eq!(entry(&fx.service, SttModel::Small).state, ModelState::Ready);
+        assert_eq!(fs::read(other.join(SMALL)).unwrap(), data);
+        assert!(!dir.join("models").join(SMALL).exists());
+        assert_eq!(fx.location.path(), other.join(SMALL));
     }
 
     #[test]
@@ -877,32 +1129,35 @@ mod tests {
         assert_eq!(ModelError::Disk(String::new()).code(), "stt.model.disk");
         assert_eq!(ModelError::Corrupt.code(), "stt.model.corrupt");
         assert_eq!(ModelError::Busy.code(), "stt.model.busy");
-    }
-
-    #[test]
-    fn the_pinned_model_matches_the_published_one() {
-        let expected = small_model();
-        assert_eq!(expected.size, 487_601_967);
-        assert_eq!(expected.sha256.len(), 64);
+        assert_eq!(ModelError::NotReady.code(), "stt.model.notReady");
+        assert_eq!(ModelError::Unknown.code(), "stt.model.unknown");
     }
 
     #[test]
     fn the_wire_format_matches_the_frontend() {
         let status = ModelStatus {
-            state: ModelState::Downloading,
-            downloaded: 10,
-            total: 20,
-            error: None,
+            active: SttModel::Turbo,
+            models: vec![ModelEntry {
+                model: SttModel::Medium,
+                state: ModelState::Downloading,
+                downloaded: 10,
+                total: 20,
+                error: None,
+            }],
             dir: "/modelos".into(),
             custom_dir: true,
         };
         assert_eq!(
             serde_json::to_value(status).unwrap(),
             serde_json::json!({
-                "state": "downloading",
-                "downloaded": 10,
-                "total": 20,
-                "error": null,
+                "active": "turbo",
+                "models": [{
+                    "model": "medium",
+                    "state": "downloading",
+                    "downloaded": 10,
+                    "total": 20,
+                    "error": null
+                }],
                 "dir": "/modelos",
                 "customDir": true
             })

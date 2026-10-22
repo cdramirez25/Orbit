@@ -8,11 +8,9 @@ use whisper_rs::{
     FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters, WhisperState,
 };
 
+use super::catalog::SttModel;
 use super::location::ModelLocation;
 use super::{Pass, SttEngine, SttError, SttLanguage, Transcription};
-
-/// Modelo por defecto: `small` multilingüe (≈ 465 MB), buen equilibrio entre precisión y velocidad.
-pub const MODEL_FILE: &str = "ggml-small.bin";
 
 /// Un segmento con más probabilidad que esta de ser "no voz" se descarta (música, ruido).
 const MAX_NO_SPEECH: f32 = 0.8;
@@ -26,11 +24,18 @@ const AUDIO_CTX_MAX: usize = 1500;
 
 static LOGGING: Once = Once::new();
 
-/// El modelo se carga al empezar a escuchar y se suelta al parar (`release`): son cientos de MB
-/// que no deben ocupar memoria con la isla en reposo.
+/// El modelo cargado y cuál es.
+struct Loaded {
+    model: SttModel,
+    state: WhisperState,
+}
+
+/// El modelo (el activo de `ModelLocation`) se carga al empezar a escuchar y se suelta al parar
+/// (`release`): son cientos de MB que no deben ocupar memoria con la isla en reposo. Si el usuario
+/// cambia de modelo, la siguiente frase carga el nuevo.
 pub struct WhisperEngine {
     location: Arc<ModelLocation>,
-    state: Mutex<Option<WhisperState>>,
+    loaded: Mutex<Option<Loaded>>,
     language: Mutex<SttLanguage>,
 }
 
@@ -38,7 +43,7 @@ impl WhisperEngine {
     pub fn new(location: Arc<ModelLocation>) -> Self {
         Self {
             location,
-            state: Mutex::new(None),
+            loaded: Mutex::new(None),
             language: Mutex::new(SttLanguage::default()),
         }
     }
@@ -55,12 +60,31 @@ impl WhisperEngine {
         }
     }
 
-    fn lock(&self) -> MutexGuard<'_, Option<WhisperState>> {
-        self.state.lock().unwrap_or_else(PoisonError::into_inner)
+    fn lock(&self) -> MutexGuard<'_, Option<Loaded>> {
+        self.loaded.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    fn load(&self) -> Result<WhisperState, SttError> {
-        let model_path = self.location.path();
+    /// Deja cargado el modelo activo (recargándolo si cambió desde la última vez) y devuelve su estado.
+    fn ensure_loaded<'a>(
+        &self,
+        slot: &'a mut Option<Loaded>,
+    ) -> Result<&'a mut WhisperState, SttError> {
+        let active = self.location.active();
+        if slot.as_ref().map(|loaded| loaded.model) != Some(active) {
+            // Primero se suelta el anterior: dos modelos a la vez ocuparían el doble de memoria.
+            *slot = None;
+            *slot = Some(Loaded {
+                model: active,
+                state: self.load(active)?,
+            });
+        }
+        slot.as_mut()
+            .map(|loaded| &mut loaded.state)
+            .ok_or_else(|| SttError::Inference("el modelo no está cargado".into()))
+    }
+
+    fn load(&self, model: SttModel) -> Result<WhisperState, SttError> {
+        let model_path = self.location.path_of(model);
         if !model_path.is_file() {
             return Err(SttError::ModelMissing(model_path));
         }
@@ -76,6 +100,7 @@ impl WhisperEngine {
             .map_err(|error| SttError::ModelLoad(error.to_string()))?;
         tracing::info!(
             took_ms = started.elapsed().as_millis() as u64,
+            ?model,
             "modelo de transcripción cargado"
         );
         Ok(state)
@@ -85,12 +110,7 @@ impl WhisperEngine {
 impl SttEngine for WhisperEngine {
     fn transcribe(&self, samples: &[f32], pass: Pass) -> Result<Transcription, SttError> {
         let mut guard = self.lock();
-        if guard.is_none() {
-            *guard = Some(self.load()?);
-        }
-        let Some(state) = guard.as_mut() else {
-            return Err(SttError::Inference("el modelo no está cargado".into()));
-        };
+        let state = self.ensure_loaded(&mut guard)?;
 
         let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
         params.set_n_threads(threads());
@@ -136,9 +156,7 @@ impl SttEngine for WhisperEngine {
 
     fn warm_up(&self) -> Result<(), SttError> {
         let mut guard = self.lock();
-        if guard.is_none() {
-            *guard = Some(self.load()?);
-        }
+        self.ensure_loaded(&mut guard)?;
         Ok(())
     }
 
@@ -172,8 +190,9 @@ mod tests {
 
     #[test]
     fn a_missing_model_is_reported_with_its_path() {
-        let path = std::env::temp_dir().join("orbit-no-such-model.bin");
-        let engine = WhisperEngine::new(Arc::new(ModelLocation::fixed(path.clone())));
+        let dir = std::env::temp_dir().join("orbit-no-such-models");
+        let path = dir.join("ggml-small.bin");
+        let engine = WhisperEngine::new(Arc::new(ModelLocation::in_dir(dir)));
 
         let result = engine.transcribe(&[0.0; 16_000], Pass::Final);
         assert!(matches!(result, Err(SttError::ModelMissing(p)) if p == path));
@@ -181,13 +200,27 @@ mod tests {
     }
 
     #[test]
+    fn the_engine_looks_for_the_model_the_user_chose() {
+        let dir = std::env::temp_dir().join("orbit-no-such-models");
+        let location = Arc::new(ModelLocation::in_dir(dir.clone()));
+        let engine = WhisperEngine::new(Arc::clone(&location));
+
+        location.set_active(SttModel::Medium);
+
+        let result = engine.warm_up();
+        assert!(
+            matches!(result, Err(SttError::ModelMissing(p)) if p == dir.join("ggml-medium.bin"))
+        );
+    }
+
+    #[test]
     fn releasing_an_engine_that_never_loaded_is_harmless() {
-        WhisperEngine::new(Arc::new(ModelLocation::fixed(PathBuf::from("x.bin")))).release();
+        WhisperEngine::new(Arc::new(ModelLocation::in_dir(PathBuf::from("x")))).release();
     }
 
     #[test]
     fn the_language_can_be_changed_and_starts_automatic() {
-        let engine = WhisperEngine::new(Arc::new(ModelLocation::fixed(PathBuf::from("x.bin"))));
+        let engine = WhisperEngine::new(Arc::new(ModelLocation::in_dir(PathBuf::from("x"))));
         assert_eq!(engine.language(), SttLanguage::Auto);
         engine.set_language(SttLanguage::Es);
         assert_eq!(engine.language().code(), "es");
@@ -225,6 +258,26 @@ mod tests {
         panic!("el WAV no tiene bloque de datos");
     }
 
+    /// La ubicación de los modelos reales para las pruebas manuales: la carpeta de la app (o la de
+    /// `ORBIT_TEST_MODEL_DIR`) y el modelo de `ORBIT_TEST_STT_MODEL` (`base`, `small`, `medium` o
+    /// `turbo`; por defecto `small`).
+    fn live_location() -> Arc<ModelLocation> {
+        let dir = std::env::var("ORBIT_TEST_MODEL_DIR").map_or_else(
+            |_| {
+                PathBuf::from(std::env::var("HOME").expect("falta HOME"))
+                    .join("Library/Application Support/dev.orbit.island/models")
+            },
+            PathBuf::from,
+        );
+        let model = match std::env::var("ORBIT_TEST_STT_MODEL").as_deref() {
+            Ok("base") => SttModel::Base,
+            Ok("medium") => SttModel::Medium,
+            Ok("turbo") => SttModel::Turbo,
+            _ => SttModel::Small,
+        };
+        Arc::new(ModelLocation::new(dir, None, model))
+    }
+
     /// Prueba con el modelo real. Manual: necesita el modelo descargado y un WAV con voz.
     ///
     /// ```text
@@ -235,16 +288,8 @@ mod tests {
     #[ignore = "necesita el modelo descargado y un WAV de voz en ORBIT_TEST_WAV"]
     fn live_transcription() {
         let wav = std::env::var("ORBIT_TEST_WAV").expect("falta ORBIT_TEST_WAV");
-        let model = std::env::var("ORBIT_TEST_MODEL").map_or_else(
-            |_| {
-                PathBuf::from(std::env::var("HOME").expect("falta HOME"))
-                    .join("Library/Application Support/dev.orbit.island/models")
-                    .join(MODEL_FILE)
-            },
-            PathBuf::from,
-        );
         let samples = read_wav(std::path::Path::new(&wav));
-        let engine = WhisperEngine::new(Arc::new(ModelLocation::fixed(model)));
+        let engine = WhisperEngine::new(live_location());
 
         let load = Instant::now();
         engine.warm_up().expect("no cargó el modelo");
@@ -302,9 +347,6 @@ mod tests {
         use crate::stt::transcriber;
 
         let wav = std::env::var("ORBIT_TEST_WAV").expect("falta ORBIT_TEST_WAV");
-        let model = PathBuf::from(std::env::var("HOME").expect("falta HOME"))
-            .join("Library/Application Support/dev.orbit.island/models")
-            .join(MODEL_FILE);
         let mut samples = read_wav(std::path::Path::new(&wav));
         samples.extend(vec![0.0; 16_000 * 2]); // 2 s de silencio al final cierran la frase
 
@@ -312,8 +354,7 @@ mod tests {
             start: Instant::now(),
             lines: Mutex::new(Vec::new()),
         });
-        let engine: Arc<dyn SttEngine> =
-            Arc::new(WhisperEngine::new(Arc::new(ModelLocation::fixed(model))));
+        let engine: Arc<dyn SttEngine> = Arc::new(WhisperEngine::new(live_location()));
         let (tx, rx) = channel();
         let handle = std::thread::spawn({
             let sink = Arc::clone(&sink);

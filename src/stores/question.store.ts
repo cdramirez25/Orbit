@@ -86,7 +86,7 @@ export const useQuestionStore = create<QuestionStore>((set, get) => ({
     try {
       await commands.setIslandKeyboard(enabled);
     } catch {
-      // Sin teclado no se puede escribir, pero grabar la pregunta con el botón sigue funcionando.
+      // Sin teclado no se puede escribir, pero grabar audio con el botón sigue funcionando.
     }
   },
 }));

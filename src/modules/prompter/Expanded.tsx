@@ -113,8 +113,8 @@ function RecordError() {
 }
 
 /**
- * La IA en la isla: la sesión activa, lo que se oye al grabar la pregunta, la respuesta (con el
- * contexto de toda la sesión) y el botón para grabar la pregunta y responderla.
+ * La IA en la isla: la sesión activa, lo que se oye al grabar audio, la respuesta (con el
+ * contexto de toda la sesión) y el botón Grabar audio, que lo envía a la IA para que responda.
  */
 export function Expanded() {
   const t = useT();

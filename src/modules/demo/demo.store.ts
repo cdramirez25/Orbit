@@ -101,7 +101,7 @@ export function showPrompter(): void {
 }
 
 /**
- * Al empezar a escuchar (con el botón de grabar pregunta o con el de Ajustes) la tarjeta de IA se
+ * Al empezar a escuchar (con el botón Grabar audio o con el de Ajustes) la tarjeta de IA se
  * elige sola y se parte de cero: sin la transcripción ni la respuesta de la vez anterior. La isla
  * pasa a compacta si estaba en reposo, pero una tarjeta abierta se queda abierta: es donde se
  * pulsa el botón.

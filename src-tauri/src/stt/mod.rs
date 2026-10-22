@@ -8,6 +8,7 @@
 //! completo. El "en vivo" se consigue repitiendo la llamada sobre la frase en curso (parciales) y
 //! cerrándola cuando hay una pausa (final).
 
+pub mod catalog;
 pub mod location;
 pub mod model;
 pub mod model_source;

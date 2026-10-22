@@ -94,18 +94,31 @@ export const en: Record<MessageKey, string> = {
     'If the same language is always spoken, pick it: it is more accurate and faster. Automatic detects it in every phrase.',
   'stt.model.title': 'Voice model',
   'stt.model.ready': 'Downloaded',
-  'stt.model.missing': 'Not downloaded',
   'stt.model.downloading': 'Downloading',
   'stt.model.download': 'Download',
   'stt.model.cancel': 'Cancel',
   'stt.model.remove': 'Delete',
   'stt.model.progress': 'Download progress',
   'stt.model.hint':
-    'Speech is transcribed on your computer with Whisper: the audio never leaves it. The model is downloaded only once.',
+    'Speech is transcribed on your computer with Whisper: the audio never leaves it. A larger model understands better, but takes more space and time. It is downloaded only once and you can switch whenever you like.',
+  'stt.model.use': 'Use',
+  'stt.model.inUse': 'In use',
+  'stt.model.recommended': 'Recommended',
+  'stt.model.name.base': 'Base',
+  'stt.model.name.small': 'Small',
+  'stt.model.name.medium': 'Medium',
+  'stt.model.name.turbo': 'Turbo',
+  'stt.model.desc.base': 'Fast and light, but makes more mistakes, especially in Spanish.',
+  'stt.model.desc.small': 'Balanced: good accuracy without asking much of your computer.',
+  'stt.model.desc.medium':
+    'Very accurate, but large and slow unless your computer has a powerful GPU.',
+  'stt.model.desc.turbo':
+    'Nearly as accurate as the largest one and a reasonable size, but needs a powerful computer.',
   'stt.model.error.network': 'Could not download. Check your connection and try again.',
   'stt.model.error.disk': 'Could not save the model to disk.',
   'stt.model.error.corrupt': 'The download arrived damaged. Try again.',
   'stt.model.error.busy': 'Wait for the download to finish.',
+  'stt.model.error.notReady': 'That model is not downloaded yet.',
   'stt.model.error.generic': 'The operation on the model could not be completed.',
 
   // ── Global shortcuts and system tray ────────────────────────────────────
@@ -308,9 +321,9 @@ export const en: Record<MessageKey, string> = {
   'stt.model.folderChange': 'Change folder',
   'stt.model.folderMoving': 'Moving…',
   'stt.model.folderReset': "Use Orbit's folder",
-  'stt.model.folderPickTitle': 'Choose where to save the voice model',
+  'stt.model.folderPickTitle': 'Choose where to save the voice models',
   'stt.model.folderHint':
-    'When you change the folder, the model you already downloaded is moved to it.',
+    'When you change the folder, the models you already downloaded are moved to it.',
 
   // ── First-run guide ─────────────────────────────────────────────────────
   'guide.title': 'Getting started',
@@ -337,7 +350,7 @@ export const en: Record<MessageKey, string> = {
     'To hear what plays on your computer, macOS asks for the Screen Recording permission. Orbit only uses the system audio.',
   'guide.model.title': 'Voice model',
   'guide.model.body':
-    'Orbit transcribes on your computer with Whisper. The model is downloaded only once.',
+    'Orbit transcribes on your computer with Whisper. Pick a model: it is downloaded only once and you can change it later in Settings.',
   'guide.ai.title': 'Your AI',
   'guide.ai.body':
     'Choose which AI Orbit answers with: type its key, pick a model and press Save, Test and Use.',

@@ -7,7 +7,7 @@ import { commands } from '@/ipc/commands';
 import { useModelStore } from '@/stores/model.store';
 import { useSettingsStore } from '@/stores/settings.store';
 import { useShortcutStore } from '@/stores/shortcuts.store';
-import type { ModelStatus } from '@/types';
+import { modelStatus } from '@/test/factories';
 
 vi.mock('@/ipc/remote', () => ({
   remote: {
@@ -28,23 +28,13 @@ vi.mock('@/ipc/commands', () => ({
     sttModelDownload: vi.fn().mockResolvedValue(undefined),
     sttModelCancel: vi.fn().mockResolvedValue(undefined),
     sttModelRemove: vi.fn().mockResolvedValue(undefined),
+    sttModelUse: vi.fn(),
     sttModelChooseDir: vi.fn(),
     sttModelResetDir: vi.fn(),
   },
 }));
 
 const mocked = vi.mocked(commands);
-
-const model = (overrides: Partial<ModelStatus>): ModelStatus =>
-  ({
-    state: 'missing',
-    downloaded: 0,
-    total: 487_601_967,
-    error: null,
-    dir: '/Users/yo/Library/Application Support/dev.orbit.island/models',
-    customDir: false,
-    ...overrides,
-  }) as ModelStatus;
 
 const QUESTION = {
   action: 'toggleQuestion',
@@ -95,71 +85,127 @@ describe('idioma de la transcripción', () => {
   });
 });
 
+const row = (name: string) => within(screen.getByRole('listitem', { name }));
+
 describe('modelo de voz', () => {
-  it('sin descargar: muestra el tamaño y ofrece descargarlo', async () => {
-    useModelStore.setState({ status: model({ state: 'missing' }) });
+  it('ofrece los cuatro modelos con su tamaño y recomienda small', async () => {
+    useModelStore.setState({ status: modelStatus() });
     await openPage('Audio');
 
-    expect(screen.getByText('Sin descargar')).toBeInTheDocument();
-    expect(screen.getByText('488 MB')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Borrar' })).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Descargar' }));
-    expect(mocked.sttModelDownload).toHaveBeenCalledTimes(1);
+    const names = screen.getAllByRole('listitem').map((item) => item.getAttribute('aria-label'));
+    expect(names).toEqual(['Base', 'Small', 'Medium', 'Turbo']);
+    expect(row('Base').getByText(/148 MB/)).toBeInTheDocument();
+    expect(row('Small').getByText(/488 MB/)).toBeInTheDocument();
+    expect(row('Medium').getByText(/1\.5 GB/)).toBeInTheDocument();
+    expect(row('Turbo').getByText(/574 MB/)).toBeInTheDocument();
+    expect(row('Small').getByText('Recomendado')).toBeInTheDocument();
+    expect(row('Base').queryByText('Recomendado')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Borrar/ })).not.toBeInTheDocument();
   });
 
-  it('descargando: muestra el progreso y permite cancelar', async () => {
+  it('sin descargar: cada modelo se descarga por separado', async () => {
+    useModelStore.setState({ status: modelStatus() });
+    await openPage('Audio');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Descargar Medium' }));
+    expect(mocked.sttModelDownload).toHaveBeenCalledTimes(1);
+    expect(mocked.sttModelDownload).toHaveBeenCalledWith('medium');
+  });
+
+  it('descargando: muestra el progreso de ese modelo, permite cancelar y bloquea los demás', async () => {
     useModelStore.setState({
-      status: model({ state: 'downloading', downloaded: 243_800_984 }),
+      status: modelStatus({
+        entries: { medium: { state: 'downloading', downloaded: 766_881_530 } },
+      }),
     });
     await openPage('Audio');
 
-    expect(screen.getByRole('progressbar', { name: 'Progreso de la descarga' })).toHaveAttribute(
-      'aria-valuenow',
-      '50',
-    );
+    expect(
+      screen.getByRole('progressbar', { name: 'Progreso de la descarga Medium' }),
+    ).toHaveAttribute('aria-valuenow', '50');
     expect(screen.getByText(/50 %/)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Descargar' })).not.toBeInTheDocument();
+    // Se baja de uno en uno: los demás no se pueden empezar.
+    expect(screen.getByRole('button', { name: 'Descargar Base' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Descargar Turbo' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Descargar Medium' })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar Medium' }));
     expect(mocked.sttModelCancel).toHaveBeenCalledTimes(1);
   });
 
-  it('descargado: permite borrarlo', async () => {
-    useModelStore.setState({ status: model({ state: 'ready', downloaded: 487_601_967 }) });
+  it('el modelo en uso se marca, no ofrece usarlo y se puede borrar', async () => {
+    useModelStore.setState({ status: modelStatus({ entries: { small: { state: 'ready' } } }) });
     await openPage('Audio');
 
-    expect(screen.getByText('Descargado')).toBeInTheDocument();
+    expect(row('Small').getByText('En uso')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Usar Small' })).not.toBeInTheDocument();
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Borrar' }));
-    expect(mocked.sttModelRemove).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Borrar Small' }));
+    expect(mocked.sttModelRemove).toHaveBeenCalledWith('small');
   });
 
-  it('un fallo de la descarga se explica con un mensaje claro', async () => {
-    useModelStore.setState({ status: model({ state: 'missing', error: 'stt.model.network' }) });
+  it('un modelo descargado que no es el que se usa se puede elegir', async () => {
+    useModelStore.setState({
+      status: modelStatus({
+        entries: { small: { state: 'ready' }, base: { state: 'ready' } },
+      }),
+    });
+    mocked.sttModelUse.mockResolvedValue(
+      modelStatus({
+        active: 'base',
+        entries: { small: { state: 'ready' }, base: { state: 'ready' } },
+      }),
+    );
     await openPage('Audio');
 
-    expect(screen.getByRole('alert')).toHaveTextContent('Revisa tu conexión');
+    expect(row('Base').getByText('Descargado')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Usar Base' }));
+    await act(async () => {});
+
+    expect(mocked.sttModelUse).toHaveBeenCalledWith('base');
+    expect(row('Base').getByText('En uso')).toBeInTheDocument();
+    expect(row('Small').getByText('Descargado')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Usar Small' })).toBeInTheDocument();
+  });
+
+  it('un fallo de la descarga se explica en el modelo que falló', async () => {
+    useModelStore.setState({
+      status: modelStatus({ entries: { turbo: { error: 'stt.model.network' } } }),
+    });
+    await openPage('Audio');
+
+    expect(row('Turbo').getByRole('alert')).toHaveTextContent('Revisa tu conexión');
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+  });
+
+  it('una orden rechazada (modelo sin descargar) muestra su aviso', async () => {
+    useModelStore.setState({ status: modelStatus(), errorCode: 'stt.model.notReady' });
+    await openPage('Audio');
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Ese modelo todavía no está descargado');
   });
 
   it('en inglés, los textos salen en inglés', async () => {
     useLocaleStore.setState({ locale: 'en' });
-    useModelStore.setState({ status: model({ state: 'missing' }) });
+    useModelStore.setState({ status: modelStatus({ entries: { small: { state: 'ready' } } }) });
     render(<SettingsPanel />);
     fireEvent.click(screen.getByRole('button', { name: 'Audio' }));
     await act(async () => {});
 
-    expect(screen.getByText('Not downloaded')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Download' })).toBeInTheDocument();
+    expect(screen.getByText('In use')).toBeInTheDocument();
+    expect(screen.getByText('Recommended')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Download Base' })).toBeInTheDocument();
   });
 });
 
-describe('carpeta del modelo', () => {
-  it('muestra dónde está el modelo y deja elegir otra carpeta con el selector del sistema', async () => {
-    useModelStore.setState({ status: model({ state: 'ready', downloaded: 487_601_967 }) });
+describe('carpeta de los modelos', () => {
+  const ready = { entries: { small: { state: 'ready' as const } } };
+
+  it('muestra dónde están los modelos y deja elegir otra carpeta con el selector del sistema', async () => {
+    useModelStore.setState({ status: modelStatus(ready) });
     mocked.sttModelChooseDir.mockResolvedValue(
-      model({ state: 'ready', downloaded: 487_601_967, dir: '/Volumes/Externo', customDir: true }),
+      modelStatus({ ...ready, dir: '/Volumes/Externo', customDir: true }),
     );
     await openPage('Audio');
 
@@ -169,13 +215,13 @@ describe('carpeta del modelo', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Cambiar carpeta' }));
     await act(async () => {});
 
-    expect(mocked.sttModelChooseDir).toHaveBeenCalledWith('Elige dónde guardar el modelo de voz');
+    expect(mocked.sttModelChooseDir).toHaveBeenCalledWith('Elige dónde guardar los modelos de voz');
     expect(screen.getByText('/Volumes/Externo')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Usar la carpeta de Orbit' })).toBeInTheDocument();
   });
 
   it('si se cancela el selector, no cambia nada', async () => {
-    useModelStore.setState({ status: model({ state: 'ready' }) });
+    useModelStore.setState({ status: modelStatus(ready) });
     mocked.sttModelChooseDir.mockResolvedValue(null);
     await openPage('Audio');
 
@@ -187,9 +233,9 @@ describe('carpeta del modelo', () => {
 
   it('con una carpeta propia, Usar la carpeta de Orbit la devuelve a la de la app', async () => {
     useModelStore.setState({
-      status: model({ state: 'ready', dir: '/Volumes/Externo', customDir: true }),
+      status: modelStatus({ ...ready, dir: '/Volumes/Externo', customDir: true }),
     });
-    mocked.sttModelResetDir.mockResolvedValue(model({ state: 'ready' }));
+    mocked.sttModelResetDir.mockResolvedValue(modelStatus(ready));
     await openPage('Audio');
 
     fireEvent.click(screen.getByRole('button', { name: 'Usar la carpeta de Orbit' }));
@@ -200,19 +246,23 @@ describe('carpeta del modelo', () => {
   });
 
   it('mientras se descarga no se puede cambiar de carpeta', async () => {
-    useModelStore.setState({ status: model({ state: 'downloading', downloaded: 1000 }) });
+    useModelStore.setState({
+      status: modelStatus({ entries: { small: { state: 'downloading', downloaded: 1000 } } }),
+    });
     await openPage('Audio');
     expect(screen.getByRole('button', { name: 'Cambiar carpeta' })).toBeDisabled();
   });
 
-  it('mientras se mueve el modelo avisa y bloquea los botones', async () => {
-    useModelStore.setState({ status: model({ state: 'ready' }), movingDir: true });
+  it('mientras se mueven los modelos avisa y bloquea los botones', async () => {
+    useModelStore.setState({ status: modelStatus(ready), movingDir: true });
     await openPage('Audio');
     expect(screen.getByRole('button', { name: 'Moviendo…' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Borrar Small' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Descargar Base' })).toBeDisabled();
   });
 
   it('un fallo al mover (sin permiso en el disco) se explica', async () => {
-    useModelStore.setState({ status: model({ state: 'ready' }) });
+    useModelStore.setState({ status: modelStatus(ready) });
     mocked.sttModelChooseDir.mockRejectedValue({ code: 'stt.model.disk', message: 'x' });
     await openPage('Audio');
 

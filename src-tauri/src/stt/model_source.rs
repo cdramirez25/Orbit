@@ -6,15 +6,14 @@ use std::time::Duration;
 use ureq::tls::{RootCerts, TlsConfig, TlsProvider};
 use ureq::Agent;
 
+use super::catalog::SttModel;
 use super::model::{Download, ModelError, ModelSource};
 
-/// `ggml-small.bin`: el modelo que carga `whisper_local`.
-const SMALL_MODEL_URL: &str =
-    "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin";
 const USER_AGENT: &str = concat!("Orbit/", env!("CARGO_PKG_VERSION"));
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
 const RESPONSE_TIMEOUT: Duration = Duration::from_secs(30);
-/// Tope de toda la descarga (≈ 465 MB): una conexión colgada no puede dejarla abierta para siempre.
+/// Tope de toda la descarga (el modelo más grande pesa ≈ 1,5 GB): una conexión colgada no puede
+/// dejarla abierta para siempre.
 const BODY_TIMEOUT: Duration = Duration::from_secs(60 * 60);
 
 pub struct HttpModelSource {
@@ -23,8 +22,9 @@ pub struct HttpModelSource {
 }
 
 impl HttpModelSource {
-    pub fn small() -> Self {
-        Self::with_url(SMALL_MODEL_URL)
+    /// La fuente de un modelo del catálogo (Hugging Face).
+    pub fn for_model(model: SttModel) -> Self {
+        Self::with_url(&model.url())
     }
 
     pub fn with_url(url: &str) -> Self {
@@ -80,7 +80,7 @@ mod tests {
     use super::*;
     use crate::events::testing::FakeEventSink;
     use crate::stt::location::ModelLocation;
-    use crate::stt::model::{small_model, ModelService, ModelState};
+    use crate::stt::model::{ModelService, ModelSpec, ModelState};
 
     /// Servidor HTTP local que contesta una sola petición con `status` y `body`. Con
     /// `honor_range`, una petición con `Range: bytes=N-` recibe un 206 con el resto del cuerpo.
@@ -161,33 +161,61 @@ mod tests {
         assert_eq!(error.code(), "stt.model.network");
     }
 
-    /// Descarga el modelo real (≈ 465 MB) a una carpeta temporal y comprueba su huella. Manual.
+    /// Descarga modelos reales a una carpeta temporal y comprueba su huella. Manual. Los modelos
+    /// son los de `ORBIT_TEST_STT_MODELS` (separados por comas: `base,small,medium,turbo`); por
+    /// defecto solo `base`, el más pequeño (≈ 140 MB).
     ///
     /// ```text
-    /// cargo test live_downloads_the_real_model -- --ignored --nocapture
+    /// ORBIT_TEST_STT_MODELS=base,small,medium,turbo \
+    ///   cargo test live_downloads_the_real_models -- --ignored --nocapture
     /// ```
     #[test]
-    #[ignore = "descarga ≈ 465 MB de Hugging Face"]
-    fn live_downloads_the_real_model() {
+    #[ignore = "descarga modelos reales de Hugging Face"]
+    fn live_downloads_the_real_models() {
+        let wanted = std::env::var("ORBIT_TEST_STT_MODELS").unwrap_or_else(|_| "base".into());
         let dir: PathBuf =
             std::env::temp_dir().join(format!("orbit-live-model-{}", std::process::id()));
-        let events = Arc::new(FakeEventSink::default());
+        let specs = SttModel::ALL
+            .iter()
+            .map(|&model| ModelSpec {
+                model,
+                expected: model.expected(),
+                source: Arc::new(HttpModelSource::for_model(model)),
+            })
+            .collect();
         let service = Arc::new(ModelService::new(
-            Arc::new(ModelLocation::fixed(dir.join("ggml-small.bin"))),
-            small_model(),
-            Arc::new(HttpModelSource::small()),
-            events,
+            Arc::new(ModelLocation::new(dir.clone(), None, SttModel::Small)),
+            specs,
+            Arc::new(FakeEventSink::default()),
         ));
 
-        let started = std::time::Instant::now();
-        service.download_blocking();
-        println!("descarga: {} s", started.elapsed().as_secs());
+        for name in wanted.split(',') {
+            let model = match name.trim() {
+                "base" => SttModel::Base,
+                "small" => SttModel::Small,
+                "medium" => SttModel::Medium,
+                "turbo" => SttModel::Turbo,
+                other => panic!("modelo desconocido: {other}"),
+            };
+            let started = std::time::Instant::now();
+            assert!(service.download_blocking(model), "{model:?} no se bajó");
+            println!("{model:?}: {} s", started.elapsed().as_secs());
 
-        let status = service.status();
-        assert_eq!(status.error, None);
-        assert_eq!(status.state, ModelState::Ready);
-        let size = std::fs::metadata(dir.join("ggml-small.bin")).unwrap().len();
-        assert_eq!(size, small_model().size);
+            let entry = service
+                .status()
+                .models
+                .into_iter()
+                .find(|entry| entry.model == model)
+                .unwrap();
+            assert_eq!(entry.error, None);
+            assert_eq!(entry.state, ModelState::Ready);
+            let size = std::fs::metadata(dir.join(model.file_name()))
+                .unwrap()
+                .len();
+            assert_eq!(size, model.expected().size);
+            // Se borra en cuanto se comprueba: los grandes ocupan GB.
+            service.remove(model).unwrap();
+        }
         let _ = std::fs::remove_dir_all(dir);
     }
 }

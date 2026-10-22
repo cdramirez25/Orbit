@@ -3,21 +3,24 @@ import { create } from 'zustand';
 import { commands } from '@/ipc/commands';
 import { commandErrorCode } from '@/ipc/errors';
 import { onEvent } from '@/ipc/events';
-import type { ModelStatus } from '@/types';
+import type { ModelStatus, SttModel } from '@/types';
 
 interface ModelStore {
-  /** El modelo de transcripción en disco; `null` = todavía no se ha consultado. */
+  /** Los modelos de transcripción en disco y cuál se usa; `null` = todavía no se ha consultado. */
   status: ModelStatus | null;
   /** Código del último fallo de una orden (borrar, descargar); `null` si no hubo. */
   errorCode: string | null;
-  /** El modelo se está moviendo a otra carpeta (son cientos de MB: tarda unos segundos). */
+  /** Los modelos se están moviendo a otra carpeta (son cientos de MB: tarda unos segundos). */
   movingDir: boolean;
-  download: () => Promise<void>;
+  /** Baja un modelo; al terminar, Rust lo deja como el que se usa. */
+  download: (model: SttModel) => Promise<void>;
   cancel: () => Promise<void>;
-  remove: () => Promise<void>;
-  /** Abre el selector de carpetas del sistema (con ese título) y mueve el modelo a la elegida. */
+  remove: (model: SttModel) => Promise<void>;
+  /** Elige cuál de los modelos descargados se usa. */
+  use: (model: SttModel) => Promise<void>;
+  /** Abre el selector de carpetas del sistema (con ese título) y mueve los modelos a la elegida. */
   chooseDir: (title: string) => Promise<void>;
-  /** Devuelve el modelo a la carpeta de la app. */
+  /** Devuelve los modelos a la carpeta de la app. */
   resetDir: () => Promise<void>;
   /** Pide el estado y se suscribe a sus cambios (progreso de la descarga). Devuelve cómo desuscribirse. */
   bind: () => Promise<() => void>;
@@ -28,10 +31,10 @@ export const useModelStore = create<ModelStore>((set) => ({
   errorCode: null,
   movingDir: false,
 
-  download: async () => {
+  download: async (model) => {
     set({ errorCode: null });
     try {
-      await commands.sttModelDownload();
+      await commands.sttModelDownload(model);
     } catch (error) {
       set({ errorCode: commandErrorCode(error) ?? 'unknown' });
     }
@@ -45,10 +48,19 @@ export const useModelStore = create<ModelStore>((set) => ({
     }
   },
 
-  remove: async () => {
+  remove: async (model) => {
     set({ errorCode: null });
     try {
-      await commands.sttModelRemove();
+      await commands.sttModelRemove(model);
+    } catch (error) {
+      set({ errorCode: commandErrorCode(error) ?? 'unknown' });
+    }
+  },
+
+  use: async (model) => {
+    set({ errorCode: null });
+    try {
+      set({ status: await commands.sttModelUse(model) });
     } catch (error) {
       set({ errorCode: commandErrorCode(error) ?? 'unknown' });
     }

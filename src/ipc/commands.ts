@@ -11,6 +11,7 @@ import type {
   IslandAnchor,
   MediaCommand,
   IslandSettings,
+  ModelEntry,
   ModelStatus,
   NotchInfo,
   NowPlaying,
@@ -22,6 +23,7 @@ import type {
   SessionUpdate,
   ShortcutInfo,
   SttLanguage,
+  SttModel,
   UiAction,
   WeatherReport,
 } from '@/types';
@@ -123,39 +125,64 @@ function stopSimulation(): void {
   emitLocal('pipeline:state', 'idle');
 }
 
-// Solo navegador: el modelo de transcripción simulado (descarga con progreso) para ver Ajustes con `pnpm dev`.
-const BROWSER_MODEL_BYTES = 487_601_967;
+// Solo navegador: los modelos de transcripción simulados (descarga con progreso) para ver Ajustes
+// con `pnpm dev`. Los tamaños son los reales.
+const BROWSER_MODEL_BYTES: Record<SttModel, number> = {
+  base: 147_951_465,
+  small: 487_601_967,
+  medium: 1_533_763_059,
+  turbo: 574_041_195,
+};
 const MODEL_TICK_MS = 120;
 const MODEL_STEP = 0.02;
 const BROWSER_MODEL_DIR = '/Users/usuario/Library/Application Support/dev.orbit.island/models';
-let browserModel: ModelStatus = {
-  state: 'missing',
-  downloaded: 0,
-  total: BROWSER_MODEL_BYTES,
-  error: null,
+let browserModels: ModelStatus = {
+  active: 'small',
+  models: (Object.keys(BROWSER_MODEL_BYTES) as SttModel[]).map((model) => ({
+    model,
+    state: 'missing',
+    downloaded: 0,
+    total: BROWSER_MODEL_BYTES[model],
+    error: null,
+  })),
   dir: BROWSER_MODEL_DIR,
   customDir: false,
 };
 let modelSimulation: ReturnType<typeof setInterval> | undefined;
 
-function setBrowserModel(next: ModelStatus): void {
-  browserModel = next;
+function setBrowserModels(next: ModelStatus): void {
+  browserModels = next;
   emitLocal('stt:model', next);
 }
 
-function simulateModelDownload(): void {
-  if (browserModel.state !== 'missing') return;
-  setBrowserModel({ ...browserModel, state: 'downloading', downloaded: 0, error: null });
+function patchBrowserModel(model: SttModel, patch: Partial<ModelEntry>, active?: SttModel): void {
+  setBrowserModels({
+    ...browserModels,
+    active: active ?? browserModels.active,
+    models: browserModels.models.map((entry) =>
+      entry.model === model ? { ...entry, ...patch } : entry,
+    ),
+  });
+}
+
+function browserEntry(model: SttModel): ModelEntry | undefined {
+  return browserModels.models.find((entry) => entry.model === model);
+}
+
+function simulateModelDownload(model: SttModel): void {
+  if (browserEntry(model)?.state !== 'missing') return;
+  if (browserModels.models.some((entry) => entry.state === 'downloading'))
+    throw { code: 'stt.model.busy', message: 'se está descargando un modelo' };
+  const total = BROWSER_MODEL_BYTES[model];
+  patchBrowserModel(model, { state: 'downloading', downloaded: 0, error: null });
   modelSimulation = setInterval(() => {
-    const downloaded = Math.min(
-      browserModel.downloaded + BROWSER_MODEL_BYTES * MODEL_STEP,
-      BROWSER_MODEL_BYTES,
-    );
-    if (downloaded >= BROWSER_MODEL_BYTES) {
+    const downloaded = Math.min((browserEntry(model)?.downloaded ?? 0) + total * MODEL_STEP, total);
+    if (downloaded >= total) {
       clearInterval(modelSimulation);
-      setBrowserModel({ ...browserModel, state: 'ready', downloaded: BROWSER_MODEL_BYTES });
+      // Como en Rust: el que se acaba de bajar pasa a ser el que se usa.
+      patchBrowserModel(model, { state: 'ready', downloaded: total }, model);
     } else {
-      setBrowserModel({ ...browserModel, downloaded });
+      patchBrowserModel(model, { downloaded });
     }
   }, MODEL_TICK_MS);
 }
@@ -715,29 +742,48 @@ export const commands = {
   questionIsRecording: (): Promise<boolean> =>
     isTauri() ? invoke<boolean>('question_is_recording') : Promise.resolve(browserRecording),
 
-  /** Estado del modelo de transcripción: si está, cuánto se lleva descargado y el último fallo. */
+  /** Estado de los modelos de transcripción: cuál se usa, cuáles están y cuánto se lleva bajado. */
   sttModelStatus: (): Promise<ModelStatus> =>
-    isTauri() ? invoke<ModelStatus>('stt_model_status') : Promise.resolve(browserModel),
+    isTauri() ? invoke<ModelStatus>('stt_model_status') : Promise.resolve(browserModels),
 
-  /** Empieza a descargar el modelo; el progreso llega por el evento `stt:model`. */
-  sttModelDownload: (): Promise<void> => {
-    if (isTauri()) return invoke<void>('stt_model_download');
-    simulateModelDownload();
+  /**
+   * Empieza a bajar un modelo; el progreso llega por el evento `stt:model`. Al terminar bien, Rust
+   * lo deja como el que se usa.
+   */
+  sttModelDownload: (model: SttModel): Promise<void> => {
+    if (isTauri()) return invoke<void>('stt_model_download', { model });
+    try {
+      simulateModelDownload(model);
+    } catch (error) {
+      return Promise.reject(error);
+    }
     return Promise.resolve();
   },
 
   sttModelCancel: (): Promise<void> => {
     if (isTauri()) return invoke<void>('stt_model_cancel');
     clearInterval(modelSimulation);
-    setBrowserModel({ ...browserModel, state: 'missing', downloaded: 0 });
+    const downloading = browserModels.models.find((entry) => entry.state === 'downloading');
+    if (downloading) patchBrowserModel(downloading.model, { state: 'missing', downloaded: 0 });
     return Promise.resolve();
   },
 
-  /** Borra el modelo del disco (se puede volver a descargar). */
-  sttModelRemove: (): Promise<void> => {
-    if (isTauri()) return invoke<void>('stt_model_remove');
-    setBrowserModel({ ...browserModel, state: 'missing', downloaded: 0, error: null });
+  /** Borra un modelo del disco (se puede volver a descargar). */
+  sttModelRemove: (model: SttModel): Promise<void> => {
+    if (isTauri()) return invoke<void>('stt_model_remove', { model });
+    if (browserEntry(model)?.state === 'downloading')
+      return Promise.reject({ code: 'stt.model.busy', message: 'se está descargando' });
+    patchBrowserModel(model, { state: 'missing', downloaded: 0, error: null });
     return Promise.resolve();
+  },
+
+  /** Elige cuál de los modelos descargados usa la transcripción. */
+  sttModelUse: (model: SttModel): Promise<ModelStatus> => {
+    if (isTauri()) return invoke<ModelStatus>('stt_model_use', { model });
+    if (browserEntry(model)?.state !== 'ready')
+      return Promise.reject({ code: 'stt.model.notReady', message: 'no descargado' });
+    setBrowserModels({ ...browserModels, active: model });
+    return Promise.resolve(browserModels);
   },
 
   /** Cambia el idioma de la transcripción; Rust lo guarda y lo aplica desde la siguiente frase. */
@@ -789,20 +835,20 @@ export const commands = {
   },
 
   /**
-   * Abre el selector de carpetas del sistema (con ese título) y mueve el modelo a la elegida.
+   * Abre el selector de carpetas del sistema (con ese título) y mueve los modelos a la elegida.
    * `null` si el usuario cancela.
    */
   sttModelChooseDir: (title: string): Promise<ModelStatus | null> => {
     if (isTauri()) return invoke<ModelStatus | null>('stt_model_choose_dir', { title });
-    setBrowserModel({ ...browserModel, dir: '/Volumes/Externo/Orbit', customDir: true });
-    return Promise.resolve(browserModel);
+    setBrowserModels({ ...browserModels, dir: '/Volumes/Externo/Orbit', customDir: true });
+    return Promise.resolve(browserModels);
   },
 
-  /** Devuelve el modelo a la carpeta de la app. */
+  /** Devuelve los modelos a la carpeta de la app. */
   sttModelResetDir: (): Promise<ModelStatus> => {
     if (isTauri()) return invoke<ModelStatus>('stt_model_reset_dir');
-    setBrowserModel({ ...browserModel, dir: BROWSER_MODEL_DIR, customDir: false });
-    return Promise.resolve(browserModel);
+    setBrowserModels({ ...browserModels, dir: BROWSER_MODEL_DIR, customDir: false });
+    return Promise.resolve(browserModels);
   },
 
   /** Rotula el menú de la bandeja (la crea la primera vez) con los textos del idioma activo. */
