@@ -307,3 +307,11 @@ describe('acciones de IA del portapapeles en el navegador (simulado)', () => {
     expect(await pending).toContain('https://orbit.example/docs/getting-started');
   });
 });
+
+describe('cámara en el navegador (simulado)', () => {
+  it('copiar, guardar y abrir los ajustes responden sin hacer nada de verdad', async () => {
+    await expect(commands.copyCameraPhoto('AAAA')).resolves.toBeUndefined();
+    await expect(commands.saveCameraPhoto('AAAA')).resolves.toBe('Orbit-simulada.png');
+    await expect(commands.openCameraSettings()).resolves.toBeUndefined();
+  });
+});

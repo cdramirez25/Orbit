@@ -49,6 +49,22 @@ export const WAVES = {
   reducedLevel: 0.5,
 } as const;
 
+/**
+ * Cámara: al encenderla, la vista previa entra con un fundido y un pequeño crecimiento (la isla ya
+ * crece sola con el resorte del contenedor, porque el contenido se hace más alto), y al tomar la
+ * foto un destello blanco cubre la imagen un momento.
+ */
+export const CAMERA = {
+  /** Lado de la vista previa cuadrada (px). */
+  previewSize: 176,
+  /** La vista previa entra desde esta escala. */
+  previewScaleFrom: 0.92,
+  previewDuration: 0.28,
+  /** El destello al disparar: opacidad máxima y lo que tarda en desvanecerse. */
+  flashOpacity: 0.85,
+  flashDuration: 0.28,
+} as const;
+
 export const SHAPE = {
   /** Margen superior en estilo `floating` (8–10 px). */
   floatingMarginTop: 9,

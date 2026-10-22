@@ -3,17 +3,9 @@ import { PageHeader, Section } from '@/features/settings/layout';
 import { PermissionActions, PermissionChip } from '@/features/settings/pages/PermissionControls';
 import { usePermissionPolling } from '@/hooks/usePermissionPolling';
 import { TranscriptionSection } from '@/features/settings/pages/TranscriptionSection';
-import type { MessageKey } from '@/i18n/messages';
 import { useT } from '@/i18n/useT';
-import { sttErrorKey } from '@/lib/audio/stt-error';
+import { listenErrorKey } from '@/lib/audio/listen-error';
 import { useAudioStore } from '@/stores/audio.store';
-
-/** Mensaje para el error al escuchar. El de permiso ya se ve en el estado del permiso. */
-function listenErrorKey(code: string): MessageKey | null {
-  if (code === 'audio.permissionDenied') return null;
-  if (code === 'audio.noOutputDevice') return 'audio.error.noDevice';
-  return sttErrorKey(code) ?? 'audio.error.generic';
-}
 
 /** Audio del sistema: permiso para capturarlo y el botón de escuchar. */
 export function AudioPage() {

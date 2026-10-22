@@ -7,10 +7,13 @@ import {
   useDemoStore,
 } from '@/modules/demo/demo.store';
 import { demoModule } from '@/modules/demo';
+import { LISTEN_MODULE_ID } from '@/modules/listen/id';
+import { PROMPTER_MODULE_ID } from '@/modules/prompter/id';
 import { bindRegistryToIsland, useRegistryStore } from '@/modules/registry';
 import { weatherModule } from '@/modules/weather';
 import { useAudioStore } from '@/stores/audio.store';
 import { useIslandStore } from '@/stores/island.store';
+import { useQuestionStore } from '@/stores/question.store';
 import { useTranscriptStore } from '@/stores/transcript.store';
 
 vi.mock('@/ipc/commands', () => ({
@@ -26,6 +29,7 @@ beforeEach(() => {
   useAudioStore.setState({ listening: false });
   useDemoStore.setState({ answer: null, streaming: false });
   useTranscriptStore.setState({ lines: [], partial: '' });
+  useQuestionStore.setState({ recording: false, busy: false });
   useRegistryStore.setState({ modules: {}, activities: [], selectedId: null });
 
   const registry = useRegistryStore.getState();
@@ -81,6 +85,35 @@ describe('la transcripción y la isla', () => {
     useTranscriptStore.setState({ partial: 'otra vez' });
 
     expect(island()).toBe('expanded');
+  });
+
+  it('Escuchar (el botón de Ajustes) enseña la tarjeta de transcripción, no la de IA', () => {
+    useAudioStore.setState({ listening: true });
+    expect(useRegistryStore.getState().selectedId).toBe(LISTEN_MODULE_ID);
+    expect(island()).toBe('compact');
+
+    useTranscriptStore.setState({ partial: 'hola' });
+
+    expect(island()).toBe('expanded');
+    expect(useRegistryStore.getState().selectedId).toBe(LISTEN_MODULE_ID);
+  });
+
+  it('grabar audio para una pregunta sigue enseñando la tarjeta de IA', () => {
+    // El botón marca `busy` antes de pedirle nada a Rust, así que ya lo está cuando llega el aviso.
+    useQuestionStore.setState({ busy: true, recording: false });
+    useAudioStore.setState({ listening: true });
+    expect(useRegistryStore.getState().selectedId).toBe(PROMPTER_MODULE_ID);
+
+    useQuestionStore.setState({ busy: false, recording: true });
+    useTranscriptStore.setState({ partial: 'hola' });
+    expect(island()).toBe('expanded');
+    expect(useRegistryStore.getState().selectedId).toBe(PROMPTER_MODULE_ID);
+  });
+
+  it('si ya hay una pregunta grabándose, la transcripción va a la tarjeta de IA', () => {
+    useQuestionStore.setState({ busy: false, recording: true });
+    useAudioStore.setState({ listening: true });
+    expect(useRegistryStore.getState().selectedId).toBe(PROMPTER_MODULE_ID);
   });
 
   it('sin escuchar, un texto suelto no mueve la isla', () => {

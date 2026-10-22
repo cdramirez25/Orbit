@@ -71,6 +71,38 @@ pub fn set_island_keyboard(app: &AppHandle, enabled: bool) -> tauri::Result<()> 
     Ok(())
 }
 
+/// Dónde está el puntero respecto a la esquina superior izquierda de la ventana de la isla, en
+/// puntos lógicos (`x` a la derecha, `y` hacia abajo).
+///
+/// No se usa `cursor_position` de Tauri: en macOS lo pasa a píxeles con la escala del monitor
+/// *principal*, mientras que la posición de la ventana usa la escala de *su* monitor. Con dos
+/// pantallas de escala distinta (un portátil Retina y un monitor externo) el resultado queda corrido
+/// y la isla "no ve" el mouse. AppKit da el puntero y la ventana en puntos, en el mismo espacio.
+pub fn pointer_in_island(app: &AppHandle) -> tauri::Result<(f64, f64)> {
+    let panel = app
+        .get_webview_panel(LABEL)
+        .map_err(|_| tauri::Error::WindowNotFound)?;
+    let frame = panel.as_panel().frame();
+    let mouse = NSEvent::mouseLocation();
+    Ok(pointer_in_frame(
+        (mouse.x, mouse.y),
+        (
+            frame.origin.x,
+            frame.origin.y,
+            frame.size.width,
+            frame.size.height,
+        ),
+    ))
+}
+
+/// Pasa el puntero (puntos globales de AppKit, con el origen abajo a la izquierda de la pantalla
+/// principal) a puntos dentro de la ventana, con el origen arriba a la izquierda. `frame` es
+/// `(x, y, ancho, alto)`, también de AppKit.
+fn pointer_in_frame(mouse: (f64, f64), frame: (f64, f64, f64, f64)) -> (f64, f64) {
+    let (x, y, _, height) = frame;
+    (mouse.0 - x, (y + height) - mouse.1)
+}
+
 pub fn show_island(app: &AppHandle) -> tauri::Result<()> {
     if let Ok(panel) = app.get_webview_panel(LABEL) {
         panel.show();
@@ -114,4 +146,42 @@ pub fn notch_info(app: &AppHandle) -> NotchInfo {
         width_of(screen.auxiliaryTopLeftArea()),
         width_of(screen.auxiliaryTopRightArea()),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Ventana de 640×520 con su esquina superior izquierda en (415, 0) de la pantalla principal
+    /// (de 956 pt de alto): en AppKit su origen está abajo, en y = 956 - 520 = 436.
+    const ON_PRIMARY: (f64, f64, f64, f64) = (415.0, 436.0, 640.0, 520.0);
+
+    #[test]
+    fn the_pointer_is_measured_from_the_top_left_corner_of_the_window() {
+        // Justo en la esquina superior izquierda de la ventana.
+        assert_eq!(pointer_in_frame((415.0, 956.0), ON_PRIMARY), (0.0, 0.0));
+        // 100 pt a la derecha y 40 pt hacia abajo.
+        assert_eq!(pointer_in_frame((515.0, 916.0), ON_PRIMARY), (100.0, 40.0));
+    }
+
+    #[test]
+    fn the_pointer_outside_the_window_is_negative() {
+        let (x, y) = pointer_in_frame((300.0, 980.0), ON_PRIMARY);
+        assert_eq!((x, y), (-115.0, -24.0));
+    }
+
+    #[test]
+    fn a_window_on_a_second_display_uses_the_same_global_points() {
+        // Monitor externo a la derecha (x desde 1470) y 124 pt más abajo que el borde superior de la
+        // principal: su ventana, con la esquina superior en y = 124 - 0, tiene el origen AppKit en
+        // 956 - 124 - 520 = 312. Da igual la escala de cada pantalla: todo va en puntos.
+        let frame = (2110.0, 312.0, 640.0, 520.0);
+        assert_eq!(pointer_in_frame((2210.0, 784.0), frame), (100.0, 48.0));
+    }
+
+    #[test]
+    fn a_window_on_a_display_to_the_left_has_negative_global_x() {
+        let frame = (-1505.0, 436.0, 640.0, 520.0);
+        assert_eq!(pointer_in_frame((-1405.0, 916.0), frame), (100.0, 40.0));
+    }
 }

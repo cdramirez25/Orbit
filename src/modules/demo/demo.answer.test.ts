@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { INITIAL_SNAPSHOT } from '@/lib/island/island.machine';
 import { bindAnswerToIsland, bindListeningToIsland, useDemoStore } from '@/modules/demo/demo.store';
 import { demoModule } from '@/modules/demo';
+import { LISTEN_MODULE_ID } from '@/modules/listen/id';
+import { PROMPTER_MODULE_ID } from '@/modules/prompter/id';
 import { bindRegistryToIsland, useRegistryStore } from '@/modules/registry';
 import { weatherModule } from '@/modules/weather';
 import { useAnswerStore } from '@/stores/answer.store';
@@ -56,6 +58,36 @@ describe('la respuesta de la IA y la isla', () => {
     // …pero otra pregunta sí.
     useAnswerStore.setState({ question: 'Segunda', answer: '' });
     expect(island()).toBe('expanded');
+  });
+
+  it('mientras se mira la transcripción en vivo, la respuesta no saca de ahí', () => {
+    useAudioStore.setState({ listening: true });
+    useIslandStore.getState().goTo('expanded');
+    expect(useRegistryStore.getState().selectedId).toBe(LISTEN_MODULE_ID);
+
+    useAnswerStore.setState({ question: '¿Capital de Australia?' });
+
+    expect(island()).toBe('expanded');
+    expect(useRegistryStore.getState().selectedId).toBe(LISTEN_MODULE_ID);
+  });
+
+  it('con la transcripción cerrada, una respuesta sí abre la tarjeta de IA', () => {
+    useAudioStore.setState({ listening: true });
+    expect(island()).toBe('compact');
+
+    useAnswerStore.setState({ question: '¿Capital de Australia?' });
+
+    expect(island()).toBe('expanded');
+    expect(useRegistryStore.getState().selectedId).toBe(PROMPTER_MODULE_ID);
+  });
+
+  it('si no se está escuchando, una pregunta escrita abre la IA aunque la transcripción esté a la vista', () => {
+    useRegistryStore.getState().select(LISTEN_MODULE_ID);
+    useIslandStore.getState().goTo('expanded');
+
+    useAnswerStore.setState({ question: 'Desde Ajustes' });
+
+    expect(useRegistryStore.getState().selectedId).toBe(PROMPTER_MODULE_ID);
   });
 
   it('empezar a escuchar de nuevo borra la respuesta de antes', () => {

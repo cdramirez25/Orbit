@@ -74,7 +74,7 @@ export const es = {
   // ── Escucha del audio del sistema ───────────────────────────────────────
   'audio.listen': 'Escuchar',
   'audio.hint':
-    'Pulsa Escuchar: cuando en lo que suene haya una pregunta, la IA responde en la isla.',
+    'Pulsa Escuchar y la isla mostrará lo que se transcribe, para que compruebes si el modelo de voz entiende bien. Si una sesión responde sola, también contestará las preguntas que oiga.',
   'audio.stop': 'Parar',
   'audio.error.noDevice': 'Sin dispositivo de salida',
   'audio.error.generic': 'No se pudo escuchar',
@@ -302,6 +302,48 @@ export const es = {
   'clipboard.ai.copy': 'Copiar resultado',
   'clipboard.ai.close': 'Cerrar resultado',
   'clipboard.ai.empty': 'La IA no devolvió nada.',
+
+  // ── Transcripción (la prueba del modelo de voz) ─────────────────────────
+  'listen.module': 'Transcripción',
+  'listen.status.on': 'Escuchando',
+  'listen.status.off': 'Detenida',
+  'listen.action.start': 'Escuchar',
+  'listen.action.stop': 'Detener',
+  'listen.action.clear': 'Limpiar el texto',
+  'listen.model': 'Modelo',
+  'listen.language': 'Idioma',
+  'listen.empty': 'Pulsa Escuchar y habla o reproduce algo: aquí verás lo que Orbit entiende.',
+  'listen.hint':
+    'Sirve para probar el modelo de voz. Si no entiende bien, prueba otro en Ajustes, Audio.',
+  'listen.error.permission':
+    'Falta el permiso de Grabación de pantalla. Concédelo en Ajustes, Audio.',
+
+  // ── Cámara ──────────────────────────────────────────────────────────────
+  'camera.module': 'Cámara',
+  'camera.status.on': 'Encendida',
+  'camera.status.off': 'Apagada',
+  'camera.status.starting': 'Encendiendo…',
+  'camera.intro': 'Un espejo para verte antes de una llamada y tomar una foto rápida.',
+  'camera.privacy':
+    'La cámara solo está encendida mientras esta tarjeta está abierta. Nada se guarda ni se envía si tú no lo eliges.',
+  'camera.action.on': 'Encender cámara',
+  'camera.action.off': 'Apagar cámara',
+  'camera.action.snap': 'Tomar foto',
+  'camera.action.save': 'Guardar en Imágenes',
+  'camera.action.discard': 'Descartar',
+  'camera.action.settings': 'Abrir ajustes de privacidad',
+  'camera.preview.aria': 'Vista previa de la cámara',
+  'camera.photo.aria': 'Foto tomada',
+  'camera.photo.copying': 'Copiando…',
+  'camera.photo.copied': 'Copiada al portapapeles',
+  'camera.photo.saved': 'Guardada en Imágenes',
+  'camera.photo.copyFailed': 'No se pudo copiar la foto.',
+  'camera.photo.saveFailed': 'No se pudo guardar la foto.',
+  'camera.error.denied': 'Orbit no tiene permiso para usar la cámara.',
+  'camera.error.notFound': 'No se encontró ninguna cámara.',
+  'camera.error.busy': 'Otra app está usando la cámara.',
+  'camera.error.unavailable': 'Esta ventana no puede usar la cámara.',
+  'camera.error.unknown': 'No se pudo encender la cámara.',
 
   // ── Pantalla encendida ──────────────────────────────────────────────────
   'awake.module': 'Pantalla encendida',

@@ -537,12 +537,13 @@ describe('página de IA de los ajustes', () => {
     });
   });
 
-  it('en Audio explica cuándo responde la IA', async () => {
+  it('en Audio explica para qué sirve Escuchar y cuándo responde la IA', async () => {
     render(<SettingsPanel />);
     fireEvent.click(screen.getByRole('button', { name: 'Audio' }));
     await act(async () => {});
+    expect(screen.getByText(/la isla mostrará lo que se transcribe/)).toBeInTheDocument();
     expect(
-      screen.getByText(/cuando en lo que suene haya una pregunta, la IA responde en la isla/),
+      screen.getByText(/Si una sesión responde sola, también contestará las preguntas que oiga/),
     ).toBeInTheDocument();
   });
 });

@@ -610,6 +610,20 @@ export const commands = {
     );
   },
 
+  /** Pone la foto de la cámara (PNG en base64, sin el prefijo `data:`) en el portapapeles. */
+  copyCameraPhoto: (pngBase64: string): Promise<void> =>
+    isTauri() ? invoke<void>('copy_camera_photo', { pngBase64 }) : Promise.resolve(),
+
+  /** Guarda la foto en `Imágenes/Orbit` y devuelve el nombre del archivo. */
+  saveCameraPhoto: (pngBase64: string): Promise<string> =>
+    isTauri()
+      ? invoke<string>('save_camera_photo', { pngBase64 })
+      : Promise.resolve('Orbit-simulada.png'),
+
+  /** Abre la pantalla de privacidad del sistema donde se concede el permiso de la cámara. */
+  openCameraSettings: (): Promise<void> =>
+    isTauri() ? invoke<void>('open_camera_settings') : Promise.resolve(),
+
   /** El modo de pantalla encendida y si está manteniéndose ahora mismo. */
   keepAwakeStatus: (): Promise<KeepAwakeStatus> =>
     isTauri() ? invoke<KeepAwakeStatus>('keep_awake_status') : Promise.resolve(browserAwake),

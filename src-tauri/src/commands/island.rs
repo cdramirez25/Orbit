@@ -13,14 +13,6 @@ pub struct PointerPosition {
     pub y: f64,
 }
 
-/// Puntero en px lógicos respecto a la esquina superior izquierda de la ventana.
-fn to_window_logical(cursor: (f64, f64), origin: (i32, i32), scale: f64) -> PointerPosition {
-    PointerPosition {
-        x: (cursor.0 - f64::from(origin.0)) / scale,
-        y: (cursor.1 - f64::from(origin.1)) / scale,
-    }
-}
-
 #[tauri::command]
 pub fn get_notch_info(app: AppHandle) -> NotchInfo {
     notch::detect(&app)
@@ -47,15 +39,9 @@ pub fn set_island_keyboard(app: AppHandle, enabled: bool) -> Result<(), CommandE
 /// Con la ventana en click-through el webview no recibe `mousemove`, así que el frontend
 /// consulta aquí la posición global del puntero (`useHitTest`).
 #[tauri::command]
-pub fn get_pointer_position(window: WebviewWindow) -> Result<PointerPosition, CommandError> {
-    let cursor = window.cursor_position()?;
-    let origin = window.outer_position()?;
-    let scale = window.scale_factor()?;
-    Ok(to_window_logical(
-        (cursor.x, cursor.y),
-        (origin.x, origin.y),
-        scale,
-    ))
+pub fn get_pointer_position(app: AppHandle) -> Result<PointerPosition, CommandError> {
+    let (x, y) = window::pointer_in_island(&app)?;
+    Ok(PointerPosition { x, y })
 }
 
 /// Oculta (o muestra) las ventanas de Orbit en screen share. Lo puede pedir cualquier ventana
@@ -129,22 +115,4 @@ pub fn set_island_origin(
 #[tauri::command]
 pub fn quit_app(app: AppHandle) {
     app.exit(0);
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn converts_global_physical_cursor_to_window_logical() {
-        // Ventana en (1000, 0) con escala 2; cursor a 200 px físicos dentro y 80 px abajo.
-        let p = to_window_logical((1200.0, 80.0), (1000, 0), 2.0);
-        assert_eq!(p, PointerPosition { x: 100.0, y: 40.0 });
-    }
-
-    #[test]
-    fn cursor_outside_the_window_is_negative() {
-        let p = to_window_logical((900.0, 10.0), (1000, 0), 1.0);
-        assert_eq!(p.x, -100.0);
-    }
 }

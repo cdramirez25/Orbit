@@ -13,6 +13,7 @@ export type {
 export type { AiProviderId, AiProviderStatus, AiSaveInput, AiStatus } from './ai';
 export type { PermissionStatus } from './audio';
 export type { KeepAwakeSetting, KeepAwakeStatus } from './awake';
+export type { CameraErrorKind, CameraStatus } from './camera';
 export type { ClipboardAiAction, ClipboardEntry, ClipboardKind } from './clipboard';
 export type { Locale } from './i18n';
 export type { OrbitModule } from './module';

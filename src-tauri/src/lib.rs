@@ -7,6 +7,7 @@
 mod ai;
 mod app_state;
 mod audio;
+mod camera;
 mod clipboard;
 mod commands;
 mod db;
@@ -105,6 +106,9 @@ pub fn run() {
             commands::clipboard::clipboard_ai,
             commands::awake::keep_awake_status,
             commands::awake::keep_awake_set,
+            commands::camera::copy_camera_photo,
+            commands::camera::save_camera_photo,
+            commands::camera::open_camera_settings,
             commands::media::get_now_playing,
             commands::media::media_command,
             commands::media::media_seek,

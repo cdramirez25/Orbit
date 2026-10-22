@@ -32,6 +32,22 @@ pub fn set_island_keyboard(app: &AppHandle, enabled: bool) -> tauri::Result<()> 
     Ok(())
 }
 
+/// Dónde está el puntero respecto a la esquina superior izquierda de la ventana de la isla, en
+/// puntos lógicos. En Windows el puntero y la ventana vienen en píxeles físicos del mismo escritorio
+/// virtual, así que basta restarlos y dividir por la escala de la ventana.
+pub fn pointer_in_island(app: &AppHandle) -> tauri::Result<(f64, f64)> {
+    let window = app
+        .get_webview_window(LABEL)
+        .ok_or(tauri::Error::WindowNotFound)?;
+    let cursor = window.cursor_position()?;
+    let origin = window.outer_position()?;
+    Ok(crate::window::pointer_from_physical(
+        (cursor.x, cursor.y),
+        (origin.x, origin.y),
+        window.scale_factor()?,
+    ))
+}
+
 pub fn show_island(app: &AppHandle) -> tauri::Result<()> {
     if let Some(window) = app.get_webview_window(LABEL) {
         window.show()?;

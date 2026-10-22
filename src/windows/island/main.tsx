@@ -4,6 +4,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
 import { awakeModule } from '@/modules/awake';
+import { cameraModule } from '@/modules/camera';
 import { clipboardModule } from '@/modules/clipboard';
 import { demoModule } from '@/modules/demo';
 import {
@@ -12,6 +13,7 @@ import {
   bindListeningToIsland,
   bindTranscriptToIsland,
 } from '@/modules/demo/demo.store';
+import { listenModule } from '@/modules/listen';
 import { musicModule } from '@/modules/music';
 import { prompterModule } from '@/modules/prompter';
 import { bindRegistryToIsland, useRegistryStore } from '@/modules/registry';
@@ -22,6 +24,7 @@ import { useAwakeStore } from '@/stores/awake.store';
 import { useClipboardStore } from '@/stores/clipboard.store';
 import { useIslandStore } from '@/stores/island.store';
 import { useMediaStore } from '@/stores/media.store';
+import { useModelStore } from '@/stores/model.store';
 import { useQuestionStore } from '@/stores/question.store';
 import { useSessionStore } from '@/stores/session.store';
 import { useSettingsStore } from '@/stores/settings.store';
@@ -39,6 +42,8 @@ registry.register(weatherModule);
 registry.register(clipboardModule);
 registry.register(musicModule);
 registry.register(awakeModule);
+registry.register(cameraModule);
+registry.register(listenModule);
 registry.register(prompterModule);
 bindRegistryToIsland();
 
@@ -48,10 +53,14 @@ useWeatherStore.getState().startPolling();
 void useClipboardStore.getState().bind();
 void useMediaStore.getState().bind();
 void useAwakeStore.getState().bind();
+// El modelo de voz en uso (la tarjeta de transcripción lo muestra).
+void useModelStore.getState().bind();
 registry.startActivity(weatherModule.id);
 registry.startActivity(clipboardModule.id);
 registry.startActivity(musicModule.id);
 registry.startActivity(awakeModule.id);
+registry.startActivity(cameraModule.id);
+registry.startActivity(listenModule.id);
 registry.startActivity(prompterModule.id);
 
 // Escucha del audio del sistema: volumen y estado desde Rust → las ondas de la isla.

@@ -1,7 +1,16 @@
+import type { MessageKey } from '@/i18n/messages';
 import type { ModelEntry, ModelStatus, SttModel } from '@/types';
 
 /** Los modelos de voz, de menor a mayor capacidad (el orden en que se muestran). */
 export const STT_MODELS: readonly SttModel[] = ['base', 'small', 'medium', 'turbo'];
+
+/** El texto con el nombre de cada modelo. */
+export const MODEL_NAME_KEY: Record<SttModel, MessageKey> = {
+  base: 'stt.model.name.base',
+  small: 'stt.model.name.small',
+  medium: 'stt.model.name.medium',
+  turbo: 'stt.model.name.turbo',
+};
 
 /** El que se recomienda a quien no sabe cuál elegir. */
 export const RECOMMENDED_MODEL: SttModel = 'small';

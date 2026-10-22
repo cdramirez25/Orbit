@@ -70,7 +70,8 @@ export const en: Record<MessageKey, string> = {
 
   // ── System audio listening ──────────────────────────────────────────────
   'audio.listen': 'Listen',
-  'audio.hint': 'Press Listen: when what plays contains a question, the AI answers in the island.',
+  'audio.hint':
+    'Press Listen and the island shows what is being transcribed, so you can check whether the voice model understands well. If a session answers by itself, it will also answer the questions it hears.',
   'audio.stop': 'Stop',
   'audio.error.noDevice': 'No output device',
   'audio.error.generic': 'Could not listen',
@@ -298,6 +299,49 @@ export const en: Record<MessageKey, string> = {
   'clipboard.ai.copy': 'Copy result',
   'clipboard.ai.close': 'Close result',
   'clipboard.ai.empty': 'The AI returned nothing.',
+
+  // ── Transcription (the voice model test) ────────────────────────────────
+  'listen.module': 'Transcription',
+  'listen.status.on': 'Listening',
+  'listen.status.off': 'Stopped',
+  'listen.action.start': 'Listen',
+  'listen.action.stop': 'Stop',
+  'listen.action.clear': 'Clear the text',
+  'listen.model': 'Model',
+  'listen.language': 'Language',
+  'listen.empty':
+    'Press Listen and talk or play something: you will see what Orbit understands here.',
+  'listen.hint':
+    'Use it to test the voice model. If it does not understand well, try another one in Settings, Audio.',
+  'listen.error.permission':
+    'The Screen Recording permission is missing. Grant it in Settings, Audio.',
+
+  // ── Camera ──────────────────────────────────────────────────────────────
+  'camera.module': 'Camera',
+  'camera.status.on': 'On',
+  'camera.status.off': 'Off',
+  'camera.status.starting': 'Starting…',
+  'camera.intro': 'A mirror to check yourself before a call and take a quick photo.',
+  'camera.privacy':
+    'The camera is only on while this card is open. Nothing is saved or sent unless you choose to.',
+  'camera.action.on': 'Turn camera on',
+  'camera.action.off': 'Turn camera off',
+  'camera.action.snap': 'Take photo',
+  'camera.action.save': 'Save to Pictures',
+  'camera.action.discard': 'Discard',
+  'camera.action.settings': 'Open privacy settings',
+  'camera.preview.aria': 'Camera preview',
+  'camera.photo.aria': 'Photo taken',
+  'camera.photo.copying': 'Copying…',
+  'camera.photo.copied': 'Copied to the clipboard',
+  'camera.photo.saved': 'Saved to Pictures',
+  'camera.photo.copyFailed': 'Could not copy the photo.',
+  'camera.photo.saveFailed': 'Could not save the photo.',
+  'camera.error.denied': 'Orbit does not have permission to use the camera.',
+  'camera.error.notFound': 'No camera was found.',
+  'camera.error.busy': 'Another app is using the camera.',
+  'camera.error.unavailable': 'This window cannot use the camera.',
+  'camera.error.unknown': 'Could not turn the camera on.',
 
   // ── Screen on ───────────────────────────────────────────────────────────
   'awake.module': 'Screen on',

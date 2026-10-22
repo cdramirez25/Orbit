@@ -4,6 +4,7 @@
 pub mod ai;
 pub mod audio;
 pub mod awake;
+pub mod camera;
 pub mod clipboard;
 pub mod desktop;
 pub mod island;
@@ -41,6 +42,8 @@ pub enum CommandError {
     Autostart(String),
     #[error("error de la pantalla encendida: {0}")]
     KeepAwake(#[from] crate::keep_awake::KeepAwakeError),
+    #[error("error de la cámara: {0}")]
+    Camera(#[from] crate::camera::CameraError),
 }
 
 impl CommandError {
@@ -58,6 +61,7 @@ impl CommandError {
             Self::Shortcut(error) => error.code(),
             Self::Autostart(_) => "autostart.failed",
             Self::KeepAwake(error) => error.code(),
+            Self::Camera(error) => error.code(),
         }
     }
 }
@@ -104,6 +108,12 @@ mod tests {
     fn ai_errors_keep_their_stable_code() {
         let error = CommandError::from(crate::ai::AiError::Unauthorized);
         assert_eq!(error.code(), "ai.unauthorized");
+    }
+
+    #[test]
+    fn camera_errors_keep_their_stable_code() {
+        let error = CommandError::from(crate::camera::CameraError::InvalidPhoto);
+        assert_eq!(error.code(), "camera.invalidPhoto");
     }
 
     #[test]

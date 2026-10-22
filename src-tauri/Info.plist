@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>NSCameraUsageDescription</key>
+  <string>Orbit uses the camera only while the Camera module is open, to show your preview and take photos. Nothing is saved or sent anywhere unless you choose to. / Orbit usa la cámara solo mientras el módulo Cámara está abierto, para mostrar tu vista previa y tomar fotos. Nada se guarda ni se envía a ningún lado si tú no lo eliges.</string>
+</dict>
+</plist>

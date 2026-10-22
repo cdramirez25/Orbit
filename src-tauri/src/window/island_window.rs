@@ -8,6 +8,7 @@
 
 use std::time::Duration;
 
+use tauri::webview::{PermissionKind, PermissionResponse};
 use tauri::{AppHandle, LogicalPosition, Manager, Monitor, WebviewWindowBuilder, Wry};
 
 use super::platform;
@@ -53,6 +54,12 @@ pub fn overlay_options<'a, M: Manager<Wry>>(
         .skip_taskbar(true)
         .visible(false)
         .focused(false)
+        // La isla solo puede pedir la cámara (el módulo Cámara); cualquier otro permiso del webview
+        // (micrófono, ubicación…) se niega. Sin esto el webview concede todo lo que se le pida.
+        .on_permission_request(|_, kind| match kind {
+            PermissionKind::Camera => PermissionResponse::Allow,
+            _ => PermissionResponse::Deny,
+        })
 }
 
 pub fn create(app: &AppHandle, settings: &Settings) -> tauri::Result<()> {

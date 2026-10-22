@@ -1,11 +1,13 @@
 import { create } from 'zustand';
 
 import { translate } from '@/i18n/locale.store';
+import { LISTEN_MODULE_ID } from '@/modules/listen/id';
 import { PROMPTER_MODULE_ID } from '@/modules/prompter/id';
 import { useRegistryStore } from '@/modules/registry';
 import { useAnswerStore } from '@/stores/answer.store';
 import { useAudioStore } from '@/stores/audio.store';
 import { useIslandStore } from '@/stores/island.store';
+import { useQuestionStore } from '@/stores/question.store';
 import { useTranscriptStore } from '@/stores/transcript.store';
 import type { IslandState } from '@/types';
 
@@ -90,21 +92,38 @@ export function bindDemoToIsland(): () => void {
 }
 
 /**
- * Muestra la tarjeta de IA: la elige entre los módulos y abre la isla desde reposo, compacta u oculta.
- * Una tarjeta ya abierta o un aviso no se pisan.
+ * Elige una tarjeta entre los módulos y abre la isla desde reposo, compacta u oculta. Una tarjeta ya
+ * abierta o un aviso no se pisan.
  */
-export function showPrompter(): void {
-  useRegistryStore.getState().select(PROMPTER_MODULE_ID);
+function showModule(id: string): void {
+  useRegistryStore.getState().select(id);
   const island = useIslandStore.getState();
   const state = island.snapshot.state;
   if (state === 'compact' || state === 'idle' || state === 'hidden') island.goTo('expanded');
 }
 
+/** Muestra la tarjeta de IA. */
+export function showPrompter(): void {
+  showModule(PROMPTER_MODULE_ID);
+}
+
 /**
- * Al empezar a escuchar (con el botón Grabar audio o con el de Ajustes) la tarjeta de IA se
- * elige sola y se parte de cero: sin la transcripción ni la respuesta de la vez anterior. La isla
- * pasa a compacta si estaba en reposo, pero una tarjeta abierta se queda abierta: es donde se
- * pulsa el botón.
+ * ¿La escucha que está empezando es la de una pregunta (botón Grabar audio o su atajo)? Entonces la
+ * isla enseña la tarjeta de IA. Cualquier otra (el botón Escuchar de Ajustes o el de la tarjeta de
+ * transcripción) enseña la tarjeta de transcripción, que no tiene nada de IA. El botón de grabar
+ * marca `busy` antes de pedirle nada a Rust, así que ya está marcado cuando llega el aviso de que
+ * se empezó a escuchar.
+ */
+function listeningCard(): string {
+  const question = useQuestionStore.getState();
+  return question.busy || question.recording ? PROMPTER_MODULE_ID : LISTEN_MODULE_ID;
+}
+
+/**
+ * Al empezar a escuchar la tarjeta correspondiente se elige sola (la de IA si es una pregunta; la de
+ * transcripción si es el botón Escuchar de Ajustes) y se parte de cero: sin la transcripción ni la
+ * respuesta de la vez anterior. La isla pasa a compacta si estaba en reposo, pero una tarjeta abierta
+ * se queda abierta: es donde se pulsa el botón.
  */
 export function bindListeningToIsland(): () => void {
   return useAudioStore.subscribe((state, previous) => {
@@ -112,7 +131,7 @@ export function bindListeningToIsland(): () => void {
     useTranscriptStore.getState().clear();
     useAnswerStore.getState().clear();
     useDemoStore.getState().resetAnswer();
-    useRegistryStore.getState().select(PROMPTER_MODULE_ID);
+    useRegistryStore.getState().select(listeningCard());
     const island = useIslandStore.getState();
     if (island.snapshot.state === 'hidden' || island.snapshot.state === 'idle') {
       island.goTo('compact');
@@ -130,7 +149,7 @@ export function bindTranscriptToIsland(): () => void {
     const hasText = (s: typeof state) => s.lines.length > 0 || s.partial !== '';
     if (!hasText(state) || hasText(previous)) return;
     if (!useAudioStore.getState().listening) return;
-    showPrompter();
+    showModule(listeningCard());
   });
 }
 
@@ -138,10 +157,18 @@ export function bindTranscriptToIsland(): () => void {
  * Cuando la IA empieza a contestar una pregunta nueva, la tarjeta se abre sola para que se vea la
  * respuesta, también cuando la pregunta se escribió en Ajustes. Si el usuario la cerró, la siguiente
  * pregunta la vuelve a abrir (es justo lo que viene a buscar).
+ *
+ * La única excepción: mientras se está mirando la transcripción en vivo (la tarjeta de transcripción
+ * abierta y escuchando), la respuesta no lo saca de ahí; está en la tarjeta de IA cuando la quiera ver.
  */
 export function bindAnswerToIsland(): () => void {
   return useAnswerStore.subscribe((state, previous) => {
     if (state.question === null || state.question === previous.question) return;
+    const watchingTranscription =
+      useRegistryStore.getState().selectedId === LISTEN_MODULE_ID &&
+      useIslandStore.getState().snapshot.state === 'expanded' &&
+      useAudioStore.getState().listening;
+    if (watchingTranscription) return;
     showPrompter();
   });
 }

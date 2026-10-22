@@ -164,6 +164,13 @@ impl ClipboardService {
         self.port.write(&Content::Text(text))
     }
 
+    /// Pone una imagen PNG (por ejemplo, una foto de la cámara) en el portapapeles. El monitor la
+    /// verá como una copia más y la guardará en el historial.
+    pub fn write_png(&self, png: &[u8]) -> Result<(), ClipboardError> {
+        let image = image::decode_png(png).map_err(ClipboardError::Image)?;
+        self.port.write(&Content::Image(image))
+    }
+
     pub fn delete(&self, id: u64) -> bool {
         let removed = self.state().history.remove(id);
         if removed {
@@ -418,6 +425,23 @@ mod tests {
         // Entra al historial como cualquier copia del usuario.
         assert!(service.poll_at(1));
         assert_eq!(texts(&service), vec!["resultado de la IA"]);
+    }
+
+    #[test]
+    fn writing_a_png_puts_the_image_in_the_clipboard() {
+        let (service, clipboard, _) = setup();
+        let Content::Image(original) = picture(7) else {
+            unreachable!("picture() siempre da una imagen")
+        };
+        let png = image::encode_png(&original).unwrap();
+
+        service.write_png(&png).unwrap();
+
+        assert_eq!(clipboard.writes(), vec![Content::Image(original)]);
+        assert!(matches!(
+            service.write_png(b"esto no es un png"),
+            Err(ClipboardError::Image(_))
+        ));
     }
 
     #[test]

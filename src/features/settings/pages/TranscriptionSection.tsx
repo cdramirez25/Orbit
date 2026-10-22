@@ -5,7 +5,12 @@ import { Field, Section } from '@/features/settings/layout';
 import { LOCALE_NAMES, type MessageKey } from '@/i18n/messages';
 import { useT } from '@/i18n/useT';
 import { modelErrorKey } from '@/lib/audio/stt-error';
-import { RECOMMENDED_MODEL, STT_MODELS, isDownloading } from '@/lib/audio/stt-models';
+import {
+  MODEL_NAME_KEY,
+  RECOMMENDED_MODEL,
+  STT_MODELS,
+  isDownloading,
+} from '@/lib/audio/stt-models';
 import { formatBytes, percentOf } from '@/lib/utils/bytes';
 import { cn } from '@/lib/utils/cn';
 import { useModelStore } from '@/stores/model.store';
@@ -18,13 +23,6 @@ const LANGUAGES: ReadonlyArray<{ id: SttLanguage; label: string | null; title?: 
   { id: 'es', label: 'ES', title: LOCALE_NAMES.es },
   { id: 'en', label: 'EN', title: LOCALE_NAMES.en },
 ];
-
-const MODEL_NAME: Record<SttModel, MessageKey> = {
-  base: 'stt.model.name.base',
-  small: 'stt.model.name.small',
-  medium: 'stt.model.name.medium',
-  turbo: 'stt.model.name.turbo',
-};
 
 const MODEL_DESCRIPTION: Record<SttModel, MessageKey> = {
   base: 'stt.model.desc.base',
@@ -63,7 +61,7 @@ function ModelRow({
   const remove = useModelStore((s) => s.remove);
   const use = useModelStore((s) => s.use);
 
-  const name = t(MODEL_NAME[entry.model]);
+  const name = t(MODEL_NAME_KEY[entry.model]);
   const percent = percentOf(entry.downloaded, entry.total);
 
   return (
