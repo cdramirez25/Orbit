@@ -88,8 +88,8 @@ impl AppState {
 
     pub fn settings(&self) -> Settings {
         match self.settings.read() {
-            Ok(guard) => *guard,
-            Err(poisoned) => *poisoned.into_inner(),
+            Ok(guard) => guard.clone(),
+            Err(poisoned) => poisoned.into_inner().clone(),
         }
     }
 
@@ -101,7 +101,7 @@ impl AppState {
                 Err(poisoned) => poisoned.into_inner(),
             };
             change(&mut guard);
-            *guard
+            guard.clone()
         };
         if let Err(error) = updated.save(&self.settings_path) {
             tracing::warn!(%error, "no se pudieron guardar los ajustes");

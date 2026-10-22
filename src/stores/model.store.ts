@@ -10,9 +10,15 @@ interface ModelStore {
   status: ModelStatus | null;
   /** Código del último fallo de una orden (borrar, descargar); `null` si no hubo. */
   errorCode: string | null;
+  /** El modelo se está moviendo a otra carpeta (son cientos de MB: tarda unos segundos). */
+  movingDir: boolean;
   download: () => Promise<void>;
   cancel: () => Promise<void>;
   remove: () => Promise<void>;
+  /** Abre el selector de carpetas del sistema (con ese título) y mueve el modelo a la elegida. */
+  chooseDir: (title: string) => Promise<void>;
+  /** Devuelve el modelo a la carpeta de la app. */
+  resetDir: () => Promise<void>;
   /** Pide el estado y se suscribe a sus cambios (progreso de la descarga). Devuelve cómo desuscribirse. */
   bind: () => Promise<() => void>;
 }
@@ -20,6 +26,7 @@ interface ModelStore {
 export const useModelStore = create<ModelStore>((set) => ({
   status: null,
   errorCode: null,
+  movingDir: false,
 
   download: async () => {
     set({ errorCode: null });
@@ -44,6 +51,29 @@ export const useModelStore = create<ModelStore>((set) => ({
       await commands.sttModelRemove();
     } catch (error) {
       set({ errorCode: commandErrorCode(error) ?? 'unknown' });
+    }
+  },
+
+  chooseDir: async (title) => {
+    set({ errorCode: null, movingDir: true });
+    try {
+      const status = await commands.sttModelChooseDir(title);
+      if (status) set({ status });
+    } catch (error) {
+      set({ errorCode: commandErrorCode(error) ?? 'unknown' });
+    } finally {
+      set({ movingDir: false });
+    }
+  },
+
+  resetDir: async () => {
+    set({ errorCode: null, movingDir: true });
+    try {
+      set({ status: await commands.sttModelResetDir() });
+    } catch (error) {
+      set({ errorCode: commandErrorCode(error) ?? 'unknown' });
+    } finally {
+      set({ movingDir: false });
     }
   },
 

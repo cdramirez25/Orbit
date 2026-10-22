@@ -11,7 +11,7 @@ function toggleIsland(): void {
 }
 
 /**
- * Empieza a grabar la pregunta o, si ya se estaba grabando, la termina y se la manda a la IA. Si
+ * Empieza a grabar audio o, si ya se estaba grabando, lo termina y se lo manda a la IA. Si
  * falla (sin permiso, sin voz…) se abre la tarjeta de IA para que el motivo se vea.
  */
 async function toggleQuestion(): Promise<void> {

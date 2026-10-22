@@ -1,4 +1,5 @@
-import { Power } from 'lucide-react';
+import { Compass, Power } from 'lucide-react';
+import { useEffect } from 'react';
 
 import { Button, Tab, Toggle } from '@/components/ui';
 import { PageHeader, Section } from '@/features/settings/layout';
@@ -6,7 +7,9 @@ import { ShortcutsSection } from '@/features/settings/pages/ShortcutsSection';
 import { useLocaleStore } from '@/i18n/locale.store';
 import { LOCALE_NAMES } from '@/i18n/messages';
 import { useT } from '@/i18n/useT';
+import { useAutostartStore } from '@/stores/autostart.store';
 import { useControlStore } from '@/stores/control.store';
+import { useGuideStore } from '@/stores/guide.store';
 import { useSettingsStore } from '@/stores/settings.store';
 import type { Locale } from '@/types';
 
@@ -24,6 +27,15 @@ export function GeneralPage() {
   const quit = useControlStore((s) => s.quit);
   const hideFromShare = useSettingsStore((s) => s.hideFromScreenShare);
   const setHideFromShare = useSettingsStore((s) => s.setHideFromScreenShare);
+  const autostart = useAutostartStore((s) => s.enabled);
+  const autostartFailed = useAutostartStore((s) => s.failed);
+  const loadAutostart = useAutostartStore((s) => s.load);
+  const setAutostart = useAutostartStore((s) => s.set);
+  const showGuide = useGuideStore((s) => s.show);
+
+  useEffect(() => {
+    void loadAutostart();
+  }, [loadAutostart]);
 
   return (
     <>
@@ -48,6 +60,27 @@ export function GeneralPage() {
           </div>
         </Section>
 
+        {autostart !== null && (
+          <Section title={t('settings.section.startup')}>
+            <label className="flex items-center gap-2 text-[12px] text-ink">
+              <Toggle
+                label={t('settings.panel.autostartAria')}
+                checked={autostart}
+                onCheckedChange={(enabled) => void setAutostart(enabled)}
+              />
+              {t('settings.panel.autostart')}
+            </label>
+            <p className="text-[11px] leading-snug text-ink-faint">
+              {t('settings.panel.autostartHint')}
+            </p>
+            {autostartFailed && (
+              <span role="alert" className="text-[11px] text-danger">
+                {t('settings.panel.autostartError')}
+              </span>
+            )}
+          </Section>
+        )}
+
         <ShortcutsSection />
 
         <Section title={t('settings.section.privacy')}>
@@ -65,7 +98,11 @@ export function GeneralPage() {
         </Section>
 
         <Section title={t('settings.section.app')}>
-          <div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Button size="sm" onClick={showGuide}>
+              <Compass aria-hidden className="size-3" />
+              {t('guide.reopen')}
+            </Button>
             <Button size="sm" variant="danger" onClick={quit}>
               <Power aria-hidden className="size-3" />
               {t('settings.panel.quit')}

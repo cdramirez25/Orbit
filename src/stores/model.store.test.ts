@@ -19,6 +19,8 @@ vi.mock('@/ipc/commands', () => ({
     sttModelDownload: vi.fn(),
     sttModelCancel: vi.fn(),
     sttModelRemove: vi.fn(),
+    sttModelChooseDir: vi.fn(),
+    sttModelResetDir: vi.fn(),
   },
 }));
 
@@ -29,13 +31,15 @@ const status = (overrides: Partial<ModelStatus> = {}): ModelStatus => ({
   downloaded: 0,
   total: 1000,
   error: null,
+  dir: '/modelos',
+  customDir: false,
   ...overrides,
 });
 
 beforeEach(() => {
   vi.clearAllMocks();
   handlers.clear();
-  useModelStore.setState({ status: null, errorCode: null });
+  useModelStore.setState({ status: null, errorCode: null, movingDir: false });
 });
 
 describe('modelo de transcripción', () => {
@@ -96,5 +100,44 @@ describe('modelo de transcripción', () => {
     handlers.get('stt:model')?.(status({ state: 'ready', downloaded: 1000 }));
 
     expect(useModelStore.getState().errorCode).toBeNull();
+  });
+
+  it('chooseDir manda el título al selector, guarda el estado nuevo y marca que está moviendo', async () => {
+    let finish: (value: ModelStatus | null) => void = () => {};
+    mocked.sttModelChooseDir.mockImplementation(() => new Promise((resolve) => (finish = resolve)));
+
+    const pending = useModelStore.getState().chooseDir('Elige');
+    expect(useModelStore.getState().movingDir).toBe(true);
+    finish(status({ state: 'ready', dir: '/otra', customDir: true }));
+    await pending;
+
+    expect(mocked.sttModelChooseDir).toHaveBeenCalledWith('Elige');
+    expect(useModelStore.getState().movingDir).toBe(false);
+    expect(useModelStore.getState().status).toMatchObject({ dir: '/otra', customDir: true });
+  });
+
+  it('chooseDir sin elegir carpeta (cancelado) deja todo como estaba', async () => {
+    useModelStore.setState({ status: status({ state: 'ready' }) });
+    mocked.sttModelChooseDir.mockResolvedValue(null);
+    await useModelStore.getState().chooseDir('Elige');
+    expect(useModelStore.getState().status?.dir).toBe('/modelos');
+    expect(useModelStore.getState().movingDir).toBe(false);
+  });
+
+  it('un fallo al mover guarda su código y deja de marcar que mueve', async () => {
+    mocked.sttModelChooseDir.mockRejectedValue({ code: 'stt.model.busy', message: 'x' });
+    await useModelStore.getState().chooseDir('Elige');
+    expect(useModelStore.getState().errorCode).toBe('stt.model.busy');
+    expect(useModelStore.getState().movingDir).toBe(false);
+  });
+
+  it('resetDir vuelve a la carpeta de la app', async () => {
+    mocked.sttModelResetDir.mockResolvedValue(status({ state: 'ready', customDir: false }));
+    await useModelStore.getState().resetDir();
+    expect(useModelStore.getState().status?.customDir).toBe(false);
+
+    mocked.sttModelResetDir.mockRejectedValue({ code: 'stt.model.disk', message: 'x' });
+    await useModelStore.getState().resetDir();
+    expect(useModelStore.getState().errorCode).toBe('stt.model.disk');
   });
 });

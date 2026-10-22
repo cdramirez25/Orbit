@@ -1,4 +1,4 @@
-import { Download, Trash2, X } from 'lucide-react';
+import { Download, FolderOpen, Trash2, X } from 'lucide-react';
 
 import { Button, ProgressBar, Tab } from '@/components/ui';
 import { Field, Section } from '@/features/settings/layout';
@@ -30,38 +30,27 @@ const STATE_TONE: Record<ModelState, string> = {
   downloading: 'text-ink-dim',
 };
 
-/** Transcripción: en qué idioma se habla y el modelo de voz (descargarlo o borrarlo). */
-export function TranscriptionSection() {
+/**
+ * El modelo de voz: su estado, descargarlo o borrarlo, la carpeta donde se guarda y los avisos.
+ * Lo usan la sección de transcripción de Ajustes y la guía de primer arranque.
+ */
+export function ModelControls() {
   const t = useT();
-  const language = useSettingsStore((s) => s.sttLanguage);
-  const setLanguage = useSettingsStore((s) => s.setSttLanguage);
   const status = useModelStore((s) => s.status);
   const commandError = useModelStore((s) => s.errorCode);
+  const movingDir = useModelStore((s) => s.movingDir);
   const download = useModelStore((s) => s.download);
   const cancel = useModelStore((s) => s.cancel);
   const remove = useModelStore((s) => s.remove);
+  const chooseDir = useModelStore((s) => s.chooseDir);
+  const resetDir = useModelStore((s) => s.resetDir);
 
   const errorCode = commandError ?? status?.error ?? null;
   const percent = status ? percentOf(status.downloaded, status.total) : 0;
+  const folderLocked = movingDir || status?.state === 'downloading';
 
   return (
-    <Section title={t('stt.section')}>
-      <Field label={t('stt.language.label')}>
-        <div className="flex items-center gap-1" role="tablist" aria-label={t('stt.language.aria')}>
-          {LANGUAGES.map(({ id, label, title }) => (
-            <Tab
-              key={id}
-              selected={language === id}
-              title={title}
-              onClick={() => void setLanguage(id)}
-            >
-              {label ?? t('stt.language.auto')}
-            </Tab>
-          ))}
-        </div>
-      </Field>
-      <p className="text-[11px] leading-snug text-ink-faint">{t('stt.language.hint')}</p>
-
+    <>
       {status && (
         <Field label={t('stt.model.title')}>
           <span
@@ -105,12 +94,72 @@ export function TranscriptionSection() {
         </div>
       )}
 
+      {status && (
+        <Field label={t('stt.model.folder')}>
+          <span
+            title={status.dir}
+            className="max-w-full min-w-0 truncate rounded-md bg-white/8 px-2 py-0.5 text-[11px] text-ink-dim"
+          >
+            {status.dir}
+          </span>
+          <Button
+            size="sm"
+            disabled={folderLocked}
+            onClick={() => void chooseDir(t('stt.model.folderPickTitle'))}
+          >
+            <FolderOpen aria-hidden className="size-3" />
+            {t(movingDir ? 'stt.model.folderMoving' : 'stt.model.folderChange')}
+          </Button>
+          {status.customDir && (
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={folderLocked}
+              onClick={() => void resetDir()}
+            >
+              {t('stt.model.folderReset')}
+            </Button>
+          )}
+        </Field>
+      )}
+
       {errorCode && (
         <span role="alert" className="text-[11px] text-danger">
           {t(modelErrorKey(errorCode))}
         </span>
       )}
       <p className="text-[11px] leading-snug text-ink-faint">{t('stt.model.hint')}</p>
+      {status && (
+        <p className="text-[11px] leading-snug text-ink-faint">{t('stt.model.folderHint')}</p>
+      )}
+    </>
+  );
+}
+
+/** Transcripción: en qué idioma se habla y el modelo de voz. */
+export function TranscriptionSection() {
+  const t = useT();
+  const language = useSettingsStore((s) => s.sttLanguage);
+  const setLanguage = useSettingsStore((s) => s.setSttLanguage);
+
+  return (
+    <Section title={t('stt.section')}>
+      <Field label={t('stt.language.label')}>
+        <div className="flex items-center gap-1" role="tablist" aria-label={t('stt.language.aria')}>
+          {LANGUAGES.map(({ id, label, title }) => (
+            <Tab
+              key={id}
+              selected={language === id}
+              title={title}
+              onClick={() => void setLanguage(id)}
+            >
+              {label ?? t('stt.language.auto')}
+            </Tab>
+          ))}
+        </div>
+      </Field>
+      <p className="text-[11px] leading-snug text-ink-faint">{t('stt.language.hint')}</p>
+      <ModelControls />
     </Section>
   );
 }

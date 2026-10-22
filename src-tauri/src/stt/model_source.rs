@@ -79,6 +79,7 @@ mod tests {
 
     use super::*;
     use crate::events::testing::FakeEventSink;
+    use crate::stt::location::ModelLocation;
     use crate::stt::model::{small_model, ModelService, ModelState};
 
     /// Servidor HTTP local que contesta una sola petición con `status` y `body`. Con
@@ -172,7 +173,7 @@ mod tests {
             std::env::temp_dir().join(format!("orbit-live-model-{}", std::process::id()));
         let events = Arc::new(FakeEventSink::default());
         let service = Arc::new(ModelService::new(
-            dir.join("ggml-small.bin"),
+            Arc::new(ModelLocation::fixed(dir.join("ggml-small.bin"))),
             small_model(),
             Arc::new(HttpModelSource::small()),
             events,

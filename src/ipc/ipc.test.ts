@@ -132,3 +132,50 @@ describe('modelo de transcripción en el navegador (simulado)', () => {
     ]);
   });
 });
+
+describe('atajos, inicio con la sesión, guía y carpeta del modelo en el navegador (simulado)', () => {
+  it('cambiar un atajo valida como Rust: pide un modificador y no repite el de otra acción', async () => {
+    await expect(commands.setShortcut('toggleIsland', 'H')).rejects.toMatchObject({
+      code: 'shortcut.needsModifier',
+    });
+    await expect(
+      commands.setShortcut('toggleIsland', 'Shift+CommandOrControl+Space'),
+    ).rejects.toMatchObject({ code: 'shortcut.duplicate' });
+
+    const changed = await commands.setShortcut('toggleIsland', 'Alt+K');
+    expect(changed.find((s) => s.action === 'toggleIsland')?.keys).toBe('Alt+K');
+    expect((await commands.getShortcuts()).find((s) => s.action === 'toggleIsland')?.keys).toBe(
+      'Alt+K',
+    );
+
+    const restored = await commands.resetShortcut('toggleIsland');
+    expect(restored.find((s) => s.action === 'toggleIsland')?.keys).toBe(
+      'CommandOrControl+Shift+H',
+    );
+  });
+
+  it('el inicio con la sesión se enciende y se apaga', async () => {
+    expect(await commands.getAutostart()).toBe(false);
+    expect(await commands.setAutostart(true)).toBe(true);
+    expect(await commands.getAutostart()).toBe(true);
+    expect(await commands.setAutostart(false)).toBe(false);
+  });
+
+  it('la guía de primer arranque se marca como vista y se puede volver a activar', async () => {
+    expect((await commands.getIslandSettings()).onboardingDone).toBe(false);
+    expect((await commands.setOnboardingDone(true)).onboardingDone).toBe(true);
+    expect((await commands.getIslandSettings()).onboardingDone).toBe(true);
+    await commands.setOnboardingDone(false);
+    expect((await commands.getIslandSettings()).onboardingDone).toBe(false);
+  });
+
+  it('la carpeta del modelo se cambia y se devuelve a la de la app', async () => {
+    const changed = await commands.sttModelChooseDir('Elige');
+    expect(changed).toMatchObject({ customDir: true, dir: '/Volumes/Externo/Orbit' });
+    expect((await commands.sttModelStatus()).customDir).toBe(true);
+
+    const reset = await commands.sttModelResetDir();
+    expect(reset.customDir).toBe(false);
+    expect(reset.dir).toContain('dev.orbit.island');
+  });
+});

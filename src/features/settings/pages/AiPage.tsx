@@ -339,7 +339,11 @@ function AskBox() {
 }
 
 /** IA: con qué modelo responde Orbit. El usuario trae su propia clave o su propio servidor local. */
-export function AiPage() {
+/**
+ * Elegir un proveedor (pestañas) y configurarlo (su tarjeta). Lo usan la página de IA de los
+ * ajustes y la guía de primer arranque.
+ */
+export function AiProviderPicker() {
   const t = useT();
   const [selected, setSelected] = useState<AiProviderId>('claude');
   const picked = useRef(false);
@@ -358,6 +362,38 @@ export function AiPage() {
 
   return (
     <>
+      <div
+        className="flex flex-wrap items-center gap-1"
+        role="tablist"
+        aria-label={t('ai.providersAria')}
+      >
+        {AI_PROVIDERS.map(({ id, name, icon: Icon }) => (
+          <Tab
+            key={id}
+            selected={selected === id}
+            className="inline-flex items-center gap-1.5"
+            onClick={() => {
+              picked.current = true;
+              setSelected(id);
+            }}
+          >
+            <Icon aria-hidden className="size-3" />
+            {name}
+            {activeId === id && <span aria-hidden className="size-1.5 rounded-full bg-accent" />}
+          </Tab>
+        ))}
+      </div>
+
+      {provider && <ProviderCard key={provider.id} provider={provider} />}
+    </>
+  );
+}
+
+export function AiPage() {
+  const t = useT();
+
+  return (
+    <>
       <PageHeader title={t('settings.nav.ai')}>
         <p className="flex items-start gap-1.5 text-[11px] leading-snug text-ink-dim">
           <Lock aria-hidden className="mt-px size-3 shrink-0" />
@@ -366,29 +402,7 @@ export function AiPage() {
       </PageHeader>
 
       <div className="flex flex-col gap-3">
-        <div
-          className="flex flex-wrap items-center gap-1"
-          role="tablist"
-          aria-label={t('ai.providersAria')}
-        >
-          {AI_PROVIDERS.map(({ id, name, icon: Icon }) => (
-            <Tab
-              key={id}
-              selected={selected === id}
-              className="inline-flex items-center gap-1.5"
-              onClick={() => {
-                picked.current = true;
-                setSelected(id);
-              }}
-            >
-              <Icon aria-hidden className="size-3" />
-              {name}
-              {activeId === id && <span aria-hidden className="size-1.5 rounded-full bg-accent" />}
-            </Tab>
-          ))}
-        </div>
-
-        {provider && <ProviderCard key={provider.id} provider={provider} />}
+        <AiProviderPicker />
         <AskBox />
       </div>
     </>

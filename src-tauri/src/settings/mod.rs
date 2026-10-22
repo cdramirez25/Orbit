@@ -1,12 +1,14 @@
 //! Configuración de la app, persistida como JSON en el directorio de configuración. Las API keys
 //! NO viven aquí: van a la base de datos local (`db/`, `ai/sqlite.rs`).
 
+use std::collections::HashMap;
 use std::fs;
 use std::io;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+use crate::events::UiAction;
 use crate::stt::SttLanguage;
 
 /// Dónde se coloca la isla en la pantalla.
@@ -29,7 +31,7 @@ pub struct Point {
     pub y: f64,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Settings {
     /// Oculta la isla de la pantalla compartida (por defecto ON, §3.3).
@@ -42,6 +44,12 @@ pub struct Settings {
     pub screen_capture_prompted: bool,
     /// Idioma de la transcripción: automático o uno fijo.
     pub stt_language: SttLanguage,
+    /// Atajos globales que el usuario cambió (los que no están aquí usan el de por defecto).
+    pub shortcuts: HashMap<UiAction, String>,
+    /// Carpeta del modelo de voz que el usuario eligió; `None` = la carpeta de datos de la app.
+    pub model_dir: Option<PathBuf>,
+    /// ¿Ya terminó (o saltó) la guía de primer arranque?
+    pub onboarding_done: bool,
 }
 
 impl Default for Settings {
@@ -52,6 +60,9 @@ impl Default for Settings {
             free_origin: None,
             screen_capture_prompted: false,
             stt_language: SttLanguage::Auto,
+            shortcuts: HashMap::new(),
+            model_dir: None,
+            onboarding_done: false,
         }
     }
 }
@@ -112,7 +123,7 @@ mod tests {
         let startup = saved.for_startup();
         assert_eq!(startup.island_anchor, IslandAnchor::Center);
         assert_eq!(startup.free_origin, Some(Point { x: 300.0, y: 80.0 }));
-        assert_eq!(startup.for_startup(), startup, "idempotente");
+        assert_eq!(startup.clone().for_startup(), startup, "idempotente");
     }
 
     #[test]
@@ -124,6 +135,9 @@ mod tests {
             free_origin: Some(Point { x: 120.5, y: 40.0 }),
             screen_capture_prompted: true,
             stt_language: SttLanguage::Es,
+            shortcuts: HashMap::from([(UiAction::ToggleIsland, "Alt+Space".to_owned())]),
+            model_dir: Some(PathBuf::from("/Volumes/Externo/modelos")),
+            onboarding_done: true,
         };
         settings.save(&path).unwrap();
         assert_eq!(Settings::load(&path), settings);
@@ -157,6 +171,34 @@ mod tests {
     }
 
     #[test]
+    fn a_new_install_has_default_shortcuts_the_app_folder_and_no_guide_seen() {
+        let settings = Settings::default();
+        assert!(settings.shortcuts.is_empty());
+        assert_eq!(settings.model_dir, None);
+        assert!(!settings.onboarding_done);
+    }
+
+    #[test]
+    fn changed_shortcuts_are_keyed_by_action_name() {
+        let path = temp_path("shortcuts");
+        fs::write(
+            &path,
+            r#"{ "shortcuts": { "toggleQuestion": "Alt+Q" }, "onboardingDone": true }"#,
+        )
+        .unwrap();
+        let settings = Settings::load(&path);
+        assert_eq!(
+            settings
+                .shortcuts
+                .get(&UiAction::ToggleQuestion)
+                .map(String::as_str),
+            Some("Alt+Q")
+        );
+        assert!(settings.onboarding_done);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
     fn partial_file_keeps_defaults_for_missing_fields() {
         let path = temp_path("partial");
         fs::write(&path, r#"{ "islandAnchor": "left" }"#).unwrap();
@@ -172,6 +214,9 @@ mod tests {
         assert_eq!(json["islandAnchor"], "center");
         assert_eq!(json["hideFromScreenShare"], true);
         assert_eq!(json["sttLanguage"], "auto");
+        assert_eq!(json["shortcuts"], serde_json::json!({}));
+        assert!(json["modelDir"].is_null());
+        assert_eq!(json["onboardingDone"], false);
         assert!(json["freeOrigin"].is_null());
     }
 }

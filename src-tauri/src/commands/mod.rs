@@ -34,6 +34,10 @@ pub enum CommandError {
     Session(#[from] crate::sessions::SessionError),
     #[error("error del modelo de transcripción: {0}")]
     Model(#[from] crate::stt::model::ModelError),
+    #[error("error del atajo: {0}")]
+    Shortcut(#[from] crate::shortcuts::ShortcutError),
+    #[error("no se pudo cambiar el inicio con la sesión: {0}")]
+    Autostart(String),
 }
 
 impl CommandError {
@@ -48,6 +52,8 @@ impl CommandError {
             Self::Ai(error) => error.code(),
             Self::Session(error) => error.code(),
             Self::Model(error) => error.code(),
+            Self::Shortcut(error) => error.code(),
+            Self::Autostart(_) => "autostart.failed",
         }
     }
 }

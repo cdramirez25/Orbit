@@ -5,7 +5,7 @@
 //! en tests se usa `testing::FakeEventSink`. El formato del payload es el espejo de
 //! `src/types/pipeline.ts`: si cambias uno, cambia el otro.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter};
 
@@ -34,7 +34,7 @@ pub struct OrbitError {
 
 /// Algo que el usuario pidió desde fuera de las ventanas (un atajo global o la bandeja del
 /// sistema) y que la isla ejecuta.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum UiAction {
     /// Empezar a grabar la pregunta o, si ya se graba, terminarla y enviarla a la IA.

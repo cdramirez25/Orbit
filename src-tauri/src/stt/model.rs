@@ -15,6 +15,7 @@ use std::time::{Duration, Instant};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
+use super::location::ModelLocation;
 use crate::events::{DomainEvent, EventSink};
 
 /// Cuánto se lee de una vez y cada cuánto se avisa del progreso (la interfaz no necesita más).
@@ -96,6 +97,10 @@ pub struct ModelStatus {
     pub total: u64,
     /// Código del último fallo de la descarga (`stt.model.*`); `None` si no hubo.
     pub error: Option<String>,
+    /// Carpeta donde está (o estará) el modelo.
+    pub dir: String,
+    /// ¿Es una carpeta que eligió el usuario (y no la de la app)?
+    pub custom_dir: bool,
 }
 
 #[derive(Default)]
@@ -111,7 +116,7 @@ enum Outcome {
 }
 
 pub struct ModelService {
-    path: PathBuf,
+    location: Arc<ModelLocation>,
     expected: Expected,
     source: Arc<dyn ModelSource>,
     events: Arc<dyn EventSink>,
@@ -122,13 +127,13 @@ pub struct ModelService {
 
 impl ModelService {
     pub fn new(
-        path: PathBuf,
+        location: Arc<ModelLocation>,
         expected: Expected,
         source: Arc<dyn ModelSource>,
         events: Arc<dyn EventSink>,
     ) -> Self {
         Self {
-            path,
+            location,
             expected,
             source,
             events,
@@ -150,7 +155,7 @@ impl ModelService {
     }
 
     fn part_path(&self) -> PathBuf {
-        let mut name = self.path.as_os_str().to_owned();
+        let mut name = self.location.path().into_os_string();
         name.push(".part");
         PathBuf::from(name)
     }
@@ -158,26 +163,34 @@ impl ModelService {
     pub fn status(&self) -> ModelStatus {
         let progress = self.lock();
         let total = self.expected.size;
+        let dir = self.location.dir().display().to_string();
+        let custom_dir = self.location.is_custom();
         if progress.downloading {
             return ModelStatus {
                 state: ModelState::Downloading,
                 downloaded: progress.downloaded,
                 total,
                 error: None,
+                dir,
+                custom_dir,
             };
         }
-        if self.path.is_file() {
+        if self.location.path().is_file() {
             return ModelStatus {
                 state: ModelState::Ready,
                 downloaded: total,
                 total,
                 error: None,
+                dir,
+                custom_dir,
             };
         }
         ModelStatus {
             state: ModelState::Missing,
             downloaded: 0,
             total,
+            dir,
+            custom_dir,
             error: progress.error.map(str::to_owned),
         }
     }
@@ -190,7 +203,7 @@ impl ModelService {
     pub fn download(self: &Arc<Self>) -> Result<(), ModelError> {
         {
             let mut progress = self.lock();
-            if progress.downloading || self.path.is_file() {
+            if progress.downloading || self.location.path().is_file() {
                 return Ok(());
             }
             *progress = Progress {
@@ -222,10 +235,34 @@ impl ModelService {
         if self.lock().downloading {
             return Err(ModelError::Busy);
         }
-        for path in [self.path.as_path(), self.part_path().as_path()] {
-            remove_if_exists(path)?;
+        for path in [self.location.path(), self.part_path()] {
+            remove_if_exists(&path)?;
         }
         self.lock().error = None;
+        self.publish();
+        Ok(())
+    }
+
+    /// Cambia la carpeta del modelo (`None` = volver a la de la app). Si el modelo ya estaba
+    /// descargado se mueve a la carpeta nueva, salvo que ahí ya haya uno: ese se usa tal cual y el
+    /// de antes no se toca. Con una descarga en curso no se puede. No guarda el ajuste: eso lo hace
+    /// quien llama.
+    pub fn set_dir(&self, dir: Option<PathBuf>) -> Result<(), ModelError> {
+        if self.lock().downloading {
+            return Err(ModelError::Busy);
+        }
+        let new_dir = dir
+            .clone()
+            .unwrap_or_else(|| self.location.default_dir().clone());
+        fs::create_dir_all(&new_dir).map_err(disk)?;
+        check_writable(&new_dir)?;
+
+        let old = self.location.path();
+        let new = new_dir.join(self.location.file_name());
+        if old != new && old.is_file() && !new.exists() {
+            move_file(&old, &new)?;
+        }
+        self.location.set_custom_dir(dir);
         self.publish();
         Ok(())
     }
@@ -251,7 +288,8 @@ impl ModelService {
     }
 
     fn fetch(&self) -> Result<Outcome, ModelError> {
-        if let Some(dir) = self.path.parent() {
+        let path = self.location.path();
+        if let Some(dir) = path.parent() {
             fs::create_dir_all(dir).map_err(disk)?;
         }
         let part = self.part_path();
@@ -277,7 +315,7 @@ impl ModelService {
         match outcome {
             Ok(Outcome::Done) => {
                 drop(transfer);
-                fs::rename(&part, &self.path).map_err(|error| {
+                fs::rename(&part, &path).map_err(|error| {
                     let _ = fs::remove_file(&part);
                     disk(error)
                 })?;
@@ -354,6 +392,30 @@ struct Transfer {
 
 fn disk(error: std::io::Error) -> ModelError {
     ModelError::Disk(error.to_string())
+}
+
+/// Comprueba que se puede escribir en la carpeta (un disco externo de solo lectura, por ejemplo).
+fn check_writable(dir: &Path) -> Result<(), ModelError> {
+    let probe = dir.join(".orbit-write-test");
+    File::create(&probe).map_err(disk)?;
+    let _ = fs::remove_file(probe);
+    Ok(())
+}
+
+/// Mueve un archivo: renombrándolo si es el mismo disco y, si no, copiándolo y borrando el original.
+fn move_file(from: &Path, to: &Path) -> Result<(), ModelError> {
+    if fs::rename(from, to).is_ok() {
+        return Ok(());
+    }
+    let mut partial = to.as_os_str().to_owned();
+    partial.push(".moving");
+    let partial = PathBuf::from(partial);
+    let copied = fs::copy(from, &partial).and_then(|_| fs::rename(&partial, to));
+    if let Err(error) = copied {
+        let _ = fs::remove_file(&partial);
+        return Err(disk(error));
+    }
+    fs::remove_file(from).map_err(disk)
 }
 
 fn remove_if_exists(path: &Path) -> Result<(), ModelError> {
@@ -479,7 +541,7 @@ mod tests {
         let events = Arc::new(FakeEventSink::default());
         let service = Arc::new(
             ModelService::new(
-                dir.join("models").join("model.bin"),
+                Arc::new(ModelLocation::fixed(dir.join("models").join("model.bin"))),
                 expected_for(data),
                 Arc::new(source),
                 Arc::clone(&events) as Arc<dyn EventSink>,
@@ -509,7 +571,9 @@ mod tests {
                 state: ModelState::Missing,
                 downloaded: 0,
                 total: 3,
-                error: None
+                error: None,
+                dir: dir.join("models").display().to_string(),
+                custom_dir: false,
             }
         );
     }
@@ -596,7 +660,7 @@ mod tests {
         });
         let events = Arc::new(FakeEventSink::default());
         let service = ModelService::new(
-            dir.join("models").join("model.bin"),
+            Arc::new(ModelLocation::fixed(dir.join("models").join("model.bin"))),
             expected_for(&data),
             Arc::clone(&source) as Arc<dyn ModelSource>,
             events,
@@ -694,6 +758,116 @@ mod tests {
         assert_eq!(error.code(), "stt.model.busy");
     }
 
+    /// Servicio con una ubicación que se puede cambiar de carpeta (la de la app es `models/`).
+    fn movable(dir: &Path, data: &[u8]) -> (Arc<ModelService>, Arc<ModelLocation>) {
+        let location = Arc::new(ModelLocation::new(dir.join("models"), "model.bin", None));
+        let service = Arc::new(
+            ModelService::new(
+                Arc::clone(&location),
+                expected_for(data),
+                Arc::new(FakeSource::serving(data)),
+                Arc::new(FakeEventSink::default()) as Arc<dyn EventSink>,
+            )
+            .with_resume_delay(Duration::ZERO),
+        );
+        (service, location)
+    }
+
+    #[test]
+    fn changing_the_folder_moves_the_downloaded_model_and_back() {
+        let dir = temp_dir("move");
+        let (service, location) = movable(&dir, b"abc");
+        fs::create_dir_all(dir.join("models")).unwrap();
+        fs::write(dir.join("models/model.bin"), b"abc").unwrap();
+        let other = dir.join("externo");
+
+        service.set_dir(Some(other.clone())).unwrap();
+
+        assert_eq!(location.path(), other.join("model.bin"));
+        assert_eq!(fs::read(other.join("model.bin")).unwrap(), b"abc");
+        assert!(!dir.join("models/model.bin").exists());
+        let status = service.status();
+        assert_eq!(status.state, ModelState::Ready);
+        assert!(status.custom_dir);
+        assert_eq!(status.dir, other.display().to_string());
+
+        service.set_dir(None).unwrap();
+        assert_eq!(fs::read(dir.join("models/model.bin")).unwrap(), b"abc");
+        assert!(!other.join("model.bin").exists());
+        assert!(!service.status().custom_dir);
+    }
+
+    #[test]
+    fn changing_the_folder_with_no_model_yet_only_changes_where_it_will_go() {
+        let dir = temp_dir("move-empty");
+        let (service, location) = movable(&dir, b"abc");
+        let other = dir.join("otro");
+
+        service.set_dir(Some(other.clone())).unwrap();
+
+        assert_eq!(service.status().state, ModelState::Missing);
+        assert!(other.is_dir(), "la carpeta nueva se crea");
+        assert_eq!(location.path(), other.join("model.bin"));
+    }
+
+    #[test]
+    fn a_model_already_in_the_new_folder_is_used_and_the_old_one_is_left_alone() {
+        let dir = temp_dir("move-existing");
+        let (service, _) = movable(&dir, b"abc");
+        fs::create_dir_all(dir.join("models")).unwrap();
+        fs::write(dir.join("models/model.bin"), b"viejo").unwrap();
+        let other = dir.join("otro");
+        fs::create_dir_all(&other).unwrap();
+        fs::write(other.join("model.bin"), b"nuevo").unwrap();
+
+        service.set_dir(Some(other.clone())).unwrap();
+
+        assert_eq!(fs::read(other.join("model.bin")).unwrap(), b"nuevo");
+        assert_eq!(fs::read(dir.join("models/model.bin")).unwrap(), b"viejo");
+    }
+
+    #[test]
+    fn a_folder_that_cannot_be_written_is_refused_and_nothing_changes() {
+        let dir = temp_dir("move-bad");
+        let (service, location) = movable(&dir, b"abc");
+        fs::create_dir_all(dir.join("models")).unwrap();
+        fs::write(dir.join("models/model.bin"), b"abc").unwrap();
+        // "Carpeta" que en realidad es un archivo: no se puede crear nada dentro.
+        let blocker = dir.join("archivo");
+        fs::write(&blocker, b"x").unwrap();
+
+        let error = service.set_dir(Some(blocker.join("dentro"))).unwrap_err();
+
+        assert_eq!(error.code(), "stt.model.disk");
+        assert!(!location.is_custom());
+        assert_eq!(fs::read(dir.join("models/model.bin")).unwrap(), b"abc");
+    }
+
+    #[test]
+    fn the_folder_cannot_change_during_a_download() {
+        let dir = temp_dir("move-busy");
+        let (service, _) = movable(&dir, b"abc");
+        service.lock().downloading = true;
+        let error = service.set_dir(Some(dir.join("x"))).unwrap_err();
+        assert_eq!(error.code(), "stt.model.busy");
+    }
+
+    #[test]
+    fn a_download_goes_to_the_chosen_folder() {
+        let dir = temp_dir("move-download");
+        let data = vec![5_u8; 70_000];
+        let (service, location) = movable(&dir, &data);
+        let other = dir.join("disco");
+        service.set_dir(Some(other.clone())).unwrap();
+
+        service.download_blocking();
+
+        assert_eq!(service.status().state, ModelState::Ready);
+        assert_eq!(fs::read(other.join("model.bin")).unwrap(), data);
+        assert!(!dir.join("models/model.bin").exists());
+        assert_eq!(location.path(), other.join("model.bin"));
+    }
+
     #[test]
     fn error_codes_are_stable() {
         assert_eq!(
@@ -719,6 +893,8 @@ mod tests {
             downloaded: 10,
             total: 20,
             error: None,
+            dir: "/modelos".into(),
+            custom_dir: true,
         };
         assert_eq!(
             serde_json::to_value(status).unwrap(),
@@ -726,7 +902,9 @@ mod tests {
                 "state": "downloading",
                 "downloaded": 10,
                 "total": 20,
-                "error": null
+                "error": null,
+                "dir": "/modelos",
+                "customDir": true
             })
         );
     }

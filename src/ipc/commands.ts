@@ -22,6 +22,7 @@ import type {
   SessionUpdate,
   ShortcutInfo,
   SttLanguage,
+  UiAction,
   WeatherReport,
 } from '@/types';
 
@@ -42,6 +43,7 @@ const DEFAULT_SETTINGS: IslandSettings = {
   islandAnchor: 'center',
   freeOrigin: null,
   sttLanguage: 'auto',
+  onboardingDone: false,
 };
 
 // En el navegador el puntero se rastrea con eventos del DOM (en Tauri lo da Rust).
@@ -125,11 +127,14 @@ function stopSimulation(): void {
 const BROWSER_MODEL_BYTES = 487_601_967;
 const MODEL_TICK_MS = 120;
 const MODEL_STEP = 0.02;
+const BROWSER_MODEL_DIR = '/Users/usuario/Library/Application Support/dev.orbit.island/models';
 let browserModel: ModelStatus = {
   state: 'missing',
   downloaded: 0,
   total: BROWSER_MODEL_BYTES,
   error: null,
+  dir: BROWSER_MODEL_DIR,
+  customDir: false,
 };
 let modelSimulation: ReturnType<typeof setInterval> | undefined;
 
@@ -155,11 +160,42 @@ function simulateModelDownload(): void {
   }, MODEL_TICK_MS);
 }
 
-// Solo navegador: los atajos tal como los devolvería Rust.
-const BROWSER_SHORTCUTS: ShortcutInfo[] = [
-  { action: 'toggleQuestion', keys: 'CommandOrControl+Shift+Space', registered: true },
-  { action: 'toggleIsland', keys: 'CommandOrControl+Shift+H', registered: true },
+// Solo navegador: los atajos tal como los devolvería Rust, con sus mismas reglas de validación.
+let browserShortcuts: ShortcutInfo[] = [
+  {
+    action: 'toggleQuestion',
+    keys: 'CommandOrControl+Shift+Space',
+    defaultKeys: 'CommandOrControl+Shift+Space',
+    registered: true,
+  },
+  {
+    action: 'toggleIsland',
+    keys: 'CommandOrControl+Shift+H',
+    defaultKeys: 'CommandOrControl+Shift+H',
+    registered: true,
+  },
 ];
+const BROWSER_MODIFIERS = ['CommandOrControl', 'Control', 'Alt', 'Shift', 'Super'];
+
+function browserSetShortcut(action: UiAction, keys: string): ShortcutInfo[] {
+  const parts = keys.split('+');
+  if (!parts.some((part) => BROWSER_MODIFIERS.includes(part))) {
+    throw { code: 'shortcut.needsModifier', message: 'sin modificador' };
+  }
+  const canonical = [...parts].sort().join('+');
+  const taken = browserShortcuts.some(
+    (item) => item.action !== action && [...item.keys.split('+')].sort().join('+') === canonical,
+  );
+  if (taken) throw { code: 'shortcut.duplicate', message: 'repetido' };
+  browserShortcuts = browserShortcuts.map((item) =>
+    item.action === action ? { ...item, keys, registered: true } : item,
+  );
+  return browserShortcuts;
+}
+
+// Solo navegador: el inicio con la sesión y la guía de primer arranque, en memoria.
+let browserAutostart = false;
+let browserOnboardingDone = false;
 
 // Solo navegador: datos de muestra para ver el clima y el portapapeles con `pnpm dev`.
 const SAMPLE_WEATHER: Omit<WeatherReport, 'fetchedAtMs'> = {
@@ -403,7 +439,9 @@ export const commands = {
     isTauri() ? invoke<void>('set_content_protected', { enabled }) : Promise.resolve(),
 
   getIslandSettings: (): Promise<IslandSettings> =>
-    isTauri() ? invoke<IslandSettings>('get_island_settings') : Promise.resolve(DEFAULT_SETTINGS),
+    isTauri()
+      ? invoke<IslandSettings>('get_island_settings')
+      : Promise.resolve({ ...DEFAULT_SETTINGS, onboardingDone: browserOnboardingDone }),
 
   /** Cambia el ancla (izquierda / centro / derecha / libre); Rust la aplica y la guarda. */
   setIslandAnchor: (anchor: IslandAnchor): Promise<IslandSettings> =>
@@ -710,7 +748,62 @@ export const commands = {
 
   /** Los atajos globales y si se pudieron registrar. */
   getShortcuts: (): Promise<ShortcutInfo[]> =>
-    isTauri() ? invoke<ShortcutInfo[]>('get_shortcuts') : Promise.resolve(BROWSER_SHORTCUTS),
+    isTauri() ? invoke<ShortcutInfo[]>('get_shortcuts') : Promise.resolve(browserShortcuts),
+
+  /**
+   * Cambia el atajo de una acción. Rechaza con `shortcut.invalid`, `shortcut.needsModifier`,
+   * `shortcut.duplicate` (lo usa otra acción de Orbit) o `shortcut.unavailable` (lo usa otra app).
+   */
+  setShortcut: (action: UiAction, keys: string): Promise<ShortcutInfo[]> => {
+    if (isTauri()) return invoke<ShortcutInfo[]>('set_shortcut', { action, keys });
+    try {
+      return Promise.resolve(browserSetShortcut(action, keys));
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  },
+
+  /** Devuelve el atajo de una acción al de por defecto. */
+  resetShortcut: (action: UiAction): Promise<ShortcutInfo[]> => {
+    if (isTauri()) return invoke<ShortcutInfo[]>('reset_shortcut', { action });
+    const original = browserShortcuts.find((item) => item.action === action)?.defaultKeys ?? '';
+    return commands.setShortcut(action, original);
+  },
+
+  /** ¿Orbit se abre solo al iniciar sesión? Lo dice el sistema. */
+  getAutostart: (): Promise<boolean> =>
+    isTauri() ? invoke<boolean>('get_autostart') : Promise.resolve(browserAutostart),
+
+  /** Enciende o apaga el inicio con la sesión y devuelve cómo quedó. */
+  setAutostart: (enabled: boolean): Promise<boolean> => {
+    if (isTauri()) return invoke<boolean>('set_autostart', { enabled });
+    browserAutostart = enabled;
+    return Promise.resolve(browserAutostart);
+  },
+
+  /** Marca la guía de primer arranque como vista (o la vuelve a activar). */
+  setOnboardingDone: (done: boolean): Promise<IslandSettings> => {
+    if (isTauri()) return invoke<IslandSettings>('set_onboarding_done', { done });
+    browserOnboardingDone = done;
+    return Promise.resolve({ ...DEFAULT_SETTINGS, onboardingDone: browserOnboardingDone });
+  },
+
+  /**
+   * Abre el selector de carpetas del sistema (con ese título) y mueve el modelo a la elegida.
+   * `null` si el usuario cancela.
+   */
+  sttModelChooseDir: (title: string): Promise<ModelStatus | null> => {
+    if (isTauri()) return invoke<ModelStatus | null>('stt_model_choose_dir', { title });
+    setBrowserModel({ ...browserModel, dir: '/Volumes/Externo/Orbit', customDir: true });
+    return Promise.resolve(browserModel);
+  },
+
+  /** Devuelve el modelo a la carpeta de la app. */
+  sttModelResetDir: (): Promise<ModelStatus> => {
+    if (isTauri()) return invoke<ModelStatus>('stt_model_reset_dir');
+    setBrowserModel({ ...browserModel, dir: BROWSER_MODEL_DIR, customDir: false });
+    return Promise.resolve(browserModel);
+  },
 
   /** Rotula el menú de la bandeja (la crea la primera vez) con los textos del idioma activo. */
   setTrayLabels: (labels: {

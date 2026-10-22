@@ -1,14 +1,14 @@
 //! Motor de transcripción local con `whisper-rs` (whisper.cpp enlazado dentro de la app). No usa
 //! red ni claves: el audio nunca sale de la máquina. En macOS corre en la GPU con Metal.
 
-use std::path::PathBuf;
-use std::sync::{Mutex, MutexGuard, Once, PoisonError};
+use std::sync::{Arc, Mutex, MutexGuard, Once, PoisonError};
 use std::time::Instant;
 
 use whisper_rs::{
     FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters, WhisperState,
 };
 
+use super::location::ModelLocation;
 use super::{Pass, SttEngine, SttError, SttLanguage, Transcription};
 
 /// Modelo por defecto: `small` multilingüe (≈ 465 MB), buen equilibrio entre precisión y velocidad.
@@ -29,15 +29,15 @@ static LOGGING: Once = Once::new();
 /// El modelo se carga al empezar a escuchar y se suelta al parar (`release`): son cientos de MB
 /// que no deben ocupar memoria con la isla en reposo.
 pub struct WhisperEngine {
-    model_path: PathBuf,
+    location: Arc<ModelLocation>,
     state: Mutex<Option<WhisperState>>,
     language: Mutex<SttLanguage>,
 }
 
 impl WhisperEngine {
-    pub fn new(model_path: PathBuf) -> Self {
+    pub fn new(location: Arc<ModelLocation>) -> Self {
         Self {
-            model_path,
+            location,
             state: Mutex::new(None),
             language: Mutex::new(SttLanguage::default()),
         }
@@ -50,7 +50,7 @@ impl WhisperEngine {
     /// Lee el modelo una vez para que el sistema lo deje en su caché de disco: tras encender el
     /// equipo tarda varios segundos en leerse y así la primera escucha no tiene que esperar.
     pub fn prime_disk_cache(&self) {
-        if let Ok(mut file) = std::fs::File::open(&self.model_path) {
+        if let Ok(mut file) = std::fs::File::open(self.location.path()) {
             let _ = std::io::copy(&mut file, &mut std::io::sink());
         }
     }
@@ -60,15 +60,16 @@ impl WhisperEngine {
     }
 
     fn load(&self) -> Result<WhisperState, SttError> {
-        if !self.model_path.is_file() {
-            return Err(SttError::ModelMissing(self.model_path.clone()));
+        let model_path = self.location.path();
+        if !model_path.is_file() {
+            return Err(SttError::ModelMissing(model_path));
         }
         // whisper.cpp escribe mucho en la salida estándar: se silencia (no se enlaza a `tracing`).
         LOGGING.call_once(whisper_rs::install_logging_hooks);
 
         let started = Instant::now();
         let context =
-            WhisperContext::new_with_params(&self.model_path, WhisperContextParameters::default())
+            WhisperContext::new_with_params(&model_path, WhisperContextParameters::default())
                 .map_err(|error| SttError::ModelLoad(error.to_string()))?;
         let state = context
             .create_state()
@@ -164,13 +165,15 @@ fn threads() -> i32 {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use super::*;
     use crate::events::{DomainEvent, EventSink};
 
     #[test]
     fn a_missing_model_is_reported_with_its_path() {
         let path = std::env::temp_dir().join("orbit-no-such-model.bin");
-        let engine = WhisperEngine::new(path.clone());
+        let engine = WhisperEngine::new(Arc::new(ModelLocation::fixed(path.clone())));
 
         let result = engine.transcribe(&[0.0; 16_000], Pass::Final);
         assert!(matches!(result, Err(SttError::ModelMissing(p)) if p == path));
@@ -179,12 +182,12 @@ mod tests {
 
     #[test]
     fn releasing_an_engine_that_never_loaded_is_harmless() {
-        WhisperEngine::new(PathBuf::from("x.bin")).release();
+        WhisperEngine::new(Arc::new(ModelLocation::fixed(PathBuf::from("x.bin")))).release();
     }
 
     #[test]
     fn the_language_can_be_changed_and_starts_automatic() {
-        let engine = WhisperEngine::new(PathBuf::from("x.bin"));
+        let engine = WhisperEngine::new(Arc::new(ModelLocation::fixed(PathBuf::from("x.bin"))));
         assert_eq!(engine.language(), SttLanguage::Auto);
         engine.set_language(SttLanguage::Es);
         assert_eq!(engine.language().code(), "es");
@@ -241,7 +244,7 @@ mod tests {
             PathBuf::from,
         );
         let samples = read_wav(std::path::Path::new(&wav));
-        let engine = WhisperEngine::new(model);
+        let engine = WhisperEngine::new(Arc::new(ModelLocation::fixed(model)));
 
         let load = Instant::now();
         engine.warm_up().expect("no cargó el modelo");
@@ -294,7 +297,6 @@ mod tests {
     fn live_streaming() {
         use std::sync::atomic::AtomicBool;
         use std::sync::mpsc::channel;
-        use std::sync::Arc;
         use std::time::Duration;
 
         use crate::stt::transcriber;
@@ -310,7 +312,8 @@ mod tests {
             start: Instant::now(),
             lines: Mutex::new(Vec::new()),
         });
-        let engine: Arc<dyn SttEngine> = Arc::new(WhisperEngine::new(model));
+        let engine: Arc<dyn SttEngine> =
+            Arc::new(WhisperEngine::new(Arc::new(ModelLocation::fixed(model))));
         let (tx, rx) = channel();
         let handle = std::thread::spawn({
             let sink = Arc::clone(&sink);

@@ -43,7 +43,7 @@ pub enum AiError {
     Provider(String),
     #[error("respuesta inesperada del proveedor: {0}")]
     BadResponse(String),
-    #[error("no se oyó ninguna pregunta")]
+    #[error("no se escuchó nada")]
     NoQuestion,
 }
 

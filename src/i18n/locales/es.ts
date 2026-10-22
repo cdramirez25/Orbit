@@ -223,9 +223,10 @@ export const es = {
   'prompter.finish': 'Terminar y responder',
   'prompter.cancel': 'Cancelar',
   'prompter.recording': 'Grabando…',
-  'prompter.hint': 'Pulsa Grabar audio, haz o reproduce la pregunta y pulsa Terminar y responder.',
+  'prompter.hint':
+    'Pulsa Grabar audio, habla o reproduce lo que quieras y pulsa Terminar y responder.',
   'prompter.error.permission': 'Falta el permiso para capturar el audio (Ajustes del Sistema)',
-  'ai.error.noQuestion': 'No se oyó ninguna pregunta',
+  'ai.error.noQuestion': 'No se escuchó nada',
   'prompter.type.aria': 'Escribir una pregunta',
   'prompter.type.placeholder': 'O escribe tu pregunta…',
   'prompter.type.send': 'Enviar pregunta',
@@ -291,6 +292,65 @@ export const es = {
   'music.pause': 'Pausar',
   'music.controlsAria': 'Controles de música',
   'music.progress': 'Progreso de la canción',
+  // ── Atajos configurables, inicio con la sesión y carpeta del modelo ──────
+  'shortcuts.change': 'Cambiar',
+  'shortcuts.reset': 'Restablecer',
+  'shortcuts.cancel': 'Cancelar',
+  'shortcuts.capture': 'Pulsa la nueva combinación…',
+  'shortcuts.captureHint': 'Combina Cmd, Ctrl, Alt o Shift con otra tecla. Esc cancela.',
+  'shortcuts.error.invalid': 'Esa combinación no sirve. Prueba con otra.',
+  'shortcuts.error.needsModifier': 'Añade Cmd, Ctrl, Alt o Shift a la tecla.',
+  'shortcuts.error.duplicate': 'Otra acción de Orbit ya usa ese atajo.',
+  'shortcuts.error.unavailable': 'Otra app ya usa ese atajo. Prueba con otro.',
+  'shortcuts.error.generic': 'No se pudo cambiar el atajo.',
+  'settings.section.startup': 'Inicio',
+  'settings.panel.autostart': 'Abrir Orbit al iniciar sesión',
+  'settings.panel.autostartAria': 'Abrir Orbit al iniciar sesión',
+  'settings.panel.autostartHint': 'Orbit arranca solo cuando entras a tu computadora.',
+  'settings.panel.autostartError': 'No se pudo cambiar. Inténtalo de nuevo.',
+  'stt.model.folder': 'Carpeta',
+  'stt.model.folderChange': 'Cambiar carpeta',
+  'stt.model.folderMoving': 'Moviendo…',
+  'stt.model.folderReset': 'Usar la carpeta de Orbit',
+  'stt.model.folderPickTitle': 'Elige dónde guardar el modelo de voz',
+  'stt.model.folderHint':
+    'Al cambiar la carpeta, el modelo que ya descargaste se mueve a la nueva.',
+
+  // ── Guía de primer arranque ─────────────────────────────────────────────
+  'guide.title': 'Primeros pasos',
+  'guide.step': 'Paso',
+  'guide.of': 'de',
+  'guide.reopen': 'Ver la guía de primer arranque',
+  'guide.stepsAria': 'Pasos de la guía',
+  'guide.status.done': 'Listo',
+  'guide.action.start': 'Empezar',
+  'guide.action.next': 'Siguiente',
+  'guide.action.back': 'Atrás',
+  'guide.action.skipStep': 'Saltar este paso',
+  'guide.action.skipAll': 'Saltar la guía',
+  'guide.action.finish': 'Terminar',
+  'guide.welcome.title': 'Bienvenido a Orbit',
+  'guide.welcome.body':
+    'Una isla en la parte de arriba de tu pantalla. En videollamadas, Orbit oye lo que dicen los demás, lo transcribe y te muestra la respuesta de la IA que elijas.',
+  'guide.welcome.point1': 'Solo oye el audio que sale por tus bocinas o audífonos.',
+  'guide.welcome.point2': 'Tu micrófono nunca se captura.',
+  'guide.welcome.point3': 'La voz se transcribe en tu computadora: el audio no sale de ella.',
+  'guide.welcome.setup': 'Faltan unos pasos para dejarlo listo. Te tomará un par de minutos.',
+  'guide.audio.title': 'Permiso de audio',
+  'guide.audio.body':
+    'Para oír lo que suena en tu computadora, macOS pide el permiso de Grabación de pantalla. Orbit solo usa el audio del sistema.',
+  'guide.model.title': 'Modelo de voz',
+  'guide.model.body':
+    'Orbit transcribe en tu computadora con Whisper. El modelo se descarga una sola vez.',
+  'guide.ai.title': 'Tu IA',
+  'guide.ai.body':
+    'Elige con qué IA responde Orbit: escribe su clave, elige un modelo y pulsa Guardar, Probar y Usar este.',
+  'guide.done.title': 'Todo listo',
+  'guide.done.body': 'Así se usa Orbit:',
+  'guide.done.record':
+    'Empieza a grabar audio y, al repetirlo, lo envía a la IA para que responda.',
+  'guide.done.island': 'Muestra u oculta la isla.',
+  'guide.done.more': 'Puedes cambiar todo esto en Ajustes, y volver a ver esta guía desde General.',
 } as const;
 
 /** Todas las claves de texto de la interfaz. */

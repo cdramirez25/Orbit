@@ -28,18 +28,34 @@ vi.mock('@/ipc/commands', () => ({
     sttModelDownload: vi.fn().mockResolvedValue(undefined),
     sttModelCancel: vi.fn().mockResolvedValue(undefined),
     sttModelRemove: vi.fn().mockResolvedValue(undefined),
+    sttModelChooseDir: vi.fn(),
+    sttModelResetDir: vi.fn(),
   },
 }));
 
 const mocked = vi.mocked(commands);
 
-const model = (overrides: Partial<ModelStatus>): ModelStatus => ({
-  state: 'missing',
-  downloaded: 0,
-  total: 487_601_967,
-  error: null,
-  ...overrides,
-});
+const model = (overrides: Partial<ModelStatus>): ModelStatus =>
+  ({
+    state: 'missing',
+    downloaded: 0,
+    total: 487_601_967,
+    error: null,
+    dir: '/Users/yo/Library/Application Support/dev.orbit.island/models',
+    customDir: false,
+    ...overrides,
+  }) as ModelStatus;
+
+const QUESTION = {
+  action: 'toggleQuestion',
+  keys: 'CommandOrControl+Shift+Space',
+  defaultKeys: 'CommandOrControl+Shift+Space',
+} as const;
+const ISLAND = {
+  action: 'toggleIsland',
+  keys: 'CommandOrControl+Shift+H',
+  defaultKeys: 'CommandOrControl+Shift+H',
+} as const;
 
 async function openPage(name: string) {
   render(<SettingsPanel />);
@@ -51,7 +67,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
   useLocaleStore.setState({ locale: 'es' });
-  useModelStore.setState({ status: null, errorCode: null });
+  useModelStore.setState({ status: null, errorCode: null, movingDir: false });
   useSettingsStore.setState({ sttLanguage: 'auto' });
   useShortcutStore.setState({ shortcuts: [] });
 });
@@ -63,6 +79,7 @@ describe('idioma de la transcripción', () => {
       islandAnchor: 'center',
       freeOrigin: null,
       sttLanguage: 'es',
+      onboardingDone: true,
     });
     await openPage('Audio');
 
@@ -138,12 +155,80 @@ describe('modelo de voz', () => {
   });
 });
 
+describe('carpeta del modelo', () => {
+  it('muestra dónde está el modelo y deja elegir otra carpeta con el selector del sistema', async () => {
+    useModelStore.setState({ status: model({ state: 'ready', downloaded: 487_601_967 }) });
+    mocked.sttModelChooseDir.mockResolvedValue(
+      model({ state: 'ready', downloaded: 487_601_967, dir: '/Volumes/Externo', customDir: true }),
+    );
+    await openPage('Audio');
+
+    expect(screen.getByText(/dev\.orbit\.island\/models/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Usar la carpeta de Orbit' })).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cambiar carpeta' }));
+    await act(async () => {});
+
+    expect(mocked.sttModelChooseDir).toHaveBeenCalledWith('Elige dónde guardar el modelo de voz');
+    expect(screen.getByText('/Volumes/Externo')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Usar la carpeta de Orbit' })).toBeInTheDocument();
+  });
+
+  it('si se cancela el selector, no cambia nada', async () => {
+    useModelStore.setState({ status: model({ state: 'ready' }) });
+    mocked.sttModelChooseDir.mockResolvedValue(null);
+    await openPage('Audio');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cambiar carpeta' }));
+    await act(async () => {});
+
+    expect(screen.getByText(/dev\.orbit\.island\/models/)).toBeInTheDocument();
+  });
+
+  it('con una carpeta propia, Usar la carpeta de Orbit la devuelve a la de la app', async () => {
+    useModelStore.setState({
+      status: model({ state: 'ready', dir: '/Volumes/Externo', customDir: true }),
+    });
+    mocked.sttModelResetDir.mockResolvedValue(model({ state: 'ready' }));
+    await openPage('Audio');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Usar la carpeta de Orbit' }));
+    await act(async () => {});
+
+    expect(mocked.sttModelResetDir).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('button', { name: 'Usar la carpeta de Orbit' })).toBeNull();
+  });
+
+  it('mientras se descarga no se puede cambiar de carpeta', async () => {
+    useModelStore.setState({ status: model({ state: 'downloading', downloaded: 1000 }) });
+    await openPage('Audio');
+    expect(screen.getByRole('button', { name: 'Cambiar carpeta' })).toBeDisabled();
+  });
+
+  it('mientras se mueve el modelo avisa y bloquea los botones', async () => {
+    useModelStore.setState({ status: model({ state: 'ready' }), movingDir: true });
+    await openPage('Audio');
+    expect(screen.getByRole('button', { name: 'Moviendo…' })).toBeDisabled();
+  });
+
+  it('un fallo al mover (sin permiso en el disco) se explica', async () => {
+    useModelStore.setState({ status: model({ state: 'ready' }) });
+    mocked.sttModelChooseDir.mockRejectedValue({ code: 'stt.model.disk', message: 'x' });
+    await openPage('Audio');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cambiar carpeta' }));
+    await act(async () => {});
+
+    expect(screen.getByRole('alert')).toHaveTextContent('No se pudo guardar el modelo en el disco');
+  });
+});
+
 describe('atajos globales', () => {
   it('lista cada atajo con sus teclas', async () => {
     useShortcutStore.setState({
       shortcuts: [
-        { action: 'toggleQuestion', keys: 'CommandOrControl+Shift+Space', registered: true },
-        { action: 'toggleIsland', keys: 'CommandOrControl+Shift+H', registered: true },
+        { ...QUESTION, registered: true },
+        { ...ISLAND, registered: true },
       ],
     });
     await openPage('General');
@@ -157,9 +242,7 @@ describe('atajos globales', () => {
 
   it('un atajo que otra app ya usa se marca como no disponible', async () => {
     useShortcutStore.setState({
-      shortcuts: [
-        { action: 'toggleQuestion', keys: 'CommandOrControl+Shift+Space', registered: false },
-      ],
+      shortcuts: [{ ...QUESTION, registered: false }],
     });
     await openPage('General');
 

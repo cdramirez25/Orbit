@@ -45,6 +45,7 @@ use crate::pipeline::{Pipeline, PipelineConfig};
 use crate::sessions::sqlite::SqliteSessionStore;
 use crate::sessions::SessionService;
 use crate::settings::Settings;
+use crate::stt::location::ModelLocation;
 use crate::stt::model::{small_model, ModelService};
 use crate::stt::model_source::HttpModelSource;
 use crate::stt::whisper_local::{WhisperEngine, MODEL_FILE};
@@ -61,6 +62,11 @@ pub fn run() {
         .init();
 
     let result = tauri::Builder::default()
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             commands::ai::ai_get_status,
             commands::ai::ai_save_provider,
@@ -108,9 +114,16 @@ pub fn run() {
             commands::stt::stt_model_download,
             commands::stt::stt_model_cancel,
             commands::stt::stt_model_remove,
+            commands::stt::stt_model_choose_dir,
+            commands::stt::stt_model_reset_dir,
             commands::stt::set_stt_language,
             commands::desktop::get_shortcuts,
+            commands::desktop::set_shortcut,
+            commands::desktop::reset_shortcut,
             commands::desktop::set_tray_labels,
+            commands::desktop::get_autostart,
+            commands::desktop::set_autostart,
+            commands::desktop::set_onboarding_done,
         ])
         .setup(|app| {
             window::prepare_app(app)?;
@@ -118,7 +131,7 @@ pub fn run() {
             // Ajustes persistidos (posición de la isla, ocultar de screen share…).
             let settings_path = app.path().app_config_dir()?.join("settings.json");
             let loaded = Settings::load(&settings_path);
-            let settings = loaded.for_startup();
+            let settings = loaded.clone().for_startup();
             if settings != loaded {
                 if let Err(error) = settings.save(&settings_path) {
                     tracing::warn!(%error, "no se pudo guardar el ajuste de arranque");
@@ -144,14 +157,18 @@ pub fn run() {
 
             // Transcripción local (Whisper): el modelo vive en la carpeta de datos de la app (se
             // descarga desde Ajustes) y se carga al empezar a escuchar.
-            let model_path = app.path().app_data_dir()?.join("models").join(MODEL_FILE);
-            let whisper = Arc::new(WhisperEngine::new(model_path.clone()));
+            let model_location = Arc::new(ModelLocation::new(
+                app.path().app_data_dir()?.join("models"),
+                MODEL_FILE,
+                settings.model_dir.clone(),
+            ));
+            let whisper = Arc::new(WhisperEngine::new(Arc::clone(&model_location)));
             whisper.set_language(settings.stt_language);
             let primer = Arc::clone(&whisper);
             std::thread::spawn(move || primer.prime_disk_cache());
             let stt: Arc<dyn SttEngine> = whisper;
             let models = Arc::new(ModelService::new(
-                model_path,
+                model_location,
                 small_model(),
                 Arc::new(HttpModelSource::small()),
                 Arc::clone(&events),
@@ -227,19 +244,21 @@ pub fn run() {
                     stt,
                     models,
                 },
-                settings,
+                settings.clone(),
                 settings_path,
             ));
             app.manage(tray::TrayState::default());
-            shortcuts::register(app.handle());
+            shortcuts::register(app.handle(), &settings.shortcuts);
 
             window::island_window::create(app.handle(), &settings)?;
             window::island_window::spawn_display_watcher(app.handle().clone());
 
-            // Solo en desarrollo: la ventana de ajustes se abre sola al arrancar. Se puede cerrar y
-            // volver a abrir con el engranaje de la isla.
-            #[cfg(debug_assertions)]
-            window::settings_window::open(app.handle(), settings.hide_from_screen_share)?;
+            // La ventana de ajustes se abre sola al arrancar en desarrollo, y en la primera vez (donde
+            // muestra la guía de primer arranque). Se puede cerrar y volver a abrir con el engranaje
+            // de la isla o desde la bandeja.
+            if cfg!(debug_assertions) || !settings.onboarding_done {
+                window::settings_window::open(app.handle(), settings.hide_from_screen_share)?;
+            }
 
             app.state::<AppState>()
                 .events

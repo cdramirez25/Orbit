@@ -6,6 +6,8 @@ export interface ShortcutInfo {
   action: UiAction;
   /** Combinación tal como la entiende Rust (`CommandOrControl+Shift+Space`). */
   keys: string;
+  /** La combinación por defecto de esta acción (para restablecerla). */
+  defaultKeys: string;
   /** `false` si otra app ya usa la combinación. */
   registered: boolean;
 }

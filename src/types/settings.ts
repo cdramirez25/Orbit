@@ -13,4 +13,6 @@ export interface IslandSettings {
   freeOrigin: Point | null;
   /** Idioma de la transcripción. */
   sttLanguage: SttLanguage;
+  /** ¿Ya terminó (o saltó) la guía de primer arranque? */
+  onboardingDone: boolean;
 }

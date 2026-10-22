@@ -42,6 +42,10 @@ rusqlite = { version = "0.40", features = ["bundled"] }
 tauri-plugin-global-shortcut = "2"
 # Verifica que el modelo de Whisper descargado es el esperado. MIT OR Apache-2.0.
 sha2 = "0.11"
+# Abrir Orbit al iniciar sesión (LaunchAgent en macOS, registro de inicio en Windows). MIT OR Apache-2.0.
+tauri-plugin-autostart = "2"
+# Selector nativo de carpeta para elegir dónde se guarda el modelo de voz. MIT OR Apache-2.0.
+tauri-plugin-dialog = "2"
 
 # Solo macOS: ventana convertida en NSPanel + detección del notch (window/platform/macos.rs) y
 # captura del audio del sistema con ScreenCaptureKit (audio/platform/macos_sck.rs). Whisper usa

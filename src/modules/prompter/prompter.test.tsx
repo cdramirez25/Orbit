@@ -101,13 +101,13 @@ describe('botón de grabar la pregunta', () => {
     expect(screen.getByRole('button', { name: 'Grabar audio' })).toBeInTheDocument();
   });
 
-  it('si no se oyó ninguna pregunta lo dice', async () => {
+  it('si no se escuchó nada lo dice', async () => {
     mocked.questionFinish.mockRejectedValue({ code: 'ai.noQuestion', message: 'x' });
     render(<Expanded />);
     await click('Grabar audio');
     await click('Terminar y responder');
 
-    expect(screen.getByRole('alert')).toHaveTextContent('No se oyó ninguna pregunta');
+    expect(screen.getByRole('alert')).toHaveTextContent('No se escuchó nada');
     expect(screen.getByRole('button', { name: 'Grabar audio' })).toBeInTheDocument();
   });
 

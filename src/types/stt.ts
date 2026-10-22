@@ -12,4 +12,8 @@ export interface ModelStatus {
   total: number;
   /** Código del último fallo de la descarga (`stt.model.*`); `null` si no hubo. */
   error: string | null;
+  /** Carpeta donde está (o estará) el modelo. */
+  dir: string;
+  /** ¿La eligió el usuario (y no es la de la app)? */
+  customDir: boolean;
 }
