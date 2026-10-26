@@ -33,6 +33,7 @@ export default defineConfig({
       input: {
         island: path.resolve(import.meta.dirname, 'island.html'),
         settings: path.resolve(import.meta.dirname, 'settings.html'),
+        wallpaper: path.resolve(import.meta.dirname, 'wallpaper.html'),
       },
     },
   },

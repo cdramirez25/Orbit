@@ -1,4 +1,5 @@
-import { invoke, isTauri } from '@tauri-apps/api/core';
+import { convertFileSrc, invoke, isTauri } from '@tauri-apps/api/core';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 
 import { translate } from '@/i18n/locale.store';
 import { emitLocal } from '@/ipc/events';
@@ -16,6 +17,7 @@ import type {
   KeepAwakeStatus,
   ModelEntry,
   ModelStatus,
+  PerformanceMode,
   NotchInfo,
   NowPlaying,
   PermissionStatus,
@@ -28,6 +30,8 @@ import type {
   SttLanguage,
   SttModel,
   UiAction,
+  WallpaperItem,
+  WallpaperStatus,
   WeatherReport,
 } from '@/types';
 
@@ -340,6 +344,41 @@ function refreshBrowserAwake(): void {
   emitLocal('awake:changed', browserAwake);
 }
 
+// Solo navegador: el fondo de pantalla simulado, con unas imágenes de muestra (dibujadas en el momento).
+function sampleWallpaper(color: string): string {
+  return (
+    'data:image/svg+xml;utf8,' +
+    encodeURIComponent(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${color}"/><stop offset="1" stop-color="#111827"/></linearGradient></defs><rect width="320" height="180" fill="url(#g)"/></svg>`,
+    )
+  );
+}
+const SAMPLE_WALLPAPERS: WallpaperItem[] = [
+  { file: 'atardecer.png', kind: 'image', size: 2_400_000, path: sampleWallpaper('#f97316') },
+  { file: 'bosque.jpg', kind: 'image', size: 1_800_000, path: sampleWallpaper('#22c55e') },
+  { file: 'olas.mp4', kind: 'video', size: 48_000_000, path: '/simulado/olas.mp4' },
+];
+let browserWallpaper: WallpaperStatus = {
+  enabled: false,
+  file: null,
+  kind: null,
+  path: null,
+  manualPause: false,
+  performance: 'any',
+  screenPaused: [],
+  missing: false,
+  folder: '/Users/usuario/Pictures/Orbit/Wallpapers',
+  error: null,
+};
+
+function setBrowserWallpaper(change: Partial<WallpaperStatus>): WallpaperStatus {
+  const next = { ...browserWallpaper, ...change };
+  next.screenPaused = next.enabled ? [false] : [];
+  browserWallpaper = next;
+  emitLocal('wallpaper:changed', next);
+  return next;
+}
+
 // Solo navegador: dos canciones de muestra para ver y probar los controles de música con `pnpm dev`.
 const SAMPLE_COVER = (from: string, to: string): string =>
   'data:image/svg+xml;utf8,' +
@@ -623,6 +662,65 @@ export const commands = {
   /** Abre la pantalla de privacidad del sistema donde se concede el permiso de la cámara. */
   openCameraSettings: (): Promise<void> =>
     isTauri() ? invoke<void>('open_camera_settings') : Promise.resolve(),
+
+  /** La dirección con la que esta ventana carga un archivo del disco (el protocolo de archivos de Tauri). */
+  fileUrl: (path: string): string => (isTauri() ? convertFileSrc(path) : path),
+
+  /** La etiqueta de esta ventana (`wallpaper-1`…); `null` fuera de Tauri. */
+  currentWindowLabel: (): string | null => (isTauri() ? getCurrentWindow().label : null),
+
+  /** Cómo está el fondo de pantalla: qué archivo, si se muestra, si está en pausa y su carpeta. */
+  wallpaperStatus: (): Promise<WallpaperStatus> =>
+    isTauri() ? invoke<WallpaperStatus>('wallpaper_status') : Promise.resolve(browserWallpaper),
+
+  /**
+   * Le pide a Rust que ponga a reproducir el video de esta ventana de fondo: macOS no deja que un
+   * video empiece solo dentro del webview, pero sí si lo lanza la propia app.
+   */
+  wallpaperPlay: (): Promise<void> =>
+    isTauri() ? invoke<void>('wallpaper_play') : Promise.resolve(),
+
+  /** Los archivos que hay en la carpeta de fondos. */
+  wallpaperList: (): Promise<WallpaperItem[]> =>
+    isTauri() ? invoke<WallpaperItem[]>('wallpaper_list') : Promise.resolve(SAMPLE_WALLPAPERS),
+
+  /** Elige un archivo de la carpeta como fondo y lo muestra. */
+  wallpaperSelect: (file: string): Promise<WallpaperStatus> => {
+    if (isTauri()) return invoke<WallpaperStatus>('wallpaper_select', { file });
+    const item = SAMPLE_WALLPAPERS.find((sample) => sample.file === file);
+    if (!item) return Promise.reject({ code: 'wallpaper.notFound', message: 'no está' });
+    return Promise.resolve(
+      setBrowserWallpaper({ enabled: true, file, kind: item.kind, path: item.path }),
+    );
+  },
+
+  /** Muestra u oculta el fondo (el archivo elegido se recuerda). */
+  wallpaperSetEnabled: (enabled: boolean): Promise<WallpaperStatus> =>
+    isTauri()
+      ? invoke<WallpaperStatus>('wallpaper_set_enabled', { enabled })
+      : Promise.resolve(setBrowserWallpaper({ enabled })),
+
+  /** Pausa o reanuda el fondo a mano. */
+  wallpaperSetPaused: (paused: boolean): Promise<WallpaperStatus> =>
+    isTauri()
+      ? invoke<WallpaperStatus>('wallpaper_set_paused', { paused })
+      : Promise.resolve(setBrowserWallpaper({ manualPause: paused })),
+
+  /** Elige cuándo se pausa solo para ahorrar recursos. */
+  wallpaperSetPerformance: (mode: PerformanceMode): Promise<WallpaperStatus> =>
+    isTauri()
+      ? invoke<WallpaperStatus>('wallpaper_set_performance', { mode })
+      : Promise.resolve(setBrowserWallpaper({ performance: mode })),
+
+  /** Abre la carpeta de fondos en el explorador de archivos. */
+  wallpaperOpenFolder: (): Promise<void> =>
+    isTauri() ? invoke<void>('wallpaper_open_folder') : Promise.resolve(),
+
+  /** Abre el selector de archivos (con ese título) y copia lo elegido a la carpeta de fondos. */
+  wallpaperAddFiles: (title: string): Promise<WallpaperItem[]> =>
+    isTauri()
+      ? invoke<WallpaperItem[]>('wallpaper_add_files', { title })
+      : Promise.resolve(SAMPLE_WALLPAPERS),
 
   /** El modo de pantalla encendida y si está manteniéndose ahora mismo. */
   keepAwakeStatus: (): Promise<KeepAwakeStatus> =>

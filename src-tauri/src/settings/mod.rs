@@ -12,6 +12,7 @@ use crate::events::UiAction;
 use crate::keep_awake::KeepAwakeSetting;
 use crate::stt::catalog::SttModel;
 use crate::stt::SttLanguage;
+use crate::wallpaper::WallpaperSettings;
 
 /// Dónde se coloca la isla en la pantalla.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -56,6 +57,8 @@ pub struct Settings {
     pub onboarding_done: bool,
     /// Modo de pantalla encendida (apagado, siempre, un tiempo o un horario diario).
     pub keep_awake: KeepAwakeSetting,
+    /// Fondo de pantalla animado: archivo elegido, pausa y modo rendimiento.
+    pub wallpaper: WallpaperSettings,
 }
 
 impl Default for Settings {
@@ -71,6 +74,7 @@ impl Default for Settings {
             model_dir: None,
             onboarding_done: false,
             keep_awake: KeepAwakeSetting::Off,
+            wallpaper: WallpaperSettings::default(),
         }
     }
 }
@@ -108,6 +112,7 @@ impl Settings {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::wallpaper::PerformanceMode;
 
     fn temp_path(name: &str) -> std::path::PathBuf {
         std::env::temp_dir().join(format!("orbit-test-{}-{name}.json", std::process::id()))
@@ -150,6 +155,12 @@ mod tests {
             keep_awake: KeepAwakeSetting::Schedule {
                 start: 840,
                 end: 1020,
+            },
+            wallpaper: WallpaperSettings {
+                enabled: true,
+                file: Some("mar.mp4".into()),
+                paused: true,
+                performance: PerformanceMode::Large,
             },
         };
         settings.save(&path).unwrap();
@@ -258,6 +269,8 @@ mod tests {
         assert!(json["modelDir"].is_null());
         assert_eq!(json["onboardingDone"], false);
         assert_eq!(json["keepAwake"], serde_json::json!({ "mode": "off" }));
+        assert_eq!(json["wallpaper"]["enabled"], false);
+        assert_eq!(json["wallpaper"]["performance"], "any");
         assert!(json["freeOrigin"].is_null());
     }
 }

@@ -12,6 +12,7 @@ use tauri::{AppHandle, Emitter};
 use crate::keep_awake::KeepAwakeStatus;
 use crate::media::NowPlaying;
 use crate::stt::model::ModelStatus;
+use crate::wallpaper::WallpaperStatus;
 
 // Las variantes sin emisor todavía se usan desde las Fases 2–4 (audio, STT, LLM).
 #[allow(dead_code)]
@@ -76,6 +77,8 @@ pub enum DomainEvent {
     UiAction(UiAction),
     /// Cambió el modo de pantalla encendida, o empezó o terminó (se acabó el tiempo, el horario…).
     KeepAwake(KeepAwakeStatus),
+    /// Cambió el fondo de pantalla: otro archivo, pausa, o empezó o terminó una pausa por rendimiento.
+    Wallpaper(WallpaperStatus),
     Error(OrbitError),
 }
 
@@ -96,6 +99,7 @@ impl DomainEvent {
             Self::ModelStatus(_) => "stt:model",
             Self::UiAction(_) => "ui:action",
             Self::KeepAwake(_) => "awake:changed",
+            Self::Wallpaper(_) => "wallpaper:changed",
             Self::Error(_) => "error",
         }
     }
@@ -115,6 +119,7 @@ impl DomainEvent {
             Self::ModelStatus(status) => json!(status),
             Self::UiAction(action) => json!(action),
             Self::KeepAwake(status) => json!(status),
+            Self::Wallpaper(status) => json!(status),
             Self::Error(error) => json!(error),
         }
     }

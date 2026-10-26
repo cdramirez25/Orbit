@@ -138,6 +138,7 @@ export const es = {
   // ── Barra de navegación de ajustes ──────────────────────────────────────
   'settings.nav.aria': 'Secciones de ajustes',
   'settings.nav.island': 'Isla',
+  'settings.nav.wallpaper': 'Fondo',
   'settings.nav.audio': 'Audio',
   'settings.nav.ai': 'IA',
   'settings.nav.general': 'General',
@@ -302,6 +303,42 @@ export const es = {
   'clipboard.ai.copy': 'Copiar resultado',
   'clipboard.ai.close': 'Cerrar resultado',
   'clipboard.ai.empty': 'La IA no devolvió nada.',
+
+  // ── Fondo de pantalla ───────────────────────────────────────────────────
+  'wallpaper.section.show': 'Fondo animado',
+  'wallpaper.section.library': 'Tus fondos',
+  'wallpaper.enable': 'Mostrar el fondo',
+  'wallpaper.enableAria': 'Mostrar el fondo de pantalla',
+  'wallpaper.status.off': 'Apagado',
+  'wallpaper.status.on': 'Activo',
+  'wallpaper.status.pausedManual': 'En pausa',
+  'wallpaper.status.pausedPerformance': 'En pausa por rendimiento',
+  'wallpaper.pause': 'Pausar',
+  'wallpaper.resume': 'Reanudar',
+  'wallpaper.performance.label': 'Modo rendimiento',
+  'wallpaper.performance.any': 'Pausar con cualquier ventana abierta',
+  'wallpaper.performance.large': 'Pausar con ventanas grandes o a pantalla completa',
+  'wallpaper.performance.off': 'Nunca pausar solo',
+  'wallpaper.performance.hint':
+    'El fondo se pausa solo para ahorrar batería y rendimiento, monitor por monitor, y se reanuda al cerrar la ventana.',
+  'wallpaper.silent': 'Los videos siempre van sin sonido.',
+  'wallpaper.use': 'Usar',
+  'wallpaper.selected': 'En uso',
+  'wallpaper.empty':
+    'Todavía no hay fondos. Pon imágenes (JPG, PNG, WebP) o videos (MP4, MOV, WebM) en la carpeta y pulsa Actualizar.',
+  'wallpaper.folder': 'Carpeta',
+  'wallpaper.openFolder': 'Abrir carpeta',
+  'wallpaper.add': 'Añadir archivos',
+  'wallpaper.addTitle': 'Elige imágenes o videos',
+  'wallpaper.refresh': 'Actualizar',
+  'wallpaper.hint':
+    'Pon tus imágenes y videos en esa carpeta y elígelos aquí. El fondo se dibuja detrás de los iconos y desaparece al cerrar Orbit.',
+  'wallpaper.missing': 'El fondo elegido ya no está en la carpeta.',
+  'wallpaper.error.notFound': 'Ese fondo ya no está en la carpeta.',
+  'wallpaper.error.surface': 'No se pudo mostrar el fondo en el escritorio.',
+  'wallpaper.error.copy': 'No se pudo copiar un archivo a la carpeta.',
+  'wallpaper.error.openFolder': 'No se pudo abrir la carpeta.',
+  'wallpaper.error.generic': 'No se pudo completar la operación con el fondo.',
 
   // ── Transcripción (la prueba del modelo de voz) ─────────────────────────
   'listen.module': 'Transcripción',

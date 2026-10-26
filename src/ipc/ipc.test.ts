@@ -315,3 +315,48 @@ describe('cámara en el navegador (simulado)', () => {
     await expect(commands.openCameraSettings()).resolves.toBeUndefined();
   });
 });
+
+describe('fondo de pantalla en el navegador (simulado)', () => {
+  it('empieza apagado y con tres fondos de muestra en la carpeta', async () => {
+    const status = await commands.wallpaperStatus();
+    expect(status).toMatchObject({ enabled: false, file: null, performance: 'any' });
+    const items = await commands.wallpaperList();
+    expect(items.map((item) => item.file)).toEqual(['atardecer.png', 'bosque.jpg', 'olas.mp4']);
+    expect(items.map((item) => item.kind)).toEqual(['image', 'image', 'video']);
+  });
+
+  it('elegir un fondo lo enciende y avisa; pausar y cambiar el modo también avisan', async () => {
+    const received: boolean[] = [];
+    const off = await onEvent('wallpaper:changed', (status) => received.push(status.manualPause));
+
+    const chosen = await commands.wallpaperSelect('olas.mp4');
+    expect(chosen).toMatchObject({ enabled: true, file: 'olas.mp4', kind: 'video' });
+    expect(chosen.screenPaused).toEqual([false]);
+
+    expect((await commands.wallpaperSetPaused(true)).manualPause).toBe(true);
+    expect((await commands.wallpaperSetPerformance('large')).performance).toBe('large');
+    expect((await commands.wallpaperSetEnabled(false)).screenPaused).toEqual([]);
+    expect(received).toEqual([false, true, true, true]);
+    off();
+  });
+
+  it('un archivo que no está en la carpeta se rechaza', async () => {
+    await expect(commands.wallpaperSelect('nada.png')).rejects.toMatchObject({
+      code: 'wallpaper.notFound',
+    });
+  });
+
+  it('abrir la carpeta y añadir archivos responden sin hacer nada de verdad', async () => {
+    await expect(commands.wallpaperOpenFolder()).resolves.toBeUndefined();
+    expect(await commands.wallpaperAddFiles('Elige')).toHaveLength(3);
+  });
+
+  it('fuera de Tauri la dirección de un archivo es la ruta tal cual y no hay etiqueta de ventana', () => {
+    expect(commands.fileUrl('/x/a.png')).toBe('/x/a.png');
+    expect(commands.currentWindowLabel()).toBeNull();
+  });
+
+  it('pedir reproducir el video no hace nada fuera de Tauri', async () => {
+    await expect(commands.wallpaperPlay()).resolves.toBeUndefined();
+  });
+});

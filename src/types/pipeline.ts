@@ -2,6 +2,7 @@ import type { KeepAwakeStatus } from './awake';
 import type { NowPlaying } from './media';
 import type { UiAction } from './shortcuts';
 import type { ModelStatus } from './stt';
+import type { WallpaperStatus } from './wallpaper';
 
 /**
  * Espejo exacto de `src-tauri/src/events.rs` (eventos de dominio → eventos de Tauri).
@@ -55,6 +56,8 @@ export interface PipelineEvents {
   'ui:action': UiAction;
   /** Cambió el modo de pantalla encendida, o empezó o terminó (se acabó el tiempo, el horario…). */
   'awake:changed': KeepAwakeStatus;
+  /** Cambió el fondo de pantalla: otro archivo, una pausa, o empezó o terminó una pausa por rendimiento. */
+  'wallpaper:changed': WallpaperStatus;
   error: OrbitError;
 }
 

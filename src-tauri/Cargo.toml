@@ -17,7 +17,7 @@ tauri-build = { version = "2.7", features = [] }
 [dependencies]
 # `macos-private-api` es necesario para ventanas transparentes en macOS (debe coincidir
 # con `app.macOSPrivateApi` en tauri.conf.json). Implica no publicar en la Mac App Store.
-tauri = { version = "2.12", features = ["macos-private-api", "tray-icon", "image-png"] }
+tauri = { version = "2.12", features = ["macos-private-api", "tray-icon", "image-png", "protocol-asset"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
@@ -61,13 +61,16 @@ objc2 = "0.6"
 objc2-foundation = "0.3"
 objc2-app-kit = "0.3"
 screencapturekit = "11" # MIT OR Apache-2.0
+# Lista de ventanas abiertas (fondo de pantalla en modo rendimiento). MIT OR Apache-2.0.
+core-graphics = "0.25"
+core-foundation = "0.10" # MIT OR Apache-2.0
 
 # Solo Windows: captura del audio de salida (WASAPI loopback) en audio/platform/windows_wasapi.rs y
 # detector de cambios del portapapeles en clipboard/platform/windows.rs y música (GSMTC) en
 # media/platform/windows.rs.
 [target.'cfg(target_os = "windows")'.dependencies]
 wasapi = "0.26" # MIT
-windows = { version = "0.62", features = ["Win32_System_DataExchange", "Win32_System_WinRT", "Media_Control", "Storage_Streams"] } # MIT OR Apache-2.0
+windows = { version = "0.62", features = ["Win32_System_DataExchange", "Win32_System_WinRT", "Media_Control", "Storage_Streams", "Win32_Foundation", "Win32_Graphics_Dwm", "Win32_Graphics_Gdi", "Win32_System_Threading", "Win32_UI_WindowsAndMessaging"] } # MIT OR Apache-2.0
 
 [lints.clippy]
 unwrap_used = "deny"

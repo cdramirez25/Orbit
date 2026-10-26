@@ -16,6 +16,7 @@ export type { KeepAwakeSetting, KeepAwakeStatus } from './awake';
 export type { CameraErrorKind, CameraStatus } from './camera';
 export type { ClipboardAiAction, ClipboardEntry, ClipboardKind } from './clipboard';
 export type { Locale } from './i18n';
+export type { PerformanceMode, WallpaperItem, WallpaperKind, WallpaperStatus } from './wallpaper';
 export type { OrbitModule } from './module';
 export type {
   LlmDelta,

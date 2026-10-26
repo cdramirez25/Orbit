@@ -20,6 +20,7 @@ mod settings;
 mod shortcuts;
 mod stt;
 mod tray;
+mod wallpaper;
 mod weather;
 mod window;
 
@@ -56,6 +57,8 @@ use crate::stt::model::{ModelService, ModelSpec};
 use crate::stt::model_source::HttpModelSource;
 use crate::stt::whisper_local::WhisperEngine;
 use crate::stt::SttEngine;
+use crate::wallpaper::surface::TauriSurface;
+use crate::wallpaper::WallpaperService;
 use crate::weather::ip_locator::IpLocator;
 use crate::weather::open_meteo::OpenMeteo;
 use crate::weather::WeatherService;
@@ -109,6 +112,15 @@ pub fn run() {
             commands::camera::copy_camera_photo,
             commands::camera::save_camera_photo,
             commands::camera::open_camera_settings,
+            commands::wallpaper::wallpaper_play,
+            commands::wallpaper::wallpaper_status,
+            commands::wallpaper::wallpaper_list,
+            commands::wallpaper::wallpaper_select,
+            commands::wallpaper::wallpaper_set_enabled,
+            commands::wallpaper::wallpaper_set_paused,
+            commands::wallpaper::wallpaper_set_performance,
+            commands::wallpaper::wallpaper_open_folder,
+            commands::wallpaper::wallpaper_add_files,
             commands::media::get_now_playing,
             commands::media::media_command,
             commands::media::media_seek,
@@ -260,6 +272,26 @@ pub fn run() {
             ));
             keep_awake::spawn_ticker(Arc::clone(&awake));
 
+            // Fondo de pantalla animado: la carpeta donde el usuario pone sus imágenes y videos se crea
+            // sola; lo que se eligió la última vez se retoma al abrir Orbit.
+            let wallpaper = Arc::new(WallpaperService::new(
+                app.path()
+                    .picture_dir()?
+                    .join("Orbit")
+                    .join("Wallpapers"),
+                Box::new(TauriSurface::new(app.handle().clone())),
+                Box::new(wallpaper::platform::SystemWindowWatcher::new(
+                    app.handle().clone(),
+                )),
+                Arc::clone(&events),
+                settings.wallpaper.clone(),
+            ));
+            wallpaper::spawn_ticker(Arc::clone(&wallpaper));
+            // Crear las ventanas le pide cosas al hilo principal: se hace desde otro, ya con la app
+            // en marcha.
+            let restoring = Arc::clone(&wallpaper);
+            std::thread::spawn(move || restoring.restore());
+
             app.manage(AppState::new(
                 events,
                 Services {
@@ -275,6 +307,7 @@ pub fn run() {
                     stt,
                     models,
                     awake,
+                    wallpaper,
                 },
                 settings.clone(),
                 settings_path,

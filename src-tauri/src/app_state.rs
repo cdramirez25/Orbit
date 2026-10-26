@@ -16,6 +16,7 @@ use crate::sessions::SessionService;
 use crate::settings::Settings;
 use crate::stt::model::ModelService;
 use crate::stt::SttEngine;
+use crate::wallpaper::WallpaperService;
 use crate::weather::WeatherService;
 
 pub struct AppState {
@@ -45,6 +46,8 @@ pub struct AppState {
     pub models: Arc<ModelService>,
     /// Mantiene la pantalla encendida según el modo elegido (módulo Pantalla encendida de la isla).
     pub awake: Arc<KeepAwakeService>,
+    /// El fondo de pantalla animado (imagen o video detrás de los iconos).
+    pub wallpaper: Arc<WallpaperService>,
     settings: RwLock<Settings>,
     settings_path: PathBuf,
 }
@@ -63,6 +66,7 @@ pub struct Services {
     pub stt: Arc<dyn SttEngine>,
     pub models: Arc<ModelService>,
     pub awake: Arc<KeepAwakeService>,
+    pub wallpaper: Arc<WallpaperService>,
 }
 
 impl AppState {
@@ -86,6 +90,7 @@ impl AppState {
             stt: services.stt,
             models: services.models,
             awake: services.awake,
+            wallpaper: services.wallpaper,
             settings: RwLock::new(settings),
             settings_path,
         }

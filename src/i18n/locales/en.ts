@@ -135,6 +135,7 @@ export const en: Record<MessageKey, string> = {
   // ── Settings navigation bar ─────────────────────────────────────────────
   'settings.nav.aria': 'Settings sections',
   'settings.nav.island': 'Island',
+  'settings.nav.wallpaper': 'Wallpaper',
   'settings.nav.audio': 'Audio',
   'settings.nav.ai': 'AI',
   'settings.nav.general': 'General',
@@ -299,6 +300,42 @@ export const en: Record<MessageKey, string> = {
   'clipboard.ai.copy': 'Copy result',
   'clipboard.ai.close': 'Close result',
   'clipboard.ai.empty': 'The AI returned nothing.',
+
+  // ── Wallpaper ───────────────────────────────────────────────────────────
+  'wallpaper.section.show': 'Animated wallpaper',
+  'wallpaper.section.library': 'Your wallpapers',
+  'wallpaper.enable': 'Show the wallpaper',
+  'wallpaper.enableAria': 'Show the desktop wallpaper',
+  'wallpaper.status.off': 'Off',
+  'wallpaper.status.on': 'Active',
+  'wallpaper.status.pausedManual': 'Paused',
+  'wallpaper.status.pausedPerformance': 'Paused for performance',
+  'wallpaper.pause': 'Pause',
+  'wallpaper.resume': 'Resume',
+  'wallpaper.performance.label': 'Performance mode',
+  'wallpaper.performance.any': 'Pause with any open window',
+  'wallpaper.performance.large': 'Pause with large or fullscreen windows',
+  'wallpaper.performance.off': 'Never pause by itself',
+  'wallpaper.performance.hint':
+    'The wallpaper pauses by itself to save battery and performance, monitor by monitor, and resumes when the window closes.',
+  'wallpaper.silent': 'Videos always play without sound.',
+  'wallpaper.use': 'Use',
+  'wallpaper.selected': 'In use',
+  'wallpaper.empty':
+    'No wallpapers yet. Put images (JPG, PNG, WebP) or videos (MP4, MOV, WebM) in the folder and press Refresh.',
+  'wallpaper.folder': 'Folder',
+  'wallpaper.openFolder': 'Open folder',
+  'wallpaper.add': 'Add files',
+  'wallpaper.addTitle': 'Choose images or videos',
+  'wallpaper.refresh': 'Refresh',
+  'wallpaper.hint':
+    'Put your images and videos in that folder and pick them here. The wallpaper is drawn behind the desktop icons and goes away when Orbit quits.',
+  'wallpaper.missing': 'The chosen wallpaper is no longer in the folder.',
+  'wallpaper.error.notFound': 'That wallpaper is no longer in the folder.',
+  'wallpaper.error.surface': 'Could not show the wallpaper on the desktop.',
+  'wallpaper.error.copy': 'Could not copy a file to the folder.',
+  'wallpaper.error.openFolder': 'Could not open the folder.',
+  'wallpaper.error.generic': 'The wallpaper operation could not be completed.',
 
   // ── Transcription (the voice model test) ────────────────────────────────
   'listen.module': 'Transcription',

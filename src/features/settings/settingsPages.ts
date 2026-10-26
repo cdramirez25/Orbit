@@ -1,6 +1,7 @@
 import {
   AudioLines,
   MessagesSquare,
+  Images,
   PanelTop,
   SlidersHorizontal,
   Sparkles,
@@ -9,7 +10,7 @@ import {
 
 import type { MessageKey } from '@/i18n/messages';
 
-export type SettingsPage = 'island' | 'sessions' | 'audio' | 'ai' | 'general';
+export type SettingsPage = 'island' | 'wallpaper' | 'sessions' | 'audio' | 'ai' | 'general';
 
 export const SETTINGS_PAGES: ReadonlyArray<{
   id: SettingsPage;
@@ -17,6 +18,7 @@ export const SETTINGS_PAGES: ReadonlyArray<{
   icon: LucideIcon;
 }> = [
   { id: 'island', label: 'settings.nav.island', icon: PanelTop },
+  { id: 'wallpaper', label: 'settings.nav.wallpaper', icon: Images },
   { id: 'sessions', label: 'settings.nav.sessions', icon: MessagesSquare },
   { id: 'audio', label: 'settings.nav.audio', icon: AudioLines },
   { id: 'ai', label: 'settings.nav.ai', icon: Sparkles },

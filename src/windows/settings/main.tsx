@@ -11,6 +11,7 @@ import { useModelStore } from '@/stores/model.store';
 import { useSessionStore } from '@/stores/session.store';
 import { useSettingsStore } from '@/stores/settings.store';
 import { useShortcutStore } from '@/stores/shortcuts.store';
+import { useWallpaperStore } from '@/stores/wallpaper.store';
 
 // Ventana de ajustes (por ahora, el panel de desarrollo). La isla vive en otra ventana: aquí solo
 // se escucha su estado y se le mandan órdenes.
@@ -30,6 +31,8 @@ void useSessionStore.getState().bind();
 // El modelo de transcripción (descargado o no, y el progreso de su descarga) y los atajos globales.
 void useModelStore.getState().bind();
 void useShortcutStore.getState().load();
+// El fondo de pantalla (qué archivo, y si se pausó solo por rendimiento).
+void useWallpaperStore.getState().bind();
 
 const root = document.getElementById('root');
 if (root) {

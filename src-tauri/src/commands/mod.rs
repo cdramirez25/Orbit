@@ -13,6 +13,7 @@ pub mod pipeline;
 pub mod sessions;
 pub mod settings_window;
 pub mod stt;
+pub mod wallpaper;
 pub mod weather;
 
 use serde::ser::SerializeStruct;
@@ -44,6 +45,8 @@ pub enum CommandError {
     KeepAwake(#[from] crate::keep_awake::KeepAwakeError),
     #[error("error de la cámara: {0}")]
     Camera(#[from] crate::camera::CameraError),
+    #[error("error del fondo de pantalla: {0}")]
+    Wallpaper(#[from] crate::wallpaper::WallpaperError),
 }
 
 impl CommandError {
@@ -62,6 +65,7 @@ impl CommandError {
             Self::Autostart(_) => "autostart.failed",
             Self::KeepAwake(error) => error.code(),
             Self::Camera(error) => error.code(),
+            Self::Wallpaper(error) => error.code(),
         }
     }
 }
@@ -108,6 +112,12 @@ mod tests {
     fn ai_errors_keep_their_stable_code() {
         let error = CommandError::from(crate::ai::AiError::Unauthorized);
         assert_eq!(error.code(), "ai.unauthorized");
+    }
+
+    #[test]
+    fn wallpaper_errors_keep_their_stable_code() {
+        let error = CommandError::from(crate::wallpaper::WallpaperError::NotFound);
+        assert_eq!(error.code(), "wallpaper.notFound");
     }
 
     #[test]

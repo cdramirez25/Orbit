@@ -11,7 +11,7 @@
 </div>
 
 > **Status:** early development (v0.1.0). The island already shows the weather, a clipboard history, the music
-> that is playing, a keep-the-screen-on control and a camera mirror; it transcribes the system audio on your computer (local Whisper) and answers questions with the AI
+> that is playing, a keep-the-screen-on control and a camera mirror, and it can draw an animated wallpaper behind your desktop icons; it transcribes the system audio on your computer (local Whisper) and answers questions with the AI
 > you choose (Claude, ChatGPT, Groq, Gemini, Ollama or Docker), with a context and history per session. Global shortcuts and a
 > tray icon are in. Packaging is not ready yet. See the [roadmap](#roadmap).
 
@@ -35,6 +35,7 @@ Today it comes with four modules:
 - **Clipboard:** the history of what you copy during the session, with translate, summarize and explain by the AI you chose.
 - **Screen on:** keeps your screen from turning off for a set time, on a daily schedule or until you turn it off.
 - **Transcription:** its own card that listens to the system audio and shows what the voice model understands, with no AI in between: the way to test a model before choosing it.
+- **Wallpaper:** an image or a video as your desktop background, like Wallpaper Engine: pause it, always without sound, and a performance mode that pauses it by itself when windows are open.
 - **Camera:** a mirror to check yourself before a call and take a quick photo (copied to the clipboard, and saved to Pictures if you want).
 
 Around them there is a settings window, a tray icon and global keyboard shortcuts.
@@ -53,6 +54,7 @@ Around them there is a settings window, a tray icon and global keyboard shortcut
 | Music         | What is playing on your computer (Spotify, Music, YouTube or any other tab in your browser) with its cover, a progress bar you can click or drag to seek, and previous, play/pause and next buttons. On macOS it uses a private system API, so it may stop working after an update.                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | Weather       | Current weather and today's forecast for your area, always one click away in the island (Open-Meteo, no API key).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | Clipboard     | History of the text and images you copy during the session, with copy again, delete one and clear all. Each text can be translated, summarized or explained by the AI you chose, and the result can be copied. It lives in memory only.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Wallpaper     | Static images (JPG, PNG, WebP) and video wallpapers (MP4, MOV, WebM) drawn on every monitor behind the desktop icons, on macOS and Windows 10/11. Orbit creates the folder `Pictures/Orbit/Wallpapers`: drop your files there (or use Add files) and pick one in Settings → Wallpaper. Pause by hand, videos never play sound, and the performance mode pauses each monitor by itself when any window is open on it, or only when a large or fullscreen one is, and resumes when it closes. Nothing in the system is changed: when Orbit quits, your normal wallpaper is back.                                                                                                                                                                       |
 | Camera        | A square preview of your camera, as a mirror, and a photo button: the photo goes to the clipboard and, if you choose, to `Pictures/Orbit`. The camera is off until you turn it on and turns off by itself when you close the card, switch module or hide the island. Nothing is saved or sent unless you choose to.                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | Screen on     | Keeps the screen from turning off or dimming: for a time you pick (30 min to 12 h), on a daily schedule (for example 2 pm to 5 pm) or always, until you turn it off. It comes back on by itself after a restart and returns to normal if Orbit quits.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | UI            | Accessible primitives (`Button`, `IconButton`, `Toggle`, `Tab`, `Card`) with a global `cursor: pointer`. All icons come from [Lucide](https://lucide.dev); no emojis.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
@@ -179,7 +181,7 @@ Orbit/
 ├── src/                 # Frontend (React + TSX)
 │   ├── windows/         #   entry points, one per window (island/ and settings/)
 │   ├── components/      #   ui/ (primitives) and island/ (Island, NotchShape, IslandContent, ModuleSwitcher)
-│   ├── modules/         #   island modules (plugins): registry.ts, prompter/ (AI), weather/, clipboard/, music/, awake/, camera/ and demo/
+│   ├── modules/         #   island modules (plugins): registry.ts, prompter/ (AI), weather/, clipboard/, music/, awake/, camera/, wallpaper/ and demo/
 │   ├── features/        #   settings window content (settings/)
 │   ├── stores/          #   global state with Zustand (island, settings, audio, transcript, answer, sessions, model…)
 │   ├── hooks/           #   useHitTest, useIslandDrag, useReducedMotion, useNow…
@@ -201,7 +203,7 @@ Orbit/
         ├── lib.rs       #   composition root: adapters are chosen here
         ├── app_state.rs #   shared state
         ├── events.rs    #   domain events and the EventSink port
-        ├── commands/    #   thin Tauri commands: ai, audio, awake, camera, clipboard, desktop, island, media, pipeline, sessions, stt and weather
+        ├── commands/    #   thin Tauri commands: ai, audio, awake, camera, clipboard, desktop, wallpaper, island, media, pipeline, sessions, stt and weather
         ├── shortcuts.rs #   configurable global shortcuts (input adapter)
         ├── tray.rs      #   menu bar / notification area icon (input adapter)
         ├── db/          #   local SQLite database (migrations)
@@ -216,6 +218,7 @@ Orbit/
         ├── clipboard/   #   clipboard port, in-memory history, monitor and system adapter
         ├── keep_awake/  #   keep-the-screen-on modes and schedule, clock and system adapter
         ├── camera/      #   photo validation and saving, and the system privacy settings
+        ├── wallpaper/   #   wallpaper folder, pause rules, windows behind the icons and open-window detector (platform/)
         ├── media/       #   music port, now-playing monitor and platform/ adapters (macOS: perl + MediaRemote; Windows: GSMTC)
         └── settings/    #   persisted configuration
 ```
@@ -251,7 +254,7 @@ roadmap is organised by goals instead of by the original phases (the technical p
 | Goal                        | What it covers                                                                                                                                                                                                                                                                          | Status      |
 | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
 | The island platform         | Window that never steals focus, state machine, animations, notch, click-through, module registry with priorities, Spanish and English, accessible UI primitives, hide from screen share, works on any display even when its scale differs from the main one                             | Done        |
-| Resident modules            | Weather; clipboard history with AI actions (translate, summarize, explain); music with seek; live transcription card to test the voice model; keep the screen on for a time, on a daily schedule or always; camera mirror with photo                                                    | Done        |
+| Resident modules            | Weather; clipboard history with AI actions (translate, summarize, explain); music with seek; live transcription card to test the voice model; animated wallpaper with a performance mode; keep the screen on for a time, on a daily schedule or always; camera mirror with photo        | Done        |
 | Listen and transcribe       | System audio capture (macOS and Windows), local Whisper with live text, choose, download and delete the voice model (Base, Small, Medium or Turbo) from Settings, transcription language. Planned: more languages                                                                       | Done        |
 | AI and Prompter             | Claude, ChatGPT, Groq, Gemini, Ollama and Docker; the model is chosen from the list each provider offers; sessions with their own prompt, history and AI; recorded or typed questions; markdown answers; keys in a local SQLite file                                                    | Done        |
 | Everyday desktop experience | Done: settings window, tray icon, configurable global shortcuts, launch at login, guided first run, choose the voice model folder                                                                                                                                                       | Done        |
