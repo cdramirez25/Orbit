@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { commands } from '@/ipc/commands';
 import { useWallpaperStore } from '@/stores/wallpaper.store';
-import type { WallpaperItem, WallpaperStatus } from '@/types';
+import type { WallpaperItem, WallpaperScreen, WallpaperStatus } from '@/types';
 
 const handlers = vi.hoisted(() => new Map<string, (payload: unknown) => void>());
 
@@ -18,6 +18,9 @@ vi.mock('@/ipc/commands', () => ({
     wallpaperStatus: vi.fn(),
     wallpaperList: vi.fn(),
     wallpaperSelect: vi.fn(),
+    wallpaperSetSound: vi.fn(),
+    wallpaperSetVolume: vi.fn(),
+    wallpaperSetPerScreen: vi.fn(),
     wallpaperSetEnabled: vi.fn(),
     wallpaperSetPaused: vi.fn(),
     wallpaperSetPerformance: vi.fn(),
@@ -31,15 +34,29 @@ vi.mock('@/ipc/commands', () => ({
 
 const mocked = vi.mocked(commands);
 
-const status = (overrides: Partial<WallpaperStatus> = {}): WallpaperStatus => ({
-  enabled: true,
+const screen = (overrides: Partial<WallpaperScreen> = {}): WallpaperScreen => ({
+  key: 'A',
+  label: null,
   file: 'mar.mp4',
   kind: 'video',
   path: '/x/mar.mp4',
+  sound: false,
+  hasAudio: true,
+  audible: false,
+  missing: false,
+  paused: false,
+  ...overrides,
+});
+
+const status = (overrides: Partial<WallpaperStatus> = {}): WallpaperStatus => ({
+  enabled: true,
+  file: 'mar.mp4',
+  sound: false,
+  volume: 60,
   manualPause: false,
   performance: 'any',
-  screenPaused: [false],
-  missing: false,
+  perScreen: false,
+  screens: [screen()],
   folder: '/x',
   error: null,
   ...overrides,
@@ -50,6 +67,7 @@ const item = (file: string, kind: WallpaperItem['kind'] = 'image'): WallpaperIte
   kind,
   size: 10,
   path: `/x/${file}`,
+  hasAudio: kind === 'video' ? true : null,
 });
 
 beforeEach(() => {
@@ -76,11 +94,36 @@ describe('fondo de pantalla', () => {
     expect(useWallpaperStore.getState().url).toBe('asset:///x/mar.mp4');
 
     // Rust avisa de una pausa por rendimiento y de que se quitó el fondo.
-    handlers.get('wallpaper:changed')?.(status({ screenPaused: [true] }));
-    expect(useWallpaperStore.getState().status?.screenPaused).toEqual([true]);
+    handlers.get('wallpaper:changed')?.(status({ screens: [screen({ paused: true })] }));
+    expect(useWallpaperStore.getState().status?.screens[0]?.paused).toBe(true);
 
-    handlers.get('wallpaper:changed')?.(status({ enabled: false, file: null, path: null }));
+    handlers.get('wallpaper:changed')?.(
+      status({
+        enabled: false,
+        file: null,
+        screens: [screen({ file: null, kind: null, path: null })],
+      }),
+    );
     expect(useWallpaperStore.getState().url).toBeNull();
+  });
+
+  it('cada ventana de fondo carga el archivo de su propio monitor', async () => {
+    const split = status({
+      perScreen: true,
+      screens: [
+        screen({ key: 'A', path: '/x/mar.mp4' }),
+        screen({ key: 'B', file: 'montana.png', kind: 'image', path: '/x/montana.png' }),
+      ],
+    });
+    mocked.wallpaperStatus.mockResolvedValue(split);
+
+    mocked.currentWindowLabel.mockReturnValue('wallpaper-0');
+    await useWallpaperStore.getState().bind();
+    expect(useWallpaperStore.getState().url).toBe('asset:///x/mar.mp4');
+
+    mocked.currentWindowLabel.mockReturnValue('wallpaper-1');
+    await useWallpaperStore.getState().bind();
+    expect(useWallpaperStore.getState().url).toBe('asset:///x/montana.png');
   });
 
   it('una ventana de fondo sabe qué monitor es por su etiqueta', async () => {
@@ -114,9 +157,11 @@ describe('fondo de pantalla', () => {
   });
 
   it('elegir un fondo, pausarlo, cambiar el modo y apagarlo guardan lo que devuelve Rust', async () => {
-    mocked.wallpaperSelect.mockResolvedValue(status({ file: 'a.png', kind: 'image' }));
+    mocked.wallpaperSelect.mockResolvedValue(
+      status({ file: 'a.png', screens: [screen({ file: 'a.png', kind: 'image' })] }),
+    );
     await useWallpaperStore.getState().select('a.png');
-    expect(mocked.wallpaperSelect).toHaveBeenCalledWith('a.png');
+    expect(mocked.wallpaperSelect).toHaveBeenCalledWith('a.png', null);
     expect(useWallpaperStore.getState().status?.file).toBe('a.png');
 
     mocked.wallpaperSetPaused.mockResolvedValue(status({ manualPause: true }));
@@ -132,6 +177,29 @@ describe('fondo de pantalla', () => {
     mocked.wallpaperSetEnabled.mockResolvedValue(status({ enabled: false }));
     await useWallpaperStore.getState().setEnabled(false);
     expect(useWallpaperStore.getState().status?.enabled).toBe(false);
+  });
+
+  it('elegir un fondo para un monitor, el sonido, el volumen y el reparto van a Rust', async () => {
+    mocked.wallpaperSelect.mockResolvedValue(status({ perScreen: true }));
+    await useWallpaperStore.getState().select('a.png', 'B');
+    expect(mocked.wallpaperSelect).toHaveBeenCalledWith('a.png', 'B');
+
+    mocked.wallpaperSetSound.mockResolvedValue(status({ sound: true }));
+    await useWallpaperStore.getState().setSound(true);
+    expect(mocked.wallpaperSetSound).toHaveBeenLastCalledWith(true, null);
+    expect(useWallpaperStore.getState().status?.sound).toBe(true);
+    await useWallpaperStore.getState().setSound(false, 'B');
+    expect(mocked.wallpaperSetSound).toHaveBeenLastCalledWith(false, 'B');
+
+    mocked.wallpaperSetVolume.mockResolvedValue(status({ volume: 25 }));
+    await useWallpaperStore.getState().setVolume(25);
+    expect(mocked.wallpaperSetVolume).toHaveBeenCalledWith(25);
+    expect(useWallpaperStore.getState().status?.volume).toBe(25);
+
+    mocked.wallpaperSetPerScreen.mockResolvedValue(status({ perScreen: true }));
+    await useWallpaperStore.getState().setPerScreen(true);
+    expect(mocked.wallpaperSetPerScreen).toHaveBeenCalledWith(true);
+    expect(useWallpaperStore.getState().status?.perScreen).toBe(true);
   });
 
   it('un fallo guarda su código, no cambia el estado y la siguiente orden lo limpia', async () => {

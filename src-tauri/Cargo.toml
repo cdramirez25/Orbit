@@ -70,7 +70,9 @@ core-foundation = "0.10" # MIT OR Apache-2.0
 # media/platform/windows.rs.
 [target.'cfg(target_os = "windows")'.dependencies]
 wasapi = "0.26" # MIT
-windows = { version = "0.62", features = ["Win32_System_DataExchange", "Win32_System_WinRT", "Media_Control", "Storage_Streams", "Win32_Foundation", "Win32_Graphics_Dwm", "Win32_Graphics_Gdi", "Win32_System_Threading", "Win32_UI_WindowsAndMessaging"] } # MIT OR Apache-2.0
+# La macro `#[interface]` (IPolicyConfig, salida de sonido) genera código que nombra esta crate. MIT OR Apache-2.0.
+windows-core = "0.62"
+windows = { version = "0.62", features = ["Win32_System_DataExchange", "Win32_System_WinRT", "Media_Control", "Storage_Streams", "Win32_Foundation", "Win32_Graphics_Dwm", "Win32_Graphics_Gdi", "Win32_Media_Audio", "Win32_System_Com", "Win32_System_Threading", "Win32_UI_WindowsAndMessaging"] } # MIT OR Apache-2.0
 
 [lints.clippy]
 unwrap_used = "deny"

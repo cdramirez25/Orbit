@@ -27,8 +27,17 @@ use crate::window::island_window::Rect;
 /// Cuánto se espera a que el hilo principal haga algo que se le pidió.
 const MAIN_THREAD_TIMEOUT: Duration = Duration::from_secs(5);
 
+/// Un monitor: su nombre técnico (si el sistema lo da), el nombre para mostrarlo (si lo hay) y dónde
+/// está, en las unidades del sistema.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ScreenFrame {
+    pub name: Option<String>,
+    pub label: Option<String>,
+    pub rect: Rect,
+}
+
 /// Los monitores, en las unidades del sistema.
-pub fn screens(app: &AppHandle) -> Result<Vec<Rect>, WallpaperError> {
+pub fn screens(app: &AppHandle) -> Result<Vec<ScreenFrame>, WallpaperError> {
     current::screens(app).map_err(|error| WallpaperError::Surface(error.to_string()))
 }
 
@@ -96,7 +105,7 @@ impl WindowWatcher for SystemWindowWatcher {
         let windows = current::open_windows(&self.app)?;
         Ok(screens
             .iter()
-            .map(|screen| cover_of(*screen, &windows))
+            .map(|screen| cover_of(screen.rect, &windows))
             .collect())
     }
 }

@@ -22,7 +22,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
     SWP_NOACTIVATE, SWP_NOZORDER, SWP_SHOWWINDOW, WS_CHILD, WS_EX_TOOLWINDOW, WS_VISIBLE,
 };
 
-use super::on_main_thread;
+use super::{on_main_thread, ScreenFrame};
 use crate::wallpaper::WallpaperError;
 use crate::window::island_window::Rect;
 
@@ -41,18 +41,23 @@ const SHELL_CLASSES: [&str; 6] = [
 ];
 
 /// Los monitores en píxeles físicos (el mismo espacio de `GetWindowRect`).
-pub fn screens(app: &AppHandle) -> tauri::Result<Vec<Rect>> {
+pub fn screens(app: &AppHandle) -> tauri::Result<Vec<ScreenFrame>> {
     Ok(app
         .available_monitors()?
         .iter()
         .map(|monitor| {
             let position = monitor.position();
             let size = monitor.size();
-            Rect {
-                x: f64::from(position.x),
-                y: f64::from(position.y),
-                width: f64::from(size.width),
-                height: f64::from(size.height),
+            ScreenFrame {
+                name: monitor.name().cloned(),
+                // Windows no da un nombre amable sin leer el EDID: la interfaz numera los monitores.
+                label: None,
+                rect: Rect {
+                    x: f64::from(position.x),
+                    y: f64::from(position.y),
+                    width: f64::from(size.width),
+                    height: f64::from(size.height),
+                },
             }
         })
         .collect())

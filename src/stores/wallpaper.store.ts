@@ -3,7 +3,7 @@ import { create } from 'zustand';
 import { commands } from '@/ipc/commands';
 import { commandErrorCode } from '@/ipc/errors';
 import { onEvent } from '@/ipc/events';
-import { screenIndexOf } from '@/lib/wallpaper';
+import { screenIndexOf, screenOf } from '@/lib/wallpaper';
 import type { PerformanceMode, WallpaperItem, WallpaperStatus } from '@/types';
 
 /** Un archivo de la carpeta con la dirección para cargarlo en esta ventana. */
@@ -14,7 +14,7 @@ export interface WallpaperEntry extends WallpaperItem {
 interface WallpaperStore {
   /** Cómo está el fondo; `null` = todavía no se ha consultado. */
   status: WallpaperStatus | null;
-  /** Dirección para cargar el archivo elegido; `null` si no hay. */
+  /** Dirección para cargar el archivo que le toca a esta ventana; `null` si no hay. */
   url: string | null;
   /** Qué monitor es esta ventana (solo en las ventanas de fondo; 0 en las demás). */
   screen: number;
@@ -26,8 +26,14 @@ interface WallpaperStore {
   adding: boolean;
   /** Vuelve a leer la carpeta (por si el usuario puso o quitó archivos). */
   refresh: () => Promise<void>;
-  /** Elige un archivo como fondo y lo muestra. */
-  select: (file: string) => Promise<void>;
+  /** Elige un archivo como fondo y lo muestra: en todos los monitores o solo en `screen`. */
+  select: (file: string, screen?: string | null) => Promise<void>;
+  /** Activa o quita el sonido de los videos: en todos los monitores o solo en `screen`. */
+  setSound: (sound: boolean, screen?: string | null) => Promise<void>;
+  /** Volumen de los videos con sonido, de 0 a 100. */
+  setVolume: (volume: number) => Promise<void>;
+  /** El mismo fondo en todos los monitores (`false`) o uno distinto en cada uno (`true`). */
+  setPerScreen: (perScreen: boolean) => Promise<void>;
   setEnabled: (enabled: boolean) => Promise<void>;
   setPaused: (paused: boolean) => Promise<void>;
   setPerformance: (mode: PerformanceMode) => Promise<void>;
@@ -43,9 +49,12 @@ interface WallpaperStore {
 const entriesOf = (items: WallpaperItem[]): WallpaperEntry[] =>
   items.map((item) => ({ ...item, url: commands.fileUrl(item.path) }));
 
-export const useWallpaperStore = create<WallpaperStore>((set) => {
-  const apply = (status: WallpaperStatus) =>
-    set({ status, url: status.path ? commands.fileUrl(status.path) : null });
+export const useWallpaperStore = create<WallpaperStore>((set, get) => {
+  /** Guarda el estado y la dirección del archivo que le toca a esta ventana (su monitor). */
+  const apply = (status: WallpaperStatus) => {
+    const path = screenOf(status, get().screen)?.path ?? null;
+    set({ status, url: path ? commands.fileUrl(path) : null });
+  };
 
   /** Corre una orden que devuelve el estado nuevo; si falla, guarda su código. */
   const run = async (order: () => Promise<WallpaperStatus>) => {
@@ -73,7 +82,10 @@ export const useWallpaperStore = create<WallpaperStore>((set) => {
       }
     },
 
-    select: (file) => run(() => commands.wallpaperSelect(file)),
+    select: (file, screen = null) => run(() => commands.wallpaperSelect(file, screen)),
+    setSound: (sound, screen = null) => run(() => commands.wallpaperSetSound(sound, screen)),
+    setVolume: (volume) => run(() => commands.wallpaperSetVolume(volume)),
+    setPerScreen: (perScreen) => run(() => commands.wallpaperSetPerScreen(perScreen)),
     setEnabled: (enabled) => run(() => commands.wallpaperSetEnabled(enabled)),
     setPaused: (paused) => run(() => commands.wallpaperSetPaused(paused)),
     setPerformance: (mode) => run(() => commands.wallpaperSetPerformance(mode)),

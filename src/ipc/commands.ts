@@ -28,9 +28,11 @@ import type {
   SessionUpdate,
   ShortcutInfo,
   SttLanguage,
+  SoundOutputDevice,
   SttModel,
   UiAction,
   WallpaperItem,
+  WallpaperScreen,
   WallpaperStatus,
   WeatherReport,
 } from '@/types';
@@ -354,30 +356,105 @@ function sampleWallpaper(color: string): string {
   );
 }
 const SAMPLE_WALLPAPERS: WallpaperItem[] = [
-  { file: 'atardecer.png', kind: 'image', size: 2_400_000, path: sampleWallpaper('#f97316') },
-  { file: 'bosque.jpg', kind: 'image', size: 1_800_000, path: sampleWallpaper('#22c55e') },
-  { file: 'olas.mp4', kind: 'video', size: 48_000_000, path: '/simulado/olas.mp4' },
+  {
+    file: 'atardecer.png',
+    kind: 'image',
+    size: 2_400_000,
+    path: sampleWallpaper('#f97316'),
+    hasAudio: null,
+  },
+  {
+    file: 'bosque.jpg',
+    kind: 'image',
+    size: 1_800_000,
+    path: sampleWallpaper('#22c55e'),
+    hasAudio: null,
+  },
+  { file: 'olas.mp4', kind: 'video', size: 48_000_000, path: '/simulado/olas.mp4', hasAudio: true },
+  {
+    file: 'lluvia.mp4',
+    kind: 'video',
+    size: 31_000_000,
+    path: '/simulado/lluvia.mp4',
+    hasAudio: false,
+  },
 ];
-let browserWallpaper: WallpaperStatus = {
+// Dos monitores de muestra, para ver y probar la elección de fondo por monitor con `pnpm dev`.
+const SAMPLE_SCREENS = ['Pantalla integrada', 'Monitor externo'];
+
+interface BrowserWallpaper {
+  enabled: boolean;
+  file: string | null;
+  sound: boolean;
+  volume: number;
+  manualPause: boolean;
+  performance: PerformanceMode;
+  perScreen: boolean;
+  choices: Record<string, { file?: string; sound?: boolean }>;
+}
+let browserWallpaper: BrowserWallpaper = {
   enabled: false,
   file: null,
-  kind: null,
-  path: null,
+  sound: false,
+  volume: 60,
   manualPause: false,
   performance: 'any',
-  screenPaused: [],
-  missing: false,
-  folder: '/Users/usuario/Pictures/Orbit/Wallpapers',
-  error: null,
+  perScreen: false,
+  choices: {},
 };
 
-function setBrowserWallpaper(change: Partial<WallpaperStatus>): WallpaperStatus {
-  const next = { ...browserWallpaper, ...change };
-  next.screenPaused = next.enabled ? [false] : [];
-  browserWallpaper = next;
+/** Lo que Rust calcularía con lo elegido: el archivo, el sonido y si suena de verdad en cada monitor. */
+function browserWallpaperStatus(): WallpaperStatus {
+  const state = browserWallpaper;
+  const sounding = new Set<string>();
+  const screens: WallpaperScreen[] = SAMPLE_SCREENS.map((key) => {
+    const own = state.perScreen ? state.choices[key] : undefined;
+    const file = own?.file ?? state.file;
+    const sound = own?.sound ?? state.sound;
+    const item = SAMPLE_WALLPAPERS.find((sample) => sample.file === file);
+    const wanted = sound && item?.kind === 'video' && item.hasAudio !== false;
+    const audible = wanted && !sounding.has(item.file);
+    if (audible) sounding.add(item.file);
+    return {
+      key,
+      label: key,
+      file,
+      kind: item?.kind ?? null,
+      path: item?.path ?? null,
+      sound,
+      hasAudio: item?.hasAudio ?? null,
+      audible,
+      missing: file !== null && !item,
+      paused: false,
+    };
+  });
+  return {
+    enabled: state.enabled,
+    file: state.file,
+    sound: state.sound,
+    volume: state.volume,
+    manualPause: state.manualPause,
+    performance: state.performance,
+    perScreen: state.perScreen,
+    screens,
+    folder: '/Users/usuario/Pictures/Orbit/Wallpapers',
+    error: null,
+  };
+}
+
+function setBrowserWallpaper(change: Partial<BrowserWallpaper>): WallpaperStatus {
+  browserWallpaper = { ...browserWallpaper, ...change };
+  const next = browserWallpaperStatus();
   emitLocal('wallpaper:changed', next);
   return next;
 }
+
+// Solo navegador: tres salidas de sonido de muestra, para ver y probar el selector con `pnpm dev`.
+let browserOutputs: SoundOutputDevice[] = [
+  { id: 'altavoces', name: 'Altavoces del equipo', isDefault: true },
+  { id: 'audifonos', name: 'Audífonos', isDefault: false },
+  { id: 'monitor', name: 'Monitor externo', isDefault: false },
+];
 
 // Solo navegador: dos canciones de muestra para ver y probar los controles de música con `pnpm dev`.
 const SAMPLE_COVER = (from: string, to: string): string =>
@@ -671,7 +748,9 @@ export const commands = {
 
   /** Cómo está el fondo de pantalla: qué archivo, si se muestra, si está en pausa y su carpeta. */
   wallpaperStatus: (): Promise<WallpaperStatus> =>
-    isTauri() ? invoke<WallpaperStatus>('wallpaper_status') : Promise.resolve(browserWallpaper),
+    isTauri()
+      ? invoke<WallpaperStatus>('wallpaper_status')
+      : Promise.resolve(browserWallpaperStatus()),
 
   /**
    * Le pide a Rust que ponga a reproducir el video de esta ventana de fondo: macOS no deja que un
@@ -684,15 +763,50 @@ export const commands = {
   wallpaperList: (): Promise<WallpaperItem[]> =>
     isTauri() ? invoke<WallpaperItem[]>('wallpaper_list') : Promise.resolve(SAMPLE_WALLPAPERS),
 
-  /** Elige un archivo de la carpeta como fondo y lo muestra. */
-  wallpaperSelect: (file: string): Promise<WallpaperStatus> => {
-    if (isTauri()) return invoke<WallpaperStatus>('wallpaper_select', { file });
-    const item = SAMPLE_WALLPAPERS.find((sample) => sample.file === file);
-    if (!item) return Promise.reject({ code: 'wallpaper.notFound', message: 'no está' });
-    return Promise.resolve(
-      setBrowserWallpaper({ enabled: true, file, kind: item.kind, path: item.path }),
-    );
+  /**
+   * Elige un archivo de la carpeta como fondo y lo muestra: en todos los monitores o, si cada uno
+   * tiene el suyo y se indica cuál (`screen`), solo en ese.
+   */
+  wallpaperSelect: (file: string, screen: string | null = null): Promise<WallpaperStatus> => {
+    if (isTauri()) return invoke<WallpaperStatus>('wallpaper_select', { file, screen });
+    if (!SAMPLE_WALLPAPERS.some((sample) => sample.file === file)) {
+      return Promise.reject({ code: 'wallpaper.notFound', message: 'no está' });
+    }
+    const { perScreen, choices } = browserWallpaper;
+    if (perScreen && screen) {
+      return Promise.resolve(
+        setBrowserWallpaper({
+          enabled: true,
+          choices: { ...choices, [screen]: { ...choices[screen], file } },
+        }),
+      );
+    }
+    return Promise.resolve(setBrowserWallpaper({ enabled: true, file }));
   },
+
+  /** Activa o quita el sonido de los videos (solo suenan si traen audio), en todos o en un monitor. */
+  wallpaperSetSound: (sound: boolean, screen: string | null = null): Promise<WallpaperStatus> => {
+    if (isTauri()) return invoke<WallpaperStatus>('wallpaper_set_sound', { sound, screen });
+    const { perScreen, choices } = browserWallpaper;
+    if (perScreen && screen) {
+      return Promise.resolve(
+        setBrowserWallpaper({ choices: { ...choices, [screen]: { ...choices[screen], sound } } }),
+      );
+    }
+    return Promise.resolve(setBrowserWallpaper({ sound }));
+  },
+
+  /** Cambia el volumen de los videos con sonido (de 0 a 100). */
+  wallpaperSetVolume: (volume: number): Promise<WallpaperStatus> =>
+    isTauri()
+      ? invoke<WallpaperStatus>('wallpaper_set_volume', { volume })
+      : Promise.resolve(setBrowserWallpaper({ volume: Math.min(100, Math.max(0, volume)) })),
+
+  /** Elige si todos los monitores llevan el mismo fondo o cada uno el suyo. */
+  wallpaperSetPerScreen: (perScreen: boolean): Promise<WallpaperStatus> =>
+    isTauri()
+      ? invoke<WallpaperStatus>('wallpaper_set_per_screen', { perScreen })
+      : Promise.resolve(setBrowserWallpaper({ perScreen })),
 
   /** Muestra u oculta el fondo (el archivo elegido se recuerda). */
   wallpaperSetEnabled: (enabled: boolean): Promise<WallpaperStatus> =>
@@ -711,6 +825,20 @@ export const commands = {
     isTauri()
       ? invoke<WallpaperStatus>('wallpaper_set_performance', { mode })
       : Promise.resolve(setBrowserWallpaper({ performance: mode })),
+
+  /** Las salidas de sonido conectadas (altavoces, audífonos…) y cuál usa el sistema. */
+  soundOutputList: (): Promise<SoundOutputDevice[]> =>
+    isTauri() ? invoke<SoundOutputDevice[]>('sound_output_list') : Promise.resolve(browserOutputs),
+
+  /** Cambia la salida de sonido del sistema y devuelve cómo quedó la lista. */
+  soundOutputSet: (id: string): Promise<SoundOutputDevice[]> => {
+    if (isTauri()) return invoke<SoundOutputDevice[]>('sound_output_set', { id });
+    if (!browserOutputs.some((device) => device.id === id)) {
+      return Promise.reject({ code: 'soundOutput.notFound', message: 'no está' });
+    }
+    browserOutputs = browserOutputs.map((device) => ({ ...device, isDefault: device.id === id }));
+    return Promise.resolve(browserOutputs);
+  },
 
   /** Abre la carpeta de fondos en el explorador de archivos. */
   wallpaperOpenFolder: (): Promise<void> =>

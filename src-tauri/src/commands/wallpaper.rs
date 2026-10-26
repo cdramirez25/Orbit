@@ -43,9 +43,10 @@ pub fn wallpaper_play(window: WebviewWindow) -> Result<(), CommandError> {
 }
 
 /// Cómo está el fondo: qué archivo, si se muestra, si está en pausa y la carpeta de los fondos.
+/// Es `async` (corre fuera del hilo principal) por si justo se están cambiando las ventanas.
 #[tauri::command]
-pub fn wallpaper_status(state: State<'_, AppState>) -> WallpaperStatus {
-    state.wallpaper.status()
+pub async fn wallpaper_status(state: State<'_, AppState>) -> Result<WallpaperStatus, CommandError> {
+    Ok(state.wallpaper.status())
 }
 
 /// Los archivos que hay ahora en la carpeta de fondos.
@@ -56,13 +57,59 @@ pub async fn wallpaper_list(
     off_main(&state, |service| service.items()).await
 }
 
-/// Elige un archivo de la carpeta como fondo y lo muestra.
+/// Elige un archivo de la carpeta como fondo y lo muestra: en todos los monitores o, si cada monitor
+/// tiene su fondo y se indica cuál (`screen`), solo en ese.
 #[tauri::command]
 pub async fn wallpaper_select(
     state: State<'_, AppState>,
     file: String,
+    screen: Option<String>,
 ) -> Result<WallpaperStatus, CommandError> {
-    let status = off_main(&state, move |service| service.select(&file)).await??;
+    let status = off_main(&state, move |service| {
+        service.select(&file, screen.as_deref())
+    })
+    .await??;
+    persist(&state);
+    Ok(status)
+}
+
+/// Activa o quita el sonido de los videos (solo suenan si traen audio): en todos los monitores o,
+/// si cada monitor tiene su fondo y se indica cuál (`screen`), solo en ese.
+#[tauri::command]
+pub async fn wallpaper_set_sound(
+    state: State<'_, AppState>,
+    sound: bool,
+    screen: Option<String>,
+) -> Result<WallpaperStatus, CommandError> {
+    let status = off_main(&state, move |service| {
+        service.set_sound(sound, screen.as_deref())
+    })
+    .await?;
+    persist(&state);
+    Ok(status)
+}
+
+/// Cambia el volumen de los videos con sonido (de 0 a 100).
+#[tauri::command]
+pub async fn wallpaper_set_volume(
+    state: State<'_, AppState>,
+    volume: u8,
+) -> Result<WallpaperStatus, CommandError> {
+    let status = off_main(&state, move |service| service.set_volume(volume)).await?;
+    persist(&state);
+    Ok(status)
+}
+
+/// Elige si todos los monitores llevan el mismo fondo o cada uno el suyo.
+#[tauri::command]
+pub async fn wallpaper_set_per_screen(
+    state: State<'_, AppState>,
+    per_screen: bool,
+) -> Result<WallpaperStatus, CommandError> {
+    let status = off_main(&state, move |service| {
+        service.update(|settings| settings.per_screen = per_screen)
+    })
+    .await?;
     persist(&state);
     Ok(status)
 }

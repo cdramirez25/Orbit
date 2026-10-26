@@ -321,7 +321,26 @@ export const es = {
   'wallpaper.performance.off': 'Nunca pausar solo',
   'wallpaper.performance.hint':
     'El fondo se pausa solo para ahorrar batería y rendimiento, monitor por monitor, y se reanuda al cerrar la ventana.',
-  'wallpaper.silent': 'Los videos siempre van sin sonido.',
+  'wallpaper.section.screens': 'Monitores',
+  'wallpaper.screens.modeAria': 'Cómo se reparte el fondo entre los monitores',
+  'wallpaper.screens.monitor': 'Monitor',
+  'wallpaper.screens.same': 'El mismo fondo en todos',
+  'wallpaper.screens.each': 'Uno distinto en cada monitor',
+  'wallpaper.screens.pick': 'Monitor que estás configurando',
+  'wallpaper.screens.pickAria': 'Monitor que se está configurando',
+  'wallpaper.screens.hintSame': 'El fondo que elijas se pone en todos los monitores a la vez.',
+  'wallpaper.screens.hintEach':
+    'Elige un monitor y después su fondo. El que no tenga uno propio usa el último que elegiste para todos.',
+  'wallpaper.section.sound': 'Sonido',
+  'wallpaper.sound.enable': 'Sonido del video',
+  'wallpaper.sound.enableAria': 'Activar el sonido del video',
+  'wallpaper.sound.volumeAria': 'Volumen del video',
+  'wallpaper.sound.needVideo': 'Elige un video para poder activar el sonido.',
+  'wallpaper.sound.noAudio': 'Este video no tiene pista de audio, así que siempre va sin sonido.',
+  'wallpaper.sound.unknown': 'No se pudo comprobar si este video tiene audio.',
+  'wallpaper.sound.hint':
+    'Los videos van sin sonido hasta que lo actives. Si el mismo video está en varios monitores, suena solo en uno.',
+  'wallpaper.hasAudio': 'Con audio',
   'wallpaper.use': 'Usar',
   'wallpaper.selected': 'En uso',
   'wallpaper.empty':
@@ -339,6 +358,18 @@ export const es = {
   'wallpaper.error.copy': 'No se pudo copiar un archivo a la carpeta.',
   'wallpaper.error.openFolder': 'No se pudo abrir la carpeta.',
   'wallpaper.error.generic': 'No se pudo completar la operación con el fondo.',
+
+  // ── Salida de sonido ────────────────────────────────────────────────────
+  'soundOutput.section': 'Salida de sonido',
+  'soundOutput.label': 'Reproducir por',
+  'soundOutput.aria': 'Salida de sonido del equipo',
+  'soundOutput.none': 'Sin salidas de sonido',
+  'soundOutput.hint':
+    'Cambia la salida de sonido de todo el equipo, igual que en los Ajustes del sistema: sirve para que el fondo y el resto de apps suenen por tus audífonos.',
+  'soundOutput.error.list': 'No se pudieron leer las salidas de sonido.',
+  'soundOutput.error.set': 'No se pudo cambiar la salida de sonido.',
+  'soundOutput.error.notFound': 'Esa salida de sonido ya no está conectada.',
+  'soundOutput.error.generic': 'No se pudo completar la operación con la salida de sonido.',
 
   // ── Transcripción (la prueba del modelo de voz) ─────────────────────────
   'listen.module': 'Transcripción',

@@ -316,13 +316,55 @@ describe('cámara en el navegador (simulado)', () => {
   });
 });
 
+describe('salida de sonido en el navegador (simulado)', () => {
+  it('lista tres salidas de muestra y cambiar la predeterminada la mueve', async () => {
+    const before = await commands.soundOutputList();
+    expect(before.map((device) => device.id)).toEqual(['altavoces', 'audifonos', 'monitor']);
+    expect(before.filter((device) => device.isDefault).map((device) => device.id)).toEqual([
+      'altavoces',
+    ]);
+
+    const after = await commands.soundOutputSet('audifonos');
+    expect(after.filter((device) => device.isDefault).map((device) => device.id)).toEqual([
+      'audifonos',
+    ]);
+    expect((await commands.soundOutputList()).find((device) => device.isDefault)?.id).toBe(
+      'audifonos',
+    );
+    await commands.soundOutputSet('altavoces');
+  });
+
+  it('una salida que no existe se rechaza', async () => {
+    await expect(commands.soundOutputSet('nada')).rejects.toMatchObject({
+      code: 'soundOutput.notFound',
+    });
+  });
+});
+
 describe('fondo de pantalla en el navegador (simulado)', () => {
-  it('empieza apagado y con tres fondos de muestra en la carpeta', async () => {
+  it('empieza apagado, con dos monitores de muestra y cuatro fondos en la carpeta', async () => {
     const status = await commands.wallpaperStatus();
-    expect(status).toMatchObject({ enabled: false, file: null, performance: 'any' });
+    expect(status).toMatchObject({
+      enabled: false,
+      file: null,
+      sound: false,
+      volume: 60,
+      perScreen: false,
+      performance: 'any',
+    });
+    expect(status.screens.map((screen) => screen.key)).toEqual([
+      'Pantalla integrada',
+      'Monitor externo',
+    ]);
     const items = await commands.wallpaperList();
-    expect(items.map((item) => item.file)).toEqual(['atardecer.png', 'bosque.jpg', 'olas.mp4']);
-    expect(items.map((item) => item.kind)).toEqual(['image', 'image', 'video']);
+    expect(items.map((item) => item.file)).toEqual([
+      'atardecer.png',
+      'bosque.jpg',
+      'olas.mp4',
+      'lluvia.mp4',
+    ]);
+    expect(items.map((item) => item.kind)).toEqual(['image', 'image', 'video', 'video']);
+    expect(items.map((item) => item.hasAudio)).toEqual([null, null, true, false]);
   });
 
   it('elegir un fondo lo enciende y avisa; pausar y cambiar el modo también avisan', async () => {
@@ -330,14 +372,57 @@ describe('fondo de pantalla en el navegador (simulado)', () => {
     const off = await onEvent('wallpaper:changed', (status) => received.push(status.manualPause));
 
     const chosen = await commands.wallpaperSelect('olas.mp4');
-    expect(chosen).toMatchObject({ enabled: true, file: 'olas.mp4', kind: 'video' });
-    expect(chosen.screenPaused).toEqual([false]);
+    expect(chosen).toMatchObject({ enabled: true, file: 'olas.mp4' });
+    expect(chosen.screens.map((screen) => screen.kind)).toEqual(['video', 'video']);
+    expect(chosen.screens.map((screen) => screen.paused)).toEqual([false, false]);
 
     expect((await commands.wallpaperSetPaused(true)).manualPause).toBe(true);
     expect((await commands.wallpaperSetPerformance('large')).performance).toBe('large');
-    expect((await commands.wallpaperSetEnabled(false)).screenPaused).toEqual([]);
+    expect((await commands.wallpaperSetEnabled(false)).enabled).toBe(false);
     expect(received).toEqual([false, true, true, true]);
     off();
+  });
+
+  it('el sonido solo cuenta en videos con audio y suena en un solo monitor', async () => {
+    await commands.wallpaperSelect('olas.mp4');
+    const loud = await commands.wallpaperSetSound(true);
+    expect(loud.sound).toBe(true);
+    // El mismo video en los dos monitores: se oye una sola vez.
+    expect(loud.screens.map((screen) => screen.audible)).toEqual([true, false]);
+
+    // Un video sin audio no suena aunque se pida sonido.
+    const mute = await commands.wallpaperSelect('lluvia.mp4');
+    expect(mute.screens.map((screen) => [screen.hasAudio, screen.audible])).toEqual([
+      [false, false],
+      [false, false],
+    ]);
+
+    expect((await commands.wallpaperSetVolume(35)).volume).toBe(35);
+    expect((await commands.wallpaperSetVolume(250)).volume).toBe(100);
+    await commands.wallpaperSetSound(false);
+  });
+
+  it('con un fondo por monitor, cada uno lleva el suyo y su propio sonido', async () => {
+    await commands.wallpaperSelect('olas.mp4');
+    const split = await commands.wallpaperSetPerScreen(true);
+    expect(split.perScreen).toBe(true);
+
+    const second = await commands.wallpaperSelect('atardecer.png', 'Monitor externo');
+    expect(second.file).toBe('olas.mp4');
+    expect(second.screens.map((screen) => screen.file)).toEqual(['olas.mp4', 'atardecer.png']);
+
+    const heard = await commands.wallpaperSetSound(true, 'Pantalla integrada');
+    expect(heard.sound).toBe(false);
+    expect(heard.screens.map((screen) => [screen.sound, screen.audible])).toEqual([
+      [true, true],
+      [false, false],
+    ]);
+
+    // Con el mismo fondo en todos, el monitor se ignora.
+    await commands.wallpaperSetPerScreen(false);
+    const shared = await commands.wallpaperSelect('bosque.jpg', 'Monitor externo');
+    expect(shared.screens.map((screen) => screen.file)).toEqual(['bosque.jpg', 'bosque.jpg']);
+    await commands.wallpaperSetSound(false);
   });
 
   it('un archivo que no está en la carpeta se rechaza', async () => {
@@ -348,7 +433,7 @@ describe('fondo de pantalla en el navegador (simulado)', () => {
 
   it('abrir la carpeta y añadir archivos responden sin hacer nada de verdad', async () => {
     await expect(commands.wallpaperOpenFolder()).resolves.toBeUndefined();
-    expect(await commands.wallpaperAddFiles('Elige')).toHaveLength(3);
+    expect(await commands.wallpaperAddFiles('Elige')).toHaveLength(4);
   });
 
   it('fuera de Tauri la dirección de un archivo es la ruta tal cual y no hay etiqueta de ventana', () => {

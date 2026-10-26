@@ -111,8 +111,10 @@ impl Settings {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use super::*;
-    use crate::wallpaper::PerformanceMode;
+    use crate::wallpaper::{PerformanceMode, ScreenChoice};
 
     fn temp_path(name: &str) -> std::path::PathBuf {
         std::env::temp_dir().join(format!("orbit-test-{}-{name}.json", std::process::id()))
@@ -159,8 +161,18 @@ mod tests {
             wallpaper: WallpaperSettings {
                 enabled: true,
                 file: Some("mar.mp4".into()),
+                sound: true,
+                volume: 35,
                 paused: true,
                 performance: PerformanceMode::Large,
+                per_screen: true,
+                screens: BTreeMap::from([(
+                    "DELL U2720Q".to_owned(),
+                    ScreenChoice {
+                        file: Some("montana.png".into()),
+                        sound: Some(false),
+                    },
+                )]),
             },
         };
         settings.save(&path).unwrap();
@@ -271,6 +283,9 @@ mod tests {
         assert_eq!(json["keepAwake"], serde_json::json!({ "mode": "off" }));
         assert_eq!(json["wallpaper"]["enabled"], false);
         assert_eq!(json["wallpaper"]["performance"], "any");
+        assert_eq!(json["wallpaper"]["sound"], false);
+        assert_eq!(json["wallpaper"]["volume"], 60);
+        assert_eq!(json["wallpaper"]["perScreen"], false);
         assert!(json["freeOrigin"].is_null());
     }
 }

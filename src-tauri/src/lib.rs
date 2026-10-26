@@ -18,6 +18,7 @@ mod pipeline;
 mod sessions;
 mod settings;
 mod shortcuts;
+mod sound_output;
 mod stt;
 mod tray;
 mod wallpaper;
@@ -51,6 +52,8 @@ use crate::pipeline::{Pipeline, PipelineConfig};
 use crate::sessions::sqlite::SqliteSessionStore;
 use crate::sessions::SessionService;
 use crate::settings::Settings;
+use crate::sound_output::platform::SystemOutputSwitch;
+use crate::sound_output::SoundOutputService;
 use crate::stt::catalog::SttModel;
 use crate::stt::location::ModelLocation;
 use crate::stt::model::{ModelService, ModelSpec};
@@ -112,10 +115,15 @@ pub fn run() {
             commands::camera::copy_camera_photo,
             commands::camera::save_camera_photo,
             commands::camera::open_camera_settings,
+            commands::sound_output::sound_output_list,
+            commands::sound_output::sound_output_set,
             commands::wallpaper::wallpaper_play,
             commands::wallpaper::wallpaper_status,
             commands::wallpaper::wallpaper_list,
             commands::wallpaper::wallpaper_select,
+            commands::wallpaper::wallpaper_set_sound,
+            commands::wallpaper::wallpaper_set_volume,
+            commands::wallpaper::wallpaper_set_per_screen,
             commands::wallpaper::wallpaper_set_enabled,
             commands::wallpaper::wallpaper_set_paused,
             commands::wallpaper::wallpaper_set_performance,
@@ -292,6 +300,9 @@ pub fn run() {
             let restoring = Arc::clone(&wallpaper);
             std::thread::spawn(move || restoring.restore());
 
+            // Salida de sonido: la lista de dispositivos y el cambio de la salida del sistema.
+            let sound_output = Arc::new(SoundOutputService::new(Box::new(SystemOutputSwitch)));
+
             app.manage(AppState::new(
                 events,
                 Services {
@@ -308,6 +319,7 @@ pub fn run() {
                     models,
                     awake,
                     wallpaper,
+                    sound_output,
                 },
                 settings.clone(),
                 settings_path,

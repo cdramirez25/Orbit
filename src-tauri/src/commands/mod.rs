@@ -12,6 +12,7 @@ pub mod media;
 pub mod pipeline;
 pub mod sessions;
 pub mod settings_window;
+pub mod sound_output;
 pub mod stt;
 pub mod wallpaper;
 pub mod weather;
@@ -47,6 +48,8 @@ pub enum CommandError {
     Camera(#[from] crate::camera::CameraError),
     #[error("error del fondo de pantalla: {0}")]
     Wallpaper(#[from] crate::wallpaper::WallpaperError),
+    #[error("error de la salida de sonido: {0}")]
+    SoundOutput(#[from] crate::sound_output::SoundOutputError),
 }
 
 impl CommandError {
@@ -66,6 +69,7 @@ impl CommandError {
             Self::KeepAwake(error) => error.code(),
             Self::Camera(error) => error.code(),
             Self::Wallpaper(error) => error.code(),
+            Self::SoundOutput(error) => error.code(),
         }
     }
 }
@@ -118,6 +122,12 @@ mod tests {
     fn wallpaper_errors_keep_their_stable_code() {
         let error = CommandError::from(crate::wallpaper::WallpaperError::NotFound);
         assert_eq!(error.code(), "wallpaper.notFound");
+    }
+
+    #[test]
+    fn sound_output_errors_keep_their_stable_code() {
+        let error = CommandError::from(crate::sound_output::SoundOutputError::NotFound);
+        assert_eq!(error.code(), "soundOutput.notFound");
     }
 
     #[test]

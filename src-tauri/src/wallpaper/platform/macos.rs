@@ -3,23 +3,28 @@
 //! y fuera del ciclo de ventanas. Las ventanas abiertas se leen con `CGWindowList` (no pide permisos:
 //! solo se usan el dueño, la capa y el tamaño, no el título).
 
+use std::collections::HashMap;
 use std::path::Path;
 use std::process::Command;
+use std::sync::{Arc, Mutex, PoisonError};
 
 use core_foundation::base::{CFType, TCFType};
 use core_foundation::dictionary::{CFDictionary, CFDictionaryRef};
 use core_foundation::number::CFNumber;
 use core_foundation::string::CFString;
+use core_graphics::display::CGDisplay;
 use core_graphics::window::{
     create_description_from_array, create_window_list, kCGNullWindowID, kCGWindowAlpha,
     kCGWindowBounds, kCGWindowLayer, kCGWindowListExcludeDesktopElements,
     kCGWindowListOptionOnScreenOnly, kCGWindowOwnerPID,
 };
-use objc2_app_kit::{NSWindow, NSWindowCollectionBehavior};
+use objc2::MainThreadMarker;
+use objc2_app_kit::{NSScreen, NSWindow, NSWindowCollectionBehavior};
+use objc2_foundation::{NSNumber, NSString};
 use tauri::webview::WebviewWindowBuilder;
 use tauri::{AppHandle, LogicalPosition, LogicalSize, WebviewWindow, Wry};
 
-use super::on_main_thread;
+use super::{on_main_thread, ScreenFrame};
 use crate::wallpaper::WallpaperError;
 use crate::window::island_window::Rect;
 
@@ -36,7 +41,8 @@ extern "C" {
 }
 
 /// Los monitores en puntos lógicos (el mismo espacio de la isla y de `CGWindowList`).
-pub fn screens(app: &AppHandle) -> tauri::Result<Vec<Rect>> {
+pub fn screens(app: &AppHandle) -> tauri::Result<Vec<ScreenFrame>> {
+    let labels = friendly_names(app);
     Ok(app
         .available_monitors()?
         .iter()
@@ -44,14 +50,50 @@ pub fn screens(app: &AppHandle) -> tauri::Result<Vec<Rect>> {
             let scale = monitor.scale_factor();
             let position = monitor.position().to_logical::<f64>(scale);
             let size = monitor.size().to_logical::<f64>(scale);
-            Rect {
-                x: position.x,
-                y: position.y,
-                width: size.width,
-                height: size.height,
+            let name = monitor.name().cloned();
+            ScreenFrame {
+                label: name.as_ref().and_then(|name| labels.get(name).cloned()),
+                name,
+                rect: Rect {
+                    x: position.x,
+                    y: position.y,
+                    width: size.width,
+                    height: size.height,
+                },
             }
         })
         .collect())
+}
+
+/// Los nombres que macOS les da a los monitores (`NSScreen.localizedName`, como "Built-in Retina
+/// Display"), por el nombre técnico con el que Tauri los conoce ("Monitor #<modelo>"). Si algo falla
+/// o dos monitores comparten modelo, el que no se encuentra se queda sin nombre amable.
+fn friendly_names(app: &AppHandle) -> HashMap<String, String> {
+    let found = Arc::new(Mutex::new(HashMap::new()));
+    let sink = Arc::clone(&found);
+    let _ = on_main_thread(app, move || {
+        let Some(mtm) = MainThreadMarker::new() else {
+            return;
+        };
+        let number_key = NSString::from_str("NSScreenNumber");
+        let mut names = sink.lock().unwrap_or_else(PoisonError::into_inner);
+        for screen in NSScreen::screens(mtm).iter() {
+            let description = screen.deviceDescription();
+            let Some(id) = description
+                .objectForKey(&number_key)
+                .and_then(|value| value.downcast::<NSNumber>().ok())
+                .map(|number| number.unsignedIntValue())
+            else {
+                continue;
+            };
+            let key = format!("Monitor #{}", CGDisplay::new(id).model_number());
+            names
+                .entry(key)
+                .or_insert_with(|| screen.localizedName().to_string());
+        }
+    });
+    let names = found.lock().unwrap_or_else(PoisonError::into_inner).clone();
+    names
 }
 
 /// Nada que cambiar en la ventana al crearla en macOS.

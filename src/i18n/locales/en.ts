@@ -318,7 +318,26 @@ export const en: Record<MessageKey, string> = {
   'wallpaper.performance.off': 'Never pause by itself',
   'wallpaper.performance.hint':
     'The wallpaper pauses by itself to save battery and performance, monitor by monitor, and resumes when the window closes.',
-  'wallpaper.silent': 'Videos always play without sound.',
+  'wallpaper.section.screens': 'Monitors',
+  'wallpaper.screens.modeAria': 'How the wallpaper is shared between monitors',
+  'wallpaper.screens.monitor': 'Monitor',
+  'wallpaper.screens.same': 'Same wallpaper on all',
+  'wallpaper.screens.each': 'A different one on each monitor',
+  'wallpaper.screens.pick': 'Monitor you are setting up',
+  'wallpaper.screens.pickAria': 'Monitor being set up',
+  'wallpaper.screens.hintSame': 'The wallpaper you choose is shown on every monitor at once.',
+  'wallpaper.screens.hintEach':
+    'Pick a monitor, then its wallpaper. A monitor without its own uses the last one you chose for all.',
+  'wallpaper.section.sound': 'Sound',
+  'wallpaper.sound.enable': 'Video sound',
+  'wallpaper.sound.enableAria': 'Turn the video sound on',
+  'wallpaper.sound.volumeAria': 'Video volume',
+  'wallpaper.sound.needVideo': 'Choose a video to be able to turn the sound on.',
+  'wallpaper.sound.noAudio': 'This video has no audio track, so it always plays without sound.',
+  'wallpaper.sound.unknown': 'Could not check whether this video has audio.',
+  'wallpaper.sound.hint':
+    'Videos play without sound until you turn it on. If the same video is on several monitors, it plays sound on one only.',
+  'wallpaper.hasAudio': 'Has audio',
   'wallpaper.use': 'Use',
   'wallpaper.selected': 'In use',
   'wallpaper.empty':
@@ -336,6 +355,18 @@ export const en: Record<MessageKey, string> = {
   'wallpaper.error.copy': 'Could not copy a file to the folder.',
   'wallpaper.error.openFolder': 'Could not open the folder.',
   'wallpaper.error.generic': 'The wallpaper operation could not be completed.',
+
+  // ── Sound output ────────────────────────────────────────────────────────
+  'soundOutput.section': 'Sound output',
+  'soundOutput.label': 'Play through',
+  'soundOutput.aria': 'Computer sound output',
+  'soundOutput.none': 'No sound outputs',
+  'soundOutput.hint':
+    'Changes the sound output of the whole computer, like in the system settings: use it so the wallpaper and the other apps play through your headphones.',
+  'soundOutput.error.list': 'Could not read the sound outputs.',
+  'soundOutput.error.set': 'Could not change the sound output.',
+  'soundOutput.error.notFound': 'That sound output is no longer connected.',
+  'soundOutput.error.generic': 'The sound output operation could not be completed.',
 
   // ── Transcription (the voice model test) ────────────────────────────────
   'listen.module': 'Transcription',

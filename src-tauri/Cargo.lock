@@ -3063,6 +3063,7 @@ dependencies = [
  "wasapi",
  "whisper-rs",
  "windows",
+ "windows-core",
 ]
 
 [[package]]

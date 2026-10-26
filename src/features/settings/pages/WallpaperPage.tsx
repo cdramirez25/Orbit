@@ -7,17 +7,22 @@ import {
   Play,
   Plus,
   RefreshCw,
+  Volume2,
 } from 'lucide-react';
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
-import { Button, Select, Toggle } from '@/components/ui';
-import { PageHeader, Section } from '@/features/settings/layout';
+import { Button, Select, Tab, Toggle } from '@/components/ui';
+import { Field, PageHeader, Section } from '@/features/settings/layout';
+import { SoundOutputSelect } from '@/features/settings/pages/SoundOutputSelect';
 import type { MessageKey } from '@/i18n/messages';
 import { useT } from '@/i18n/useT';
-import { pauseReason } from '@/lib/wallpaper';
+import { pauseReason, screenLabel, soundSupport, targetScreen } from '@/lib/wallpaper';
 import { cn } from '@/lib/utils/cn';
 import { useWallpaperStore, type WallpaperEntry } from '@/stores/wallpaper.store';
 import type { PerformanceMode } from '@/types';
+
+/** Cuánto se espera sin mover el volumen antes de mandarlo (así arrastrar no manda una orden por píxel). */
+const VOLUME_DEBOUNCE_MS = 150;
 
 const PERFORMANCE_OPTIONS: ReadonlyArray<{ id: PerformanceMode; label: MessageKey }> = [
   { id: 'any', label: 'wallpaper.performance.any' },
@@ -59,7 +64,16 @@ function Thumbnail({ item }: { item: WallpaperEntry }) {
   );
 }
 
-function Card({ item, selected }: { item: WallpaperEntry; selected: boolean }) {
+function Card({
+  item,
+  selected,
+  screen,
+}: {
+  item: WallpaperEntry;
+  selected: boolean;
+  /** El monitor al que se aplica al elegirlo; `null` = todos. */
+  screen: string | null;
+}) {
   const t = useT();
   const select = useWallpaperStore((s) => s.select);
   const Icon = item.kind === 'video' ? Film : ImageIcon;
@@ -69,7 +83,7 @@ function Card({ item, selected }: { item: WallpaperEntry; selected: boolean }) {
       type="button"
       aria-pressed={selected}
       aria-label={`${t('wallpaper.use')} ${item.file}`}
-      onClick={() => void select(item.file)}
+      onClick={() => void select(item.file, screen)}
       className={cn(
         'relative aspect-video overflow-hidden rounded-xl bg-white/6 text-left outline-none',
         'focus-visible:ring-2 focus-visible:ring-white/60',
@@ -79,7 +93,12 @@ function Card({ item, selected }: { item: WallpaperEntry; selected: boolean }) {
       <Thumbnail item={item} />
       <span className="absolute inset-x-0 bottom-0 flex items-center gap-1 bg-gradient-to-t from-black/75 to-transparent px-2 pt-4 pb-1 text-[10px] text-white">
         <Icon aria-hidden className="size-3 shrink-0" />
-        <span className="truncate">{item.file}</span>
+        <span className="min-w-0 flex-1 truncate">{item.file}</span>
+        {item.hasAudio === true && (
+          <span title={t('wallpaper.hasAudio')} className="shrink-0">
+            <Volume2 aria-label={t('wallpaper.hasAudio')} className="size-3" />
+          </span>
+        )}
       </span>
       {selected && (
         <span
@@ -93,10 +112,53 @@ function Card({ item, selected }: { item: WallpaperEntry; selected: boolean }) {
   );
 }
 
+/** El volumen de los videos con sonido. Arrastrarlo se nota al instante; a Rust llega ya asentado. */
+function VolumeSlider({ volume, disabled }: { volume: number; disabled: boolean }) {
+  const t = useT();
+  const setVolume = useWallpaperStore((s) => s.setVolume);
+  const [draft, setDraft] = useState<number | null>(null);
+  const timer = useRef<number | undefined>(undefined);
+  const latest = useRef(volume);
+
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+
+  const change = (value: number) => {
+    latest.current = value;
+    setDraft(value);
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => {
+      void setVolume(value).then(() => {
+        if (latest.current === value) setDraft(null);
+      });
+    }, VOLUME_DEBOUNCE_MS);
+  };
+  const shown = draft ?? volume;
+
+  return (
+    <div className="flex items-center gap-2">
+      <input
+        type="range"
+        min={0}
+        max={100}
+        step={1}
+        value={shown}
+        disabled={disabled}
+        aria-label={t('wallpaper.sound.volumeAria')}
+        onChange={(event) => change(Number(event.target.value))}
+        className="h-1 min-w-0 flex-1 accent-accent"
+      />
+      <span className="w-9 shrink-0 text-right text-[11px] text-ink-dim tabular-nums">
+        {shown}%
+      </span>
+    </div>
+  );
+}
+
 /**
  * Fondo de pantalla animado: eliges una imagen o un video de la carpeta de fondos y se dibuja detrás
- * de los iconos del escritorio. Se puede pausar, siempre va sin sonido y el modo rendimiento lo pausa
- * solo cuando hay ventanas abiertas encima.
+ * de los iconos del escritorio. Se puede pausar, los videos van sin sonido salvo que se active (y solo
+ * si traen audio), con varios monitores se elige el mismo fondo en todos o uno en cada uno, y el modo
+ * rendimiento lo pausa solo cuando hay ventanas abiertas encima.
  */
 export function WallpaperPage() {
   const t = useT();
@@ -108,6 +170,8 @@ export function WallpaperPage() {
   const setEnabled = useWallpaperStore((s) => s.setEnabled);
   const setPaused = useWallpaperStore((s) => s.setPaused);
   const setPerformance = useWallpaperStore((s) => s.setPerformance);
+  const setPerScreen = useWallpaperStore((s) => s.setPerScreen);
+  const setSound = useWallpaperStore((s) => s.setSound);
   const openFolder = useWallpaperStore((s) => s.openFolder);
   const addFiles = useWallpaperStore((s) => s.addFiles);
 
@@ -119,8 +183,28 @@ export function WallpaperPage() {
     return () => window.removeEventListener('focus', onFocus);
   }, [refresh]);
 
+  // El monitor que se está configurando: con un fondo por monitor, el que se elija arriba.
+  const [picked, setPicked] = useState<string | null>(null);
+  const target = status ? targetScreen(status, picked) : null;
+  const targetIndex = status && target ? status.screens.indexOf(target) : 0;
+  const perScreen = status?.perScreen ?? false;
+  const targetKey = perScreen ? (target?.key ?? null) : null;
+  const showScreens = status !== null && (status.screens.length > 1 || perScreen);
+  const support = soundSupport(target);
+  const canHear = support === 'ready' || support === 'unknown';
+  const soundOn = target?.sound ?? status?.sound ?? false;
+  const soundHint: MessageKey | null =
+    support === 'noVideo'
+      ? 'wallpaper.sound.needVideo'
+      : support === 'noAudio'
+        ? 'wallpaper.sound.noAudio'
+        : support === 'unknown'
+          ? 'wallpaper.sound.unknown'
+          : null;
+
   const reason = status ? pauseReason(status) : null;
-  const canShow = status !== null && status.file !== null && !status.missing;
+  const canShow = status?.screens.some((screen) => screen.path !== null) ?? false;
+  const anyMissing = status?.screens.some((screen) => screen.missing) ?? false;
   const stateText: MessageKey = !status?.enabled
     ? 'wallpaper.status.off'
     : reason === 'manual'
@@ -184,9 +268,48 @@ export function WallpaperPage() {
             </label>
           </div>
           <p className="text-[11px] leading-snug text-ink-faint">
-            {t('wallpaper.performance.hint')} {t('wallpaper.silent')}
+            {t('wallpaper.performance.hint')}
           </p>
         </Section>
+
+        {showScreens && status && (
+          <Section title={t('wallpaper.section.screens')}>
+            <div
+              className="flex flex-wrap items-center gap-1"
+              role="tablist"
+              aria-label={t('wallpaper.screens.modeAria')}
+            >
+              <Tab selected={!perScreen} onClick={() => void setPerScreen(false)}>
+                {t('wallpaper.screens.same')}
+              </Tab>
+              <Tab selected={perScreen} onClick={() => void setPerScreen(true)}>
+                {t('wallpaper.screens.each')}
+              </Tab>
+            </div>
+            {perScreen && (
+              <Field label={t('wallpaper.screens.pick')}>
+                <div
+                  className="flex flex-wrap items-center gap-1"
+                  role="tablist"
+                  aria-label={t('wallpaper.screens.pickAria')}
+                >
+                  {status.screens.map((screen, index) => (
+                    <Tab
+                      key={screen.key}
+                      selected={target?.key === screen.key}
+                      onClick={() => setPicked(screen.key)}
+                    >
+                      {screenLabel(screen, index, t('wallpaper.screens.monitor'))}
+                    </Tab>
+                  ))}
+                </div>
+              </Field>
+            )}
+            <p className="text-[11px] leading-snug text-ink-faint">
+              {t(perScreen ? 'wallpaper.screens.hintEach' : 'wallpaper.screens.hintSame')}
+            </p>
+          </Section>
+        )}
 
         <Section title={t('wallpaper.section.library')}>
           {items.length === 0 ? (
@@ -196,12 +319,17 @@ export function WallpaperPage() {
           ) : (
             <div className="grid grid-cols-3 gap-2">
               {items.map((item) => (
-                <Card key={item.file} item={item} selected={status?.file === item.file} />
+                <Card
+                  key={item.file}
+                  item={item}
+                  selected={target?.file === item.file}
+                  screen={targetKey}
+                />
               ))}
             </div>
           )}
 
-          {status?.missing && (
+          {anyMissing && (
             <span role="alert" className="text-[11px] text-danger">
               {t('wallpaper.missing')}
             </span>
@@ -240,6 +368,31 @@ export function WallpaperPage() {
             </div>
           </div>
           <p className="text-[11px] leading-snug text-ink-faint">{t('wallpaper.hint')}</p>
+        </Section>
+
+        <Section title={t('wallpaper.section.sound')}>
+          <div className="flex items-center justify-between gap-3">
+            <label className="flex items-center gap-2 text-[12px] text-ink">
+              <Toggle
+                label={t('wallpaper.sound.enableAria')}
+                checked={soundOn}
+                disabled={!canHear}
+                onCheckedChange={(sound) => void setSound(sound, targetKey)}
+              />
+              {t('wallpaper.sound.enable')}
+            </label>
+            {perScreen && target && (
+              <span className="truncate rounded-full bg-white/8 px-2 py-0.5 text-[11px] text-ink-dim">
+                {screenLabel(target, targetIndex, t('wallpaper.screens.monitor'))}
+              </span>
+            )}
+          </div>
+          <VolumeSlider volume={status?.volume ?? 0} disabled={!canHear || !soundOn} />
+          <SoundOutputSelect />
+          <p className="text-[11px] leading-snug text-ink-faint">
+            {soundHint ? t(soundHint) : t('wallpaper.sound.hint')}
+          </p>
+          <p className="text-[11px] leading-snug text-ink-faint">{t('soundOutput.hint')}</p>
         </Section>
       </div>
     </>

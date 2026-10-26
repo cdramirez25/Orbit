@@ -2,6 +2,7 @@ import { Button } from '@/components/ui';
 import { PageHeader, Section } from '@/features/settings/layout';
 import { PermissionActions, PermissionChip } from '@/features/settings/pages/PermissionControls';
 import { usePermissionPolling } from '@/hooks/usePermissionPolling';
+import { SoundOutputSection } from '@/features/settings/pages/SoundOutputSection';
 import { TranscriptionSection } from '@/features/settings/pages/TranscriptionSection';
 import { useT } from '@/i18n/useT';
 import { listenErrorKey } from '@/lib/audio/listen-error';
@@ -48,6 +49,7 @@ export function AudioPage() {
             <span className="text-[11px] text-ink-faint">{t('audio.permission.restartHint')}</span>
           )}
         </Section>
+        <SoundOutputSection />
         <TranscriptionSection />
       </div>
     </>

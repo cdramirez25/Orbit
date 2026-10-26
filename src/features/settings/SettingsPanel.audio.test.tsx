@@ -17,6 +17,7 @@ vi.mock('@/ipc/remote', () => ({
 
 vi.mock('@/ipc/commands', () => ({
   commands: {
+    soundOutputList: vi.fn().mockResolvedValue([]),
     getAudioPermission: vi.fn(),
     requestAudioPermission: vi.fn(),
     openAudioPermissionSettings: vi.fn(),

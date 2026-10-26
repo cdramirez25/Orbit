@@ -14,6 +14,7 @@ use crate::media::MediaService;
 use crate::pipeline::Pipeline;
 use crate::sessions::SessionService;
 use crate::settings::Settings;
+use crate::sound_output::SoundOutputService;
 use crate::stt::model::ModelService;
 use crate::stt::SttEngine;
 use crate::wallpaper::WallpaperService;
@@ -48,6 +49,8 @@ pub struct AppState {
     pub awake: Arc<KeepAwakeService>,
     /// El fondo de pantalla animado (imagen o video detrás de los iconos).
     pub wallpaper: Arc<WallpaperService>,
+    /// Las salidas de sonido del equipo (altavoces, audífonos…) y cuál usa el sistema.
+    pub sound_output: Arc<SoundOutputService>,
     settings: RwLock<Settings>,
     settings_path: PathBuf,
 }
@@ -67,6 +70,7 @@ pub struct Services {
     pub models: Arc<ModelService>,
     pub awake: Arc<KeepAwakeService>,
     pub wallpaper: Arc<WallpaperService>,
+    pub sound_output: Arc<SoundOutputService>,
 }
 
 impl AppState {
@@ -91,6 +95,7 @@ impl AppState {
             models: services.models,
             awake: services.awake,
             wallpaper: services.wallpaper,
+            sound_output: services.sound_output,
             settings: RwLock::new(settings),
             settings_path,
         }
