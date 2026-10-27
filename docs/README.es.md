@@ -94,6 +94,42 @@ Alrededor de ellos hay una ventana de ajustes, un icono en la bandeja y atajos g
 - Los [prerrequisitos de Tauri 2](https://tauri.app/start/prerequisites/) para tu sistema
   (Xcode Command Line Tools en macOS; WebView2 y Build Tools de C++ en Windows)
 
+### Descargar e instalar
+
+Orbit es gratis y no está firmado con certificados de pago (no hay cuenta de Apple Developer), así que macOS y
+Windows avisan antes de abrirlo la primera vez. Elige la forma que prefieras; todas necesitan una versión
+publicada (mira [`docs/RELEASING.md`](RELEASING.md)).
+
+**macOS** (13 o superior, Apple Silicon e Intel)
+
+- Script (sin aviso, porque `curl` no marca el archivo como descargado de internet):
+
+  ```bash
+  curl -fsSL https://raw.githubusercontent.com/cdramirez25/Orbit/main/install.sh | sh
+  ```
+
+- Homebrew, con el tap propio del proyecto (Homebrew muestra un aviso de obsolescencia por `postflight`; sigue funcionando):
+
+  ```bash
+  brew tap cdramirez25/orbit https://github.com/cdramirez25/Orbit
+  brew install --cask orbit
+  ```
+
+- `.dmg` de la [página de versiones](https://github.com/cdramirez25/Orbit/releases): arrastra Orbit a Aplicaciones.
+  macOS dice que no puede verificar la app; abre Ajustes del Sistema, Privacidad y seguridad, y pulsa "Abrir de todos modos".
+
+**Windows 10 / 11**
+
+- Scoop:
+
+  ```powershell
+  scoop bucket add orbit https://github.com/cdramirez25/Orbit
+  scoop install orbit/orbit
+  ```
+
+- Instalador (`-setup.exe`) de la [página de versiones](https://github.com/cdramirez25/Orbit/releases): SmartScreen dice
+  "Windows protegió tu PC"; pulsa "Más información" y "Ejecutar de todas formas".
+
 ### Instalar y ejecutar
 
 ```bash
@@ -260,7 +296,7 @@ sigue en [`docs/SPEC.md`](SPEC.md)).
 | IA y Prompter             | Claude, ChatGPT, Groq, Gemini, Ollama y Docker; el modelo se elige de la lista que ofrece cada proveedor; sesiones con su propio prompt, historial e IA; preguntas grabadas o escritas; respuestas con markdown; claves en un archivo SQLite local                                                                                                                               | Hecha    |
 | Experiencia de escritorio | Hecho: ventana de ajustes, icono en la bandeja, atajos globales configurables, iniciar con la sesión, primer arranque guiado, elegir la carpeta del modelo de voz                                                                                                                                                                                                                | Hecha    |
 | Confianza y calidad       | Hecho: tests en todas las capas, Rust sin avisos (`clippy`). Pendiente: pruebas con Claude, ChatGPT, Ollama y Docker reales (hasta ahora solo se probaron en vivo las respuestas de Groq y la lista y los errores de Gemini), la cámara real en la app empaquetada y todo en un Windows real                                                                                     | En curso |
-| Distribución              | `.dmg` e instalador de Windows publicados en GitHub Releases, `brew` (tap propio) y `winget`/Scoop, todo gratis y sin cuenta de Apple Developer                                                                                                                                                                                                                                  | Planeada |
+| Distribución              | `.dmg` e instalador de Windows publicados en GitHub Releases por un workflow, script de instalación, `brew` (tap propio) y Scoop, todo gratis y sin cuenta de Apple Developer; faltan `winget` y la primera versión publicada                                                                                                                                                    | Planeada |
 | Más módulos y ecosistema  | Una guía para escribir tu propio módulo (`docs/ARCHITECTURE.md`) y módulos nuevos sobre el registro. Ideas: resumen de reuniones, traducción en vivo, aviso cuando dicen tu nombre, temporizador y cuenta regresiva a la próxima reunión                                                                                                                                         | Planeada |
 
 Conviene saber: las claves de API se guardan en SQLite y no en el llavero del sistema, así que nunca piden permiso del

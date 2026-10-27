@@ -23,3 +23,6 @@ src-tauri/gen
 .claude/
 /docs/SPEC.md
 CLAUDE.md
+
+# Python (scripts de publicación)
+__pycache__/

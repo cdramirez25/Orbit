@@ -94,6 +94,42 @@ Around them there is a settings window, a tray icon and global keyboard shortcut
 - The [Tauri 2 prerequisites](https://tauri.app/start/prerequisites/) for your system
   (Xcode Command Line Tools on macOS; WebView2 and the C++ Build Tools on Windows)
 
+### Download and install
+
+Orbit is free and is not signed with paid certificates (no Apple Developer account), so macOS and
+Windows warn before opening it the first time. Pick the way that suits you; all of them need a published
+release (see [`docs/RELEASING.md`](docs/RELEASING.md)).
+
+**macOS** (13 or later, Apple Silicon and Intel)
+
+- Script (no warning, because `curl` does not mark the file as downloaded from the internet):
+
+  ```bash
+  curl -fsSL https://raw.githubusercontent.com/cdramirez25/Orbit/main/install.sh | sh
+  ```
+
+- Homebrew, with the project's own tap (Homebrew will print a deprecation notice about `postflight`; it still works):
+
+  ```bash
+  brew tap cdramirez25/orbit https://github.com/cdramirez25/Orbit
+  brew install --cask orbit
+  ```
+
+- `.dmg` from the [releases page](https://github.com/cdramirez25/Orbit/releases): drag Orbit to Applications.
+  macOS says it cannot verify the app; open System Settings, Privacy & Security, and press "Open Anyway".
+
+**Windows 10 / 11**
+
+- Scoop:
+
+  ```powershell
+  scoop bucket add orbit https://github.com/cdramirez25/Orbit
+  scoop install orbit/orbit
+  ```
+
+- Installer (`-setup.exe`) from the [releases page](https://github.com/cdramirez25/Orbit/releases): SmartScreen says
+  "Windows protected your PC"; press "More info" and "Run anyway".
+
 ### Install and run
 
 ```bash
@@ -260,7 +296,7 @@ roadmap is organised by goals instead of by the original phases (the technical p
 | AI and Prompter             | Claude, ChatGPT, Groq, Gemini, Ollama and Docker; the model is chosen from the list each provider offers; sessions with their own prompt, history and AI; recorded or typed questions; markdown answers; keys in a local SQLite file                                                                                 | Done        |
 | Everyday desktop experience | Done: settings window, tray icon, configurable global shortcuts, launch at login, guided first run, choose the voice model folder                                                                                                                                                                                    | Done        |
 | Trust and quality           | Done: tests in every layer, Rust without warnings (`clippy`). Pending: runs with real Claude, ChatGPT, Ollama and Docker (so far only Groq answers and Gemini's list and error path were checked live), a real camera run in the packaged app, and everything on a real Windows machine                              | In progress |
-| Distribution                | `.dmg` and Windows installer published in GitHub Releases, `brew` (own tap) and `winget`/Scoop, all free and without an Apple Developer account                                                                                                                                                                      | Planned     |
+| Distribution                | `.dmg` and Windows installer published in GitHub Releases by a workflow, install script, `brew` (own tap) and Scoop, all free and without an Apple Developer account; `winget` and the first published release are pending                                                                                           | Planned     |
 | More modules and ecosystem  | A guide to write your own module (`docs/ARCHITECTURE.md`) and new modules on top of the registry. Ideas: meeting summary, live translation, alert when your name is said, timer and next-meeting countdown                                                                                                           | Planned     |
 
 Good to know: API keys are stored in SQLite instead of the system keychain, so they never trigger keychain prompts; the

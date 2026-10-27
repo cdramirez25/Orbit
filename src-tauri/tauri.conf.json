@@ -23,6 +23,11 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "category": "Utility",
+    "publisher": "Cristian Ramirez",
+    "homepage": "https://github.com/cdramirez25/Orbit",
+    "shortDescription": "A modular dynamic island for macOS and Windows",
+    "longDescription": "Orbit is a modular dynamic island for macOS and Windows: music, weather, clipboard, camera, keep-awake, an animated wallpaper and a voice assistant that listens to the system audio.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -31,7 +36,16 @@
       "icons/icon.ico"
     ],
     "macOS": {
-      "minimumSystemVersion": "13.0"
+      "minimumSystemVersion": "13.0",
+      "signingIdentity": "-",
+      "hardenedRuntime": false
+    },
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": ["Spanish", "English"],
+        "displayLanguageSelector": true
+      }
     }
   }
 }

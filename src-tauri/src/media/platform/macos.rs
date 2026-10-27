@@ -11,8 +11,9 @@
 //! Puede dejar de funcionar si Apple cierra esa puerta en una actualización; verificar a mano.
 
 use std::io::{BufRead, BufReader};
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -21,9 +22,12 @@ use serde::Deserialize;
 use crate::media::{MediaCommand, MediaError, MediaPort, NowPlaying};
 
 const MEDIA_SCRIPT: &str = include_str!("macos/media.pl");
-/// Ruta de la biblioteca de `orbit_media.m` compilada por `build.rs`.
-// TODO(Fase 6): al empaquetar la app hay que copiarla a Resources y buscarla ahí.
-const LIBRARY: &str = env!("ORBIT_MEDIA_DYLIB");
+/// La biblioteca de `orbit_media.m` que compila `build.rs`, metida dentro del propio programa: así
+/// viaja con la app sea cual sea la forma de instalarla (dmg, script, Homebrew) y no depende de la
+/// carpeta de compilación. Perl necesita un archivo en disco, así que se copia con `library_path`.
+const LIBRARY_BYTES: &[u8] = include_bytes!(env!("ORBIT_MEDIA_DYLIB"));
+const LIBRARY_PREFIX: &str = "liborbit_media-";
+const LIBRARY_SUFFIX: &str = ".dylib";
 /// Si el proceso lector termina, se vuelve a lanzar pasado este tiempo.
 const RESTART_AFTER: Duration = Duration::from_secs(5);
 
@@ -73,6 +77,58 @@ fn parse_line(line: &str, received_at_ms: u64) -> Option<Reading> {
     })
 }
 
+/// Huella de unos bytes (FNV-1a): da nombre a la copia de la biblioteca, así cada versión de Orbit
+/// usa la suya y nunca se carga una vieja.
+fn fingerprint(bytes: &[u8]) -> u64 {
+    bytes.iter().fold(0xcbf2_9ce4_8422_2325, |hash, byte| {
+        (hash ^ u64::from(*byte)).wrapping_mul(0x0100_0000_01b3)
+    })
+}
+
+/// Deja la biblioteca en `dir` (si no está ya, o está incompleta) y devuelve su ruta. Se escribe en
+/// un archivo temporal y se renombra: perl nunca ve una copia a medias. Las copias de versiones
+/// anteriores se borran.
+fn install_library(dir: &Path, bytes: &[u8]) -> std::io::Result<PathBuf> {
+    std::fs::create_dir_all(dir)?;
+    let name = format!(
+        "{LIBRARY_PREFIX}{:016x}{LIBRARY_SUFFIX}",
+        fingerprint(bytes)
+    );
+    let target = dir.join(&name);
+    let complete = std::fs::metadata(&target)
+        .is_ok_and(|metadata| usize::try_from(metadata.len()).is_ok_and(|len| len == bytes.len()));
+    if !complete {
+        let partial = dir.join(format!(".{name}.part"));
+        std::fs::write(&partial, bytes)?;
+        std::fs::rename(&partial, &target)?;
+    }
+    for entry in std::fs::read_dir(dir)?.filter_map(Result::ok) {
+        let file = entry.file_name();
+        let file = file.to_string_lossy();
+        if file != name && file.starts_with(LIBRARY_PREFIX) && file.ends_with(LIBRARY_SUFFIX) {
+            let _ = std::fs::remove_file(entry.path());
+        }
+    }
+    Ok(target)
+}
+
+/// La carpeta de cachés del usuario para la biblioteca (`~/Library/Caches/dev.orbit.island`).
+fn library_dir() -> PathBuf {
+    std::env::var_os("HOME")
+        .map_or_else(std::env::temp_dir, PathBuf::from)
+        .join("Library/Caches/dev.orbit.island")
+}
+
+/// Ruta de la biblioteca lista para que perl la cargue (se prepara una sola vez por ejecución).
+fn library_path() -> std::io::Result<&'static Path> {
+    static PATH: OnceLock<Result<PathBuf, String>> = OnceLock::new();
+    PATH.get_or_init(|| {
+        install_library(&library_dir(), LIBRARY_BYTES).map_err(|error| error.to_string())
+    })
+    .as_deref()
+    .map_err(|message| std::io::Error::other(message.clone()))
+}
+
 fn now_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -103,7 +159,9 @@ fn set(state: &Mutex<Option<Reading>>, value: Option<Reading>) {
 /// Lanza el lector y procesa sus líneas hasta que termina.
 fn run_reader(state: &Mutex<Option<Reading>>) -> std::io::Result<()> {
     let mut child = Command::new("/usr/bin/perl")
-        .args(["-e", MEDIA_SCRIPT, LIBRARY, "orbit_media_watch"])
+        .args(["-e", MEDIA_SCRIPT])
+        .arg(library_path()?)
+        .arg("orbit_media_watch")
         .env("ORBIT_PARENT_PID", std::process::id().to_string())
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
@@ -178,9 +236,12 @@ impl SystemMedia {
         let reading = self
             .reading()
             .ok_or_else(|| MediaError::Command("no hay nada sonando".into()))?;
+        let library = library_path().map_err(|error| MediaError::Command(error.to_string()))?;
         let mut command = Command::new("/usr/bin/perl");
         command
-            .args(["-e", MEDIA_SCRIPT, LIBRARY, "orbit_media_send"])
+            .args(["-e", MEDIA_SCRIPT])
+            .arg(library)
+            .arg("orbit_media_send")
             .env("ORBIT_MEDIA_COMMAND", number.to_string())
             .env("ORBIT_MEDIA_CLIENT", &reading.client)
             .stdin(Stdio::null());
@@ -371,8 +432,99 @@ mod tests {
         assert!(jumped > 8.0, "the player did not move: {jumped:.1} s");
     }
 
+    fn temp_dir(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("orbit-media-{}-{name}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        dir
+    }
+
     #[test]
-    fn the_media_library_was_built() {
-        assert!(std::path::Path::new(LIBRARY).exists());
+    fn the_media_library_is_inside_the_program() {
+        // Un dylib de Mach-O: empieza por su número mágico (64 bits, little-endian).
+        assert!(LIBRARY_BYTES.len() > 1_000);
+        assert_eq!(LIBRARY_BYTES[..4], [0xcf, 0xfa, 0xed, 0xfe]);
+    }
+
+    #[test]
+    fn the_library_is_copied_once_and_reused() {
+        let dir = temp_dir("copy");
+
+        let first = install_library(&dir, b"biblioteca").unwrap();
+        let modified = std::fs::metadata(&first).unwrap().modified().unwrap();
+        let second = install_library(&dir, b"biblioteca").unwrap();
+
+        assert_eq!(first, second);
+        assert_eq!(std::fs::read(&first).unwrap(), b"biblioteca");
+        assert_eq!(
+            std::fs::metadata(&second).unwrap().modified().unwrap(),
+            modified,
+            "no se vuelve a escribir si ya está"
+        );
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn a_damaged_copy_is_written_again() {
+        let dir = temp_dir("repair");
+        let path = install_library(&dir, b"biblioteca").unwrap();
+        std::fs::write(&path, b"bibli").unwrap();
+
+        install_library(&dir, b"biblioteca").unwrap();
+
+        assert_eq!(std::fs::read(&path).unwrap(), b"biblioteca");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn each_version_has_its_own_copy_and_the_old_ones_go_away() {
+        let dir = temp_dir("versions");
+        let old = install_library(&dir, b"version vieja").unwrap();
+        std::fs::write(dir.join("otro-archivo.txt"), b"mio").unwrap();
+
+        let new = install_library(&dir, b"version nueva").unwrap();
+
+        assert_ne!(old, new);
+        assert!(!old.exists());
+        assert!(new.exists());
+        assert!(
+            dir.join("otro-archivo.txt").exists(),
+            "solo toca sus propios archivos"
+        );
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn the_copy_sits_in_the_user_cache_folder() {
+        let dir = library_dir();
+        assert!(dir.ends_with("Library/Caches/dev.orbit.island"));
+    }
+
+    /// La biblioteca embebida se copia a la carpeta de cachés y perl la carga: el lector arranca y
+    /// responde. Manual: toca la carpeta de cachés real.
+    ///
+    /// ```text
+    /// cargo test live_the_embedded_library_loads_in_perl -- --ignored --nocapture
+    /// ```
+    #[test]
+    #[ignore = "escribe en ~/Library/Caches y arranca perl"]
+    fn live_the_embedded_library_loads_in_perl() {
+        let path = library_path().expect("la biblioteca debe copiarse");
+        println!("{}", path.display());
+        let output = Command::new("/usr/bin/perl")
+            .args(["-e", MEDIA_SCRIPT])
+            .arg(path)
+            .arg("orbit_media_send")
+            .env("ORBIT_MEDIA_COMMAND", "255")
+            .env("ORBIT_MEDIA_CLIENT", "dev.orbit.test")
+            .output()
+            .expect("perl debe arrancar");
+        // Una orden inexistente a una app inexistente puede fallar, pero perl tiene que haber
+        // cargado la biblioteca (si no, el error habla de `DynaLoader`).
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        println!("estado: {} | {stderr}", output.status);
+        assert!(
+            !stderr.contains("DynaLoader"),
+            "perl no pudo cargar la biblioteca: {stderr}"
+        );
     }
 }
