@@ -7,10 +7,10 @@ easy to extend because every feature is a module. This guide explains how to get
 
 ## The one rule: pull requests go to `develop`
 
-| Branch    | What it is                                                                                      |
-| --------- | ----------------------------------------------------------------------------------------------- |
-| `develop` | Where all the work lands. It is the default branch: **open every pull request against it.**     |
-| `main`    | Released code only. The maintainer updates it by merging `develop` when a version is published. |
+| Branch    | What it is                                                                                         |
+| --------- | -------------------------------------------------------------------------------------------------- |
+| `develop` | Where all the work lands: **open every pull request against it.** GitHub may suggest `main` first. |
+| `main`    | Released code only. The maintainer updates it by merging `develop` when a version is published.    |
 
 If you open a pull request against `main` by mistake, a workflow ([`pr-target`](.github/workflows/pr-target.yml))
 moves it to `develop` for you and leaves a comment. Nothing is lost, but it is easier to start from `develop`.

@@ -6,7 +6,7 @@ hacer a mano y lo que hay que saber.
 
 ## Ramas
 
-- `develop` es la rama por defecto: ahí llega todo el trabajo y todos los pull requests apuntan a ella.
+- `develop` es donde llega todo el trabajo y a donde apuntan todos los pull requests.
   El workflow [`pr-target`](../.github/workflows/pr-target.yml) pasa a `develop` cualquier pull request que se abra
   contra `main` (salvo el de `develop` y los de ramas `hotfix/*` de este repositorio).
 - `main` solo tiene lo ya publicado. Se actualiza uniendo `develop` cuando se publica una versión.

@@ -10,10 +10,13 @@
 
 </div>
 
-> **Status:** early development (v0.1.0). The island already shows the weather, a clipboard history, the music
-> that is playing, a keep-the-screen-on control and a camera mirror, and it can draw an animated wallpaper behind your desktop icons; it transcribes the system audio on your computer (local Whisper) and answers questions with the AI
-> you choose (Claude, ChatGPT, Groq, Gemini, Ollama or Docker), with a context and history per session. Global shortcuts and a
-> tray icon are in. Packaging is not ready yet. See the [roadmap](#roadmap).
+> **Status:** early development, but you can already install it: v0.1.0 is out for macOS and Windows (see
+> [Download and install](#download-and-install)). The island shows the weather, the system status (battery on laptops,
+> CPU, memory and network), a clipboard history, the music that is playing, a keep-the-screen-on control and a camera
+> mirror, and it can draw an animated wallpaper behind your desktop icons; it transcribes the system audio on your
+> computer (local Whisper) and answers questions with the AI you choose (Claude, ChatGPT, Groq, Gemini, Ollama or
+> Docker), with a context and history per session. Global shortcuts and a tray icon are in. See the
+> [roadmap](#roadmap).
 
 ---
 
@@ -23,7 +26,7 @@ Orbit is a dynamic island for your desktop: a black pill at the top of the scree
 right when you need it, what matters. It is a platform built around modules: each module is a small plugin that takes
 over the island when it has something to show, and the island decides which one goes first.
 
-Today it comes with four modules:
+Today it comes with these modules:
 
 - **Prompter (AI):** designed for video calls (Meet, Zoom, Teams…). Orbit listens to what the other people say,
   transcribes it live, and when you press **Record audio** (or a shortcut) and then **Finish and answer**, it shows you
@@ -58,6 +61,7 @@ Around them there is a settings window, a tray icon and global keyboard shortcut
 | Clipboard     | History of the text and images you copy during the session, with copy again, delete one and clear all. Each text can be translated, summarized or explained by the AI you chose, and the result can be copied. It lives in memory only.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | Wallpaper     | Static images (JPG, PNG, WebP) and video wallpapers (MP4, MOV, WebM) drawn on every monitor behind the desktop icons, on macOS and Windows 10/11. Orbit creates the folder `Pictures/Orbit/Wallpapers`: drop your files there (or use Add files) and pick one in Settings → Wallpaper. Pause by hand. Videos play without sound until you turn it on, and only if the video has an audio track (Orbit checks it and shows a speaker icon on those); there is a volume slider, and when the same video is on several monitors it plays sound on one only. With more than one monitor you choose the same wallpaper on all of them or customize each one (file and sound). You also pick which sound output the computer uses (laptop speakers, headphones, a monitor…) in Settings → Audio or on the wallpaper page: it changes the system output, like the system settings do. The performance mode pauses each monitor by itself when any window is open on it, or only when a large or fullscreen one is, and resumes when it closes. Nothing in the system is changed: when Orbit quits, your normal wallpaper is back. |
 | Camera        | A square preview of your camera, as a mirror, and a photo button: the photo goes to the clipboard and, if you choose, to `Pictures/Orbit`. The camera is off until you turn it on and turns off by itself when you close the card, switch module or hide the island. Nothing is saved or sent unless you choose to.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Sound output  | In Settings → Audio (and next to the wallpaper sound) you see your sound outputs (speakers, headphones, a monitor…) and choose which one the computer uses. It changes the system's default output, the same one macOS and Windows show in their sound settings, so the wallpaper sound, the music and every other app follow it.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | Screen on     | Keeps the screen from turning off or dimming: for a time you pick (30 min to 12 h), on a daily schedule (for example 2 pm to 5 pm) or always, until you turn it off. It comes back on by itself after a restart and returns to normal if Orbit quits.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | UI            | Accessible primitives (`Button`, `IconButton`, `Toggle`, `Tab`, `Card`) with a global `cursor: pointer`. All icons come from [Lucide](https://lucide.dev); no emojis.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | Languages     | Spanish and English (`src/i18n/locales/`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
@@ -72,35 +76,37 @@ Around them there is a settings window, a tray icon and global keyboard shortcut
 
 ## Stack
 
-| Layer           | Technology                                                |
-| --------------- | --------------------------------------------------------- |
-| Desktop shell   | [Tauri 2](https://tauri.app) (Rust)                       |
-| Frontend        | React 19 + TypeScript + Vite (no meta-framework)          |
-| Animation       | [Motion](https://motion.dev) (`motion/react`)             |
-| Icons           | [Lucide](https://lucide.dev) (`lucide-react`)             |
-| State           | Zustand                                                   |
-| Styling         | Tailwind CSS 4 (utilities) + CSS variables                |
-| Tests           | Vitest + Testing Library (frontend) · `cargo test` (Rust) |
-| Transcription   | `whisper-rs` (whisper.cpp), local, no network             |
-| Local storage   | SQLite (`rusqlite`) for AI keys, config and sessions      |
-| Package manager | `pnpm`                                                    |
+| Layer           | Technology                                                                   |
+| --------------- | ---------------------------------------------------------------------------- |
+| Desktop shell   | [Tauri 2](https://tauri.app) (Rust)                                          |
+| Frontend        | React 19 + TypeScript + Vite (no meta-framework)                             |
+| Animation       | [Motion](https://motion.dev) (`motion/react`)                                |
+| Icons           | [Lucide](https://lucide.dev) (`lucide-react`)                                |
+| State           | Zustand                                                                      |
+| Styling         | Tailwind CSS 4 (utilities) + CSS variables                                   |
+| Tests           | Vitest + Testing Library (frontend) · `cargo test` (Rust)                    |
+| Transcription   | `whisper-rs` (whisper.cpp), local, no network                                |
+| Local storage   | SQLite (`rusqlite`) for AI keys, config and sessions                         |
+| System info     | `sysinfo` (CPU, memory, network); IOKit and `GetSystemPowerStatus` (battery) |
+| Package manager | `pnpm`                                                                       |
 
 **Platforms:** macOS 13+ (main development target) and Windows 10 2004+ / 11. Linux is out of scope.
 
 ## Getting started
 
-### Requirements
-
-- [Node.js](https://nodejs.org) (recent LTS) and [pnpm](https://pnpm.io)
-- Stable [Rust](https://rustup.rs)
-- The [Tauri 2 prerequisites](https://tauri.app/start/prerequisites/) for your system
-  (Xcode Command Line Tools on macOS; WebView2 and the C++ Build Tools on Windows)
-
 ### Download and install
 
-Orbit is free and is not signed with paid certificates (no Apple Developer account), so macOS and
-Windows warn before opening it the first time. Pick the way that suits you; all of them need a published
-release (see [`docs/RELEASING.md`](docs/RELEASING.md)).
+Get the installer for your system from the [latest release](https://github.com/cdramirez25/Orbit/releases/latest):
+
+| System                             | File                                                                                    |
+| ---------------------------------- | --------------------------------------------------------------------------------------- |
+| macOS, Apple Silicon (M1 or later) | `Orbit_<version>_aarch64.dmg`                                                           |
+| macOS, Intel                       | `Orbit_<version>_x64.dmg`                                                               |
+| Windows 10 / 11, installer         | `Orbit_<version>_x64-setup.exe` (no administrator rights needed) or `..._x64_en-US.msi` |
+| Windows, nothing to install        | `Orbit_<version>_x64-portable.zip` (just `Orbit.exe`)                                   |
+
+Orbit is free and is not signed with paid certificates (no Apple Developer account), so macOS and Windows warn before
+opening it the first time (the steps are below). You can also install it from a terminal:
 
 **macOS** (13 or later, Apple Silicon and Intel)
 
@@ -132,7 +138,28 @@ release (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 - Installer (`-setup.exe`) from the [releases page](https://github.com/cdramirez25/Orbit/releases): SmartScreen says
   "Windows protected your PC"; press "More info" and "Run anyway".
 
-### Install and run
+**After installing:** open Orbit. The first time, a guide walks you through the voice model, your AI and the shortcuts
+(see [First use](#first-use)). On macOS, grant **Screen Recording** if you want Orbit to hear the system audio, and
+**Camera** for the mirror.
+
+**Update:** run the install script again, or `brew upgrade --cask orbit` (after `brew update`), or
+`scoop update orbit`, or install the new file over the old one.
+
+**Verify a download** (optional): every release has a `SHA256SUMS.txt`. On macOS, `shasum -a 256 <file>`; on Windows,
+`Get-FileHash <file>` in PowerShell. The result must match the line for that file.
+
+### Run from source
+
+You only need this to work on Orbit itself.
+
+#### Requirements
+
+- [Node.js](https://nodejs.org) (recent LTS) and [pnpm](https://pnpm.io)
+- Stable [Rust](https://rustup.rs)
+- The [Tauri 2 prerequisites](https://tauri.app/start/prerequisites/) for your system
+  (Xcode Command Line Tools on macOS; WebView2 and the C++ Build Tools on Windows)
+
+#### Install and run
 
 ```bash
 pnpm install
@@ -181,13 +208,14 @@ system APIs or the UI.
  Input adapters                    Core                      Output adapters
  (Tauri commands, shortcuts, ──►  pipeline/ · modules/  ──►  (local Whisper, Claude, ChatGPT, Groq, Gemini,
   tray, events to the frontend)   only know traits           Ollama, Docker, ScreenCaptureKit, WASAPI,
-                                                             SQLite, JSON settings)
+                                                             CoreAudio, IOKit, sysinfo, SQLite,
+                                                             JSON settings)
 ```
 
 Key rules:
 
 - `pipeline/` and `modules/` depend **only on traits** (`AudioSource`, `SttEngine`, `LlmClient`, `ModelSource`,
-  `EventSink`, `WeatherProvider`, `ClipboardPort`).
+  `EventSink`, `WeatherProvider`, `ClipboardPort`, `OutputSwitch`, `SystemProbe`, `BatteryProbe`).
 - Concrete implementations are instantiated **only** in the _composition root_ (`lib.rs` + `app_state.rs`).
 - Adapters never know about each other. Switching provider or operating system means picking another adapter.
 - Tauri commands are thin: they validate, call the core and return. No business logic.
@@ -207,12 +235,42 @@ type, or, in a session with "answer by itself" on, from any phrase that looks li
 Spanish/English interrogative). The AI receives the session prompt and the history of that session (the oldest turns
 are dropped when it gets too long).
 
+### How a module is built
+
+Every module has a frontend half and, when it needs the computer, a backend half. The System module (battery, CPU,
+memory and network) shows the whole path:
+
+```
+Compact / Expanded (React)
+        │  read the store; they never call Rust
+        ▼
+system.store ── polls once a second while the card is on screen
+        │
+        ▼
+src/ipc/commands.ts ── get_system_stats (a thin Tauri command)
+        │
+        ▼
+SystemStatsService ── turns the counters into speeds; knows only traits
+   ├── SystemProbe   → sysinfo (CPU, memory, network)
+   ├── BatteryProbe  → IOKit (macOS) · GetSystemPowerStatus (Windows)
+   └── Clock         → monotonic clock
+```
+
+The frontend half is an `OrbitModule` (an id, an icon, a priority and its `Compact` and `Expanded` views) that
+registers itself in `src/windows/island/main.tsx`; the island decides which one is shown. The backend half is a port
+(a trait), a service with the logic and one adapter per operating system, chosen only in `lib.rs`. Tests use fake
+adapters, so they need no devices, no network and no real clock. To write your own, follow
+[Adding a module](CONTRIBUTING.md#adding-a-module).
+
 ### Repository structure
 
 ```
 Orbit/
 ├── CONTRIBUTING.md      # how to contribute: pull requests go to `develop`
 ├── .github/             # release workflow, pull request guard and template
+├── install.sh          # macOS install script (`curl | sh`)
+├── scripts/            # release helpers: they write the Homebrew cask and the Scoop manifest
+├── Casks/ · bucket/    # the Homebrew cask and the Scoop manifest (written by the release workflow)
 ├── docs/
 │   ├── README.es.md     # Spanish README
 │   ├── CONTRIBUTING.es.md # Spanish contributing guide
@@ -274,6 +332,8 @@ Orbit/
   your IP address; nothing else is sent. The location is not saved. Open-Meteo's free API is for non-commercial use
   and its data is licensed CC BY 4.0.
 - **Music:** the title, artist and cover of what is playing are read from the system and shown only in the island; they are never saved or logged.
+- **System:** the battery, CPU, memory and network speed are read from your computer only while the System card (or
+  its pill) is on screen; they are never saved, logged or sent anywhere.
 - **Clipboard history:** it only lives in memory and is gone when Orbit quits. Contents that password managers mark as
   concealed are never recorded, and nothing you copy is logged or sent anywhere. The only exception is a text you
   explicitly translate, summarize or explain: it goes to the AI provider you chose, like a question.
@@ -303,7 +363,7 @@ roadmap is organised by goals instead of by the original phases (the technical p
 | AI and Prompter             | Claude, ChatGPT, Groq, Gemini, Ollama and Docker; the model is chosen from the list each provider offers; sessions with their own prompt, history and AI; recorded or typed questions; markdown answers; keys in a local SQLite file                                                                                                                                           | Done        |
 | Everyday desktop experience | Done: settings window, tray icon, configurable global shortcuts, launch at login, guided first run, choose the voice model folder                                                                                                                                                                                                                                              | Done        |
 | Trust and quality           | Done: tests in every layer, Rust without warnings (`clippy`). Pending: runs with real Claude, ChatGPT, Ollama and Docker (so far only Groq answers and Gemini's list and error path were checked live), a real camera run in the packaged app, and everything on a real Windows machine                                                                                        | In progress |
-| Distribution                | `.dmg` and Windows installer published in GitHub Releases by a workflow, install script, `brew` (own tap) and Scoop, all free and without an Apple Developer account; `winget` and the first published release are pending                                                                                                                                                     | Planned     |
+| Distribution                | `.dmg` and Windows installer published in GitHub Releases by a workflow (v0.1.0 is out), install script, `brew` (own tap) and Scoop, all free and without an Apple Developer account. Pending: `winget`, and notarized and signed builds (they need paid accounts)                                                                                                             | In progress |
 | More modules and ecosystem  | A guide to write your own module (`docs/ARCHITECTURE.md`) and new modules on top of the registry. Ideas: meeting summary, live translation, alert when your name is said, timer and next-meeting countdown                                                                                                                                                                     | Planned     |
 
 Good to know: API keys are stored in SQLite instead of the system keychain, so they never trigger keychain prompts; the
@@ -313,6 +373,6 @@ Windows machine yet. The first time you turn the camera on, the system asks for 
 
 ## Contributing
 
-Contributions are welcome. **Every pull request goes to the `develop` branch** (the default one; `main` only holds
-released code). Read [`CONTRIBUTING.md`](CONTRIBUTING.md) for the workflow, the checks and the code rules
+Contributions are welcome. **Every pull request goes to the `develop` branch** (`main` only holds released code, and a pull request opened
+against it is moved to `develop` automatically). Read [`CONTRIBUTING.md`](CONTRIBUTING.md) for the workflow, the checks and the code rules
 ([versión en español](docs/CONTRIBUTING.es.md)).

@@ -9,7 +9,7 @@ ampliar porque cada función es un módulo. Esta guía explica cómo lograr que 
 
 | Rama      | Qué es                                                                                                                |
 | --------- | --------------------------------------------------------------------------------------------------------------------- |
-| `develop` | Donde llega todo el trabajo. Es la rama por defecto: **abre todos tus pull requests contra ella.**                    |
+| `develop` | Donde llega todo el trabajo: **abre todos tus pull requests contra ella.** GitHub puede proponerte `main` primero.    |
 | `main`    | Solo código ya publicado. La persona que mantiene el proyecto la actualiza uniendo `develop` al publicar una versión. |
 
 Si abres un pull request contra `main` por error, un workflow ([`pr-target`](../.github/workflows/pr-target.yml)) lo
