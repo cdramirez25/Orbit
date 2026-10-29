@@ -41,6 +41,7 @@ export type { ShortcutInfo, UiAction } from './shortcuts';
 export type { Session, SessionMessage, SessionsState, SessionUpdate } from './sessions';
 export type { IslandSettings } from './settings';
 export type { ModelEntry, ModelState, ModelStatus, SttLanguage, SttModel } from './stt';
+export type { Battery, BatteryState, SystemStats } from './system';
 export type {
   Units,
   WeatherCurrent,

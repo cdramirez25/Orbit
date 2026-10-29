@@ -20,6 +20,7 @@ mod settings;
 mod shortcuts;
 mod sound_output;
 mod stt;
+mod system_stats;
 mod tray;
 mod wallpaper;
 mod weather;
@@ -60,6 +61,9 @@ use crate::stt::model::{ModelService, ModelSpec};
 use crate::stt::model_source::HttpModelSource;
 use crate::stt::whisper_local::WhisperEngine;
 use crate::stt::SttEngine;
+use crate::system_stats::platform::SystemBattery;
+use crate::system_stats::sysinfo_probe::SysinfoProbe;
+use crate::system_stats::{MonotonicClock, SystemStatsService};
 use crate::wallpaper::surface::TauriSurface;
 use crate::wallpaper::WallpaperService;
 use crate::weather::ip_locator::IpLocator;
@@ -104,6 +108,7 @@ pub fn run() {
             commands::pipeline::stop_listening,
             commands::pipeline::is_listening,
             commands::weather::get_weather,
+            commands::system_stats::get_system_stats,
             commands::clipboard::get_clipboard_history,
             commands::clipboard::copy_clipboard_entry,
             commands::clipboard::delete_clipboard_entry,
@@ -303,6 +308,13 @@ pub fn run() {
             // Salida de sonido: la lista de dispositivos y el cambio de la salida del sistema.
             let sound_output = Arc::new(SoundOutputService::new(Box::new(SystemOutputSwitch)));
 
+            // Equipo: CPU, memoria y red con `sysinfo`, y la batería del sistema (solo en portátiles).
+            let system_stats = Arc::new(SystemStatsService::new(
+                Box::new(SysinfoProbe::new()),
+                Box::new(SystemBattery),
+                Box::new(MonotonicClock),
+            ));
+
             app.manage(AppState::new(
                 events,
                 Services {
@@ -320,6 +332,7 @@ pub fn run() {
                     awake,
                     wallpaper,
                     sound_output,
+                    system_stats,
                 },
                 settings.clone(),
                 settings_path,

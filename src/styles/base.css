@@ -10,6 +10,10 @@
   --ink-faint: rgba(255, 255, 255, 0.34);
   --accent: #17dae2; /* cian del icono oficial */
   --danger: #f87171;
+  /* Estados (siempre con icono y texto, nunca solo color) y la superficie de las tarjetas. */
+  --good: #0ca30c;
+  --warning: #fab219;
+  --tile: #0f0f0f;
 
   --font-ui:
     -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI Variable', 'Segoe UI', system-ui,

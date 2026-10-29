@@ -3,7 +3,7 @@ export { Card, type CardProps } from './Card';
 export { IconButton, type IconButtonProps } from './IconButton';
 export { Input, type InputProps } from './Input';
 export { NavItem, type NavItemProps } from './NavItem';
-export { ProgressBar, type ProgressBarProps } from './ProgressBar';
+export { ProgressBar, type ProgressBarProps, type ProgressTone } from './ProgressBar';
 export { Select, type SelectProps } from './Select';
 export { Tab, type TabProps } from './Tab';
 export { Textarea, type TextareaProps } from './Textarea';

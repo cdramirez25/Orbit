@@ -1,0 +1,33 @@
+name: pr-target
+
+# Todo el trabajo entra por `develop`. Si alguien abre un pull request contra `main` (que no sea el de
+# `develop` ni un `hotfix/*` de este mismo repositorio), se pasa a `develop` solo y se deja un aviso.
+# No se descarga ni se ejecuta código del pull request: solo se cambia su rama de destino.
+
+on:
+  pull_request_target:
+    types: [opened, reopened, edited]
+    branches: [main]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  retarget:
+    name: mover a develop
+    if: >-
+      !(github.event.pull_request.head.repo.full_name == github.repository &&
+        (github.event.pull_request.head.ref == 'develop' ||
+         startsWith(github.event.pull_request.head.ref, 'hotfix/')))
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      PR: ${{ github.event.pull_request.number }}
+      REPO: ${{ github.repository }}
+    steps:
+      - name: cambiar la rama de destino
+        run: gh pr edit "$PR" --base develop --repo "$REPO"
+
+      - name: avisar
+        run: |
+          gh pr comment "$PR" --repo "$REPO" --body "Pull requests go to \`develop\`, so this one was moved there automatically. See CONTRIBUTING.md. / Los pull requests van a \`develop\`, así que este se movió solo. Mira CONTRIBUTING.md."

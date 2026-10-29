@@ -14,6 +14,7 @@ pub mod sessions;
 pub mod settings_window;
 pub mod sound_output;
 pub mod stt;
+pub mod system_stats;
 pub mod wallpaper;
 pub mod weather;
 
@@ -50,6 +51,8 @@ pub enum CommandError {
     Wallpaper(#[from] crate::wallpaper::WallpaperError),
     #[error("error de la salida de sonido: {0}")]
     SoundOutput(#[from] crate::sound_output::SoundOutputError),
+    #[error("error del estado del equipo: {0}")]
+    SystemStats(#[from] crate::system_stats::SystemStatsError),
 }
 
 impl CommandError {
@@ -70,6 +73,7 @@ impl CommandError {
             Self::Camera(error) => error.code(),
             Self::Wallpaper(error) => error.code(),
             Self::SoundOutput(error) => error.code(),
+            Self::SystemStats(error) => error.code(),
         }
     }
 }

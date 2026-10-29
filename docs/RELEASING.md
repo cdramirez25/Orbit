@@ -4,11 +4,19 @@ Orbit se reparte gratis y sin cuenta de Apple Developer ni certificado de Window
 workflow [`.github/workflows/release.yml`](../.github/workflows/release.yml); aquí está lo que hay que
 hacer a mano y lo que hay que saber.
 
+## Ramas
+
+- `develop` es la rama por defecto: ahí llega todo el trabajo y todos los pull requests apuntan a ella.
+  El workflow [`pr-target`](../.github/workflows/pr-target.yml) pasa a `develop` cualquier pull request que se abra
+  contra `main` (salvo el de `develop` y los de ramas `hotfix/*` de este repositorio).
+- `main` solo tiene lo ya publicado. Se actualiza uniendo `develop` cuando se publica una versión.
+
 ## Publicar
 
-1. Sube la misma versión (`X.Y.Z`) a `package.json`, `src-tauri/tauri.conf.json` y `src-tauri/Cargo.toml`.
-2. Haz el commit y súbelo a `main`.
-3. Crea y sube la etiqueta:
+1. En `develop`, sube la misma versión (`X.Y.Z`) a `package.json`, `src-tauri/tauri.conf.json` y
+   `src-tauri/Cargo.toml`, y haz el commit.
+2. Une `develop` a `main` (un pull request de `develop` a `main`, o `git checkout main && git merge develop && git push`).
+3. Crea y sube la etiqueta desde `main`:
 
    ```bash
    git tag vX.Y.Z && git push origin vX.Y.Z
@@ -18,6 +26,9 @@ El workflow compila macOS (Apple Silicon e Intel) y Windows, sube los instalador
 como pre-lanzamiento y, si todo salió bien, calcula las huellas (`SHA256SUMS.txt`), actualiza el cask de
 Homebrew (`Casks/orbit.rb`) y el bucket de Scoop (`bucket/orbit.json`) en `main` y marca la versión
 como la última. Si un paso falla, la versión se queda como pre-lanzamiento y nadie la recibe.
+
+Al terminar, el workflow ha guardado dos archivos nuevos en `main` (el cask y el bucket). Trae esos cambios de
+vuelta a `develop` para que no se pierdan: `git checkout develop && git merge main && git push`.
 
 Para probar la compilación sin publicar nada: pestaña Actions, `release`, Run workflow. Los instaladores
 quedan como artefactos de esa ejecución.

@@ -17,6 +17,7 @@ use crate::settings::Settings;
 use crate::sound_output::SoundOutputService;
 use crate::stt::model::ModelService;
 use crate::stt::SttEngine;
+use crate::system_stats::SystemStatsService;
 use crate::wallpaper::WallpaperService;
 use crate::weather::WeatherService;
 
@@ -51,6 +52,8 @@ pub struct AppState {
     pub wallpaper: Arc<WallpaperService>,
     /// Las salidas de sonido del equipo (altavoces, audífonos…) y cuál usa el sistema.
     pub sound_output: Arc<SoundOutputService>,
+    /// CPU, memoria, red y batería del equipo (módulo Equipo de la isla).
+    pub system_stats: Arc<SystemStatsService>,
     settings: RwLock<Settings>,
     settings_path: PathBuf,
 }
@@ -71,6 +74,7 @@ pub struct Services {
     pub awake: Arc<KeepAwakeService>,
     pub wallpaper: Arc<WallpaperService>,
     pub sound_output: Arc<SoundOutputService>,
+    pub system_stats: Arc<SystemStatsService>,
 }
 
 impl AppState {
@@ -96,6 +100,7 @@ impl AppState {
             awake: services.awake,
             wallpaper: services.wallpaper,
             sound_output: services.sound_output,
+            system_stats: services.system_stats,
             settings: RwLock::new(settings),
             settings_path,
         }

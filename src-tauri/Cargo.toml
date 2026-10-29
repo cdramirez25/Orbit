@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Orbit — isla dinámica modular para macOS y Windows"
 authors = ["Orbit"]
 edition = "2021"
-rust-version = "1.85"
+rust-version = "1.88"
 publish = false
 
 [lib]
@@ -50,6 +50,8 @@ keepawake = "0.6"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 # Selector nativo de carpeta para elegir dónde se guarda el modelo de voz. MIT OR Apache-2.0.
 tauri-plugin-dialog = "2"
+# Uso de CPU, memoria y tráfico de red del equipo (módulo Equipo). MIT.
+sysinfo = { version = "0.38", default-features = false, features = ["system", "network"] }
 
 # Solo macOS: ventana convertida en NSPanel + detección del notch (window/platform/macos.rs) y
 # captura del audio del sistema con ScreenCaptureKit (audio/platform/macos_sck.rs). Whisper usa
@@ -72,7 +74,7 @@ core-foundation = "0.10" # MIT OR Apache-2.0
 wasapi = "0.26" # MIT
 # La macro `#[interface]` (IPolicyConfig, salida de sonido) genera código que nombra esta crate. MIT OR Apache-2.0.
 windows-core = "0.62"
-windows = { version = "0.62", features = ["Win32_System_DataExchange", "Win32_System_WinRT", "Media_Control", "Storage_Streams", "Win32_Foundation", "Win32_Graphics_Dwm", "Win32_Graphics_Gdi", "Win32_Media_Audio", "Win32_System_Com", "Win32_System_Threading", "Win32_UI_WindowsAndMessaging"] } # MIT OR Apache-2.0
+windows = { version = "0.62", features = ["Win32_System_DataExchange", "Win32_System_WinRT", "Media_Control", "Storage_Streams", "Win32_Foundation", "Win32_Graphics_Dwm", "Win32_Graphics_Gdi", "Win32_Media_Audio", "Win32_System_Com", "Win32_System_Power", "Win32_System_Threading", "Win32_UI_WindowsAndMessaging"] } # MIT OR Apache-2.0
 
 [lints.clippy]
 unwrap_used = "deny"

@@ -18,4 +18,19 @@ describe('ProgressBar', () => {
     rerender(<ProgressBar value={-3} label="x" />);
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '0');
   });
+
+  it('sin tono mantiene el relleno de acento sobre el fondo neutro', () => {
+    render(<ProgressBar value={50} label="x" />);
+    const bar = screen.getByRole('progressbar');
+    expect(bar).toHaveClass('bg-white/10');
+    expect(bar.firstElementChild).toHaveClass('bg-accent');
+  });
+
+  it('con tono, el relleno y el fondo son del mismo color', () => {
+    render(<ProgressBar value={50} label="x" tone="warning" />);
+    const bar = screen.getByRole('progressbar');
+    expect(bar).toHaveClass('bg-warning/20');
+    expect(bar.firstElementChild).toHaveClass('bg-warning');
+    expect(bar.firstElementChild).toHaveStyle({ width: '50%' });
+  });
 });

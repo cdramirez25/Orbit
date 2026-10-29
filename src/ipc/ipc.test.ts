@@ -445,3 +445,27 @@ describe('fondo de pantalla en el navegador (simulado)', () => {
     await expect(commands.wallpaperPlay()).resolves.toBeUndefined();
   });
 });
+
+describe('estado del equipo en el navegador (sin Tauri)', () => {
+  it('devuelve un equipo simulado con batería y valores que tienen sentido', async () => {
+    const stats = await commands.getSystemStats();
+
+    expect(stats.cpu.percent).toBeGreaterThanOrEqual(0);
+    expect(stats.cpu.percent).toBeLessThanOrEqual(100);
+    expect(stats.cpu.cores).toBeGreaterThan(0);
+    expect(stats.memory.used).toBeGreaterThan(0);
+    expect(stats.memory.used).toBeLessThanOrEqual(stats.memory.total);
+    expect(stats.network.downPerSec).toBeGreaterThanOrEqual(0);
+    expect(stats.network.upPerSec).toBeGreaterThanOrEqual(0);
+    expect(stats.battery?.state).toBe('discharging');
+  });
+
+  it('con ?desktop en la dirección simula un equipo sin batería', async () => {
+    window.history.pushState({}, '', '/island.html?desktop');
+    try {
+      expect((await commands.getSystemStats()).battery).toBeNull();
+    } finally {
+      window.history.pushState({}, '', '/');
+    }
+  });
+});

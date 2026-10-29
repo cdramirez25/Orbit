@@ -30,6 +30,7 @@ import type {
   SttLanguage,
   SoundOutputDevice,
   SttModel,
+  SystemStats,
   UiAction,
   WallpaperItem,
   WallpaperScreen,
@@ -253,6 +254,35 @@ const SAMPLE_WEATHER: Omit<WeatherReport, 'fetchedAtMs'> = {
   },
   today: { temperatureMax: 31, temperatureMin: 23.5, precipitationProbability: 20 },
 };
+
+/**
+ * En el navegador el equipo se simula con valores que se mueven poco a poco, los de un portátil
+ * (con `?desktop` en la dirección, uno de escritorio, sin batería).
+ */
+let browserSystem = { cpu: 18, down: 180_000, up: 40_000, battery: 82 };
+
+function simulatedSystemStats(): SystemStats {
+  const walk = (value: number, step: number, min: number, max: number) =>
+    Math.min(max, Math.max(min, value + (Math.random() - 0.5) * step));
+  browserSystem = {
+    cpu: walk(browserSystem.cpu, 30, 2, 98),
+    down: walk(browserSystem.down, 600_000, 0, 6_000_000),
+    up: walk(browserSystem.up, 120_000, 0, 900_000),
+    battery: browserSystem.battery,
+  };
+  const desktop = new URLSearchParams(window.location.search).has('desktop');
+  return {
+    cpu: { percent: browserSystem.cpu, cores: 10 },
+    memory: { used: 17.6 * 1024 ** 3, total: 24 * 1024 ** 3 },
+    network: {
+      downPerSec: Math.round(browserSystem.down),
+      upPerSec: Math.round(browserSystem.up),
+    },
+    battery: desktop
+      ? null
+      : { percent: browserSystem.battery, state: 'discharging', minutesLeft: 410 },
+  };
+}
 
 const SAMPLE_IMAGE =
   'data:image/svg+xml;utf8,' +
@@ -673,6 +703,10 @@ export const commands = {
     isTauri()
       ? invoke<WeatherReport>('get_weather', { force })
       : Promise.resolve({ ...SAMPLE_WEATHER, fetchedAtMs: Date.now() }),
+
+  /** CPU, memoria, red y (en un portátil) batería. La CPU y la red son lo ocurrido desde la última vez. */
+  getSystemStats: (): Promise<SystemStats> =>
+    isTauri() ? invoke<SystemStats>('get_system_stats') : Promise.resolve(simulatedSystemStats()),
 
   /** Historial del portapapeles de esta sesión, lo más reciente primero. */
   getClipboardHistory: (): Promise<ClipboardEntry[]> =>
