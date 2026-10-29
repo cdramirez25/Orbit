@@ -1,0 +1,31 @@
+{
+  "version": "0.1.0",
+  "description": "A modular dynamic island for macOS and Windows",
+  "homepage": "https://github.com/cdramirez25/Orbit",
+  "license": "Unknown",
+  "architecture": {
+    "64bit": {
+      "url": "https://github.com/cdramirez25/Orbit/releases/download/v0.1.0/Orbit_0.1.0_x64-portable.zip",
+      "hash": "ae6f0ce2fe8b04664370407154a50f0c99c8802ab48f2852454551cfd1ba4e91"
+    }
+  },
+  "shortcuts": [
+    [
+      "Orbit.exe",
+      "Orbit"
+    ]
+  ],
+  "checkver": {
+    "github": "https://github.com/cdramirez25/Orbit"
+  },
+  "autoupdate": {
+    "architecture": {
+      "64bit": {
+        "url": "https://github.com/cdramirez25/Orbit/releases/download/v${version}/Orbit_${version}_x64-portable.zip"
+      }
+    },
+    "hash": {
+      "url": "https://github.com/cdramirez25/Orbit/releases/download/v${version}/SHA256SUMS.txt"
+    }
+  }
+}
